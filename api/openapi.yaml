@@ -1,672 +1,806 @@
-# ⚠️ TEMPORARY HAND-WRITTEN DRAFT. The project is code-first (Huma, DESIGN D-8):
-# once internal/api handlers exist, this file becomes a GENERATED snapshot
-# (`huma openapi > api/openapi.yaml`, checked in CI) and must NOT be hand-edited.
-# Until then it serves as the agreed contract for the frontend and for shaping
-# the Go input/output types. Source of truth flips to the Go code at first commit
-# of the API layer.
-openapi: 3.1.0
-info:
-  title: VeilBridge Router Core API
-  version: 0.1.0
-  summary: REST/JSON contract between the Vue UI and the Go agent (veilbridged).
-  description: |
-    The **only** surface the frontend sees. No OS specifics leak through here —
-    no uci, no systemctl, no nft. Only domain concepts (node, route rule, status).
-
-    Auth: all paths except `POST /auth/login` require `Authorization: Bearer <jwt>`.
-    Errors use a single envelope `{ "error": { "code", "message" } }`.
-
-    See `CONTRIBUTING.md` §3 for the design rationale (D-3, D-4, D-5, D-6).
-  license:
-    name: MIT
-    url: https://github.com/veilbridge-os/veilbridge/blob/main/LICENSE
-servers:
-  - url: /api/v1
-    description: Agent base path (UI talks to same-origin embedded server).
-
-tags:
-  - name: auth
-    description: Local JWT authentication (single admin password, bcrypt in config).
-  - name: nodes
-    description: VPN exit nodes (NL/FI/DE…). FR-1, FR-2, FR-3.
-  - name: routes
-    description: Selective routing rules — domain/subnet → tunnel|direct. FR-5.
-  - name: system
-    description: Dashboard, path probing, diagnostics. FR-4, FR-7, FR-9.
-  - name: config
-    description: Backup / restore of the whole VeilBridge config. FR-8.
-
-security:
-  - bearerAuth: []
-
-paths:
-  /auth/login:
-    post:
-      tags: [auth]
-      summary: Exchange admin password for a JWT.
-      operationId: login
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        '200':
-          description: Authenticated.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /nodes:
-    get:
-      tags: [nodes]
-      summary: List nodes with their latest status (no secrets).
-      operationId: listNodes
-      responses:
-        '200':
-          description: Nodes and their last known status.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/NodeWithStatus'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /nodes/import:
-    post:
-      tags: [nodes]
-      summary: Import node(s) from an AmneziaWG .conf file or a subscription URL.
-      operationId: importNodes
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportRequest'
-      responses:
-        '201':
-          description: One or more nodes imported.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Node'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '502':
-          $ref: '#/components/responses/AdapterError'
-
-  /nodes/{id}:
-    parameters:
-      - $ref: '#/components/parameters/NodeId'
-    delete:
-      tags: [nodes]
-      summary: Remove a node.
-      operationId: removeNode
-      responses:
-        '204':
-          description: Removed.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /nodes/{id}/activate:
-    parameters:
-      - $ref: '#/components/parameters/NodeId'
-    post:
-      tags: [nodes]
-      summary: Switch the active exit to this node (FR-3).
-      description: |
-        Brings up this node's tunnel and makes it the current egress. The response
-        carries the fresh SystemInfo so the UI can confirm the egress IP/geo changed
-        — the acceptance criterion for node switching (DESIGN §7).
-      operationId: activateNode
-      responses:
-        '200':
-          description: Node activated; current system state returned.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SystemInfo'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '502':
-          $ref: '#/components/responses/AdapterError'
-
-  /nodes/{id}/status:
-    parameters:
-      - $ref: '#/components/parameters/NodeId'
-    get:
-      tags: [nodes]
-      summary: Fresh status for one node (handshake age = liveness source of truth, D-5).
-      operationId: nodeStatus
-      responses:
-        '200':
-          description: Node status.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NodeStatus'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /routes:
-    get:
-      tags: [routes]
-      summary: List routing rules.
-      operationId: listRoutes
-      responses:
-        '200':
-          description: Rules.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/RouteRule'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-    post:
-      tags: [routes]
-      summary: Add a routing rule (domain or subnet → tunnel|direct).
-      operationId: addRoute
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RouteRuleInput'
-      responses:
-        '201':
-          description: Rule created.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RouteRule'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /routes/{id}:
-    parameters:
-      - $ref: '#/components/parameters/RuleId'
-    put:
-      tags: [routes]
-      summary: Update a routing rule.
-      operationId: updateRoute
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RouteRuleInput'
-      responses:
-        '200':
-          description: Updated.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RouteRule'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags: [routes]
-      summary: Delete a routing rule.
-      operationId: deleteRoute
-      responses:
-        '204':
-          description: Deleted.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /routes/apply:
-    post:
-      tags: [routes]
-      summary: Apply the whole rule set to the OS via the adapter (generates nftables).
-      description: Idempotent. Declarative apply of the current rule set (D-4).
-      operationId: applyRoutes
-      responses:
-        '200':
-          description: Applied.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApplyResult'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '502':
-          $ref: '#/components/responses/AdapterError'
-
-  /system:
-    get:
-      tags: [system]
-      summary: System snapshot for the dashboard (FR-4).
-      operationId: getSystem
-      responses:
-        '200':
-          description: System info.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SystemInfo'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /system/probe:
-    post:
-      tags: [system]
-      summary: Probe whether traffic to a target goes via tunnel or direct (D-5, FR-7).
-      description: |
-        Does NOT trust HTTP status. Compares egress IP via the rule's path against the
-        node egress vs the direct WAN IP. The "curl 200 ≠ tunnel" lesson, encoded.
-      operationId: probePath
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProbeRequest'
-      responses:
-        '200':
-          description: Probe result.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PathProbe'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /system/diagnostics:
-    get:
-      tags: [system]
-      summary: Run ping/traceroute from the agent (FR-9, SHOULD).
-      operationId: diagnostics
-      parameters:
-        - name: target
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Host or IP to diagnose.
-      responses:
-        '200':
-          description: Raw diagnostic output.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DiagnosticsResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /config/export:
-    get:
-      tags: [config]
-      summary: Export the full VeilBridge config (includes secrets) for backup (FR-8).
-      operationId: exportConfig
-      responses:
-        '200':
-          description: Config document.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConfigDocument'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /config/import:
-    post:
-      tags: [config]
-      summary: Import a backup, validate, and apply (FR-8).
-      operationId: importConfig
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ConfigDocument'
-      responses:
-        '200':
-          description: Imported and applied.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApplyResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '502':
-          $ref: '#/components/responses/AdapterError'
-
+# GENERATED — do not edit by hand.
+# Produced from the Go handler types (code-first, Huma — DESIGN D-8) via:
+#   go run ./cmd/veilbridged -dump-openapi > api/openapi.yaml
+# CI regenerates this and fails on drift (git diff --exit-code).
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-  parameters:
-    NodeId:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: string
-      description: Stable node ID (derived from the peer public key).
-    RuleId:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: string
-
-  responses:
-    Unauthorized:
-      description: Missing or invalid JWT.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    BadRequest:
-      description: Validation failed (bad domain/CIDR, malformed config, …).
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    NotFound:
-      description: Resource not found.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    AdapterError:
-      description: The OS adapter / underlying system refused or failed.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-
   schemas:
-    ErrorEnvelope:
-      type: object
-      required: [error]
+    ApplyOutputBody:
+      additionalProperties: false
       properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-              description: Machine-readable code (e.g. "validation", "not_found", "adapter").
-            message:
-              type: string
-              description: Human-readable message (safe to show in UI).
-
-    LoginRequest:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ApplyOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        detail:
+          type: string
+        ok:
+          type: boolean
+      required:
+        - ok
       type: object
-      required: [password]
+    DiagnosticsOutputBody:
+      additionalProperties: false
       properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/DiagnosticsOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        output:
+          type: string
+        target:
+          type: string
+      required:
+        - target
+        - output
+      type: object
+    ErrorDetail:
+      additionalProperties: false
+      properties:
+        location:
+          description: Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'
+          type: string
+        message:
+          description: Error message text
+          type: string
+        value:
+          description: The value at the given location
+      type: object
+    ErrorModel:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ErrorModel.json
+          format: uri
+          readOnly: true
+          type: string
+        detail:
+          description: A human-readable explanation specific to this occurrence of the problem.
+          examples:
+            - Property foo is required but is missing.
+          type: string
+        errors:
+          description: Optional list of individual error details
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+          type:
+            - array
+            - "null"
+        instance:
+          description: A URI reference that identifies the specific occurrence of the problem.
+          examples:
+            - https://example.com/error-log/abc123
+          format: uri
+          type: string
+        status:
+          description: HTTP status code
+          examples:
+            - 400
+          format: int64
+          type: integer
+        title:
+          description: A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
+          examples:
+            - Bad Request
+          type: string
+        type:
+          default: about:blank
+          description: A URI reference to human-readable documentation for the error.
+          examples:
+            - https://example.com/errors/example
+          format: uri
+          type: string
+      type: object
+    ImportInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ImportInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        content:
+          description: Raw .conf content (kind=awg-config)
+          type: string
+        kind:
+          description: Import source kind
+          enum:
+            - awg-config
+            - subscription
+          type: string
+        url:
+          description: Subscription URL (kind=subscription)
+          type: string
+      required:
+        - kind
+      type: object
+    LoginInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/LoginInputBody.json
+          format: uri
+          readOnly: true
+          type: string
         password:
+          description: Admin password
           type: string
-          format: password
-
-    LoginResponse:
+      required:
+        - password
       type: object
-      required: [token, expiresAt]
+    LoginOutputBody:
+      additionalProperties: false
       properties:
-        token:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/LoginOutputBody.json
+          format: uri
+          readOnly: true
           type: string
-          description: JWT bearer token.
         expiresAt:
+          description: RFC3339 expiry
           type: string
-          format: date-time
-
-    EngineKind:
-      type: string
-      enum: [amneziawg, xray]
-      description: VPN engine. v0.1 = amneziawg only; xray (VLESS/REALITY) from v0.3.
-
-    Target:
-      type: string
-      enum: [tunnel, direct]
-
-    RuleKind:
-      type: string
-      enum: [domain, subnet]
-
-    Node:
+        token:
+          description: JWT bearer token
+          type: string
+      required:
+        - token
+        - expiresAt
       type: object
-      description: A VPN exit node. Secret params (keys) are NOT exposed here.
-      required: [id, name, engine, endpoint]
+    Node:
+      additionalProperties: false
       properties:
+        endpoint:
+          type: string
+        engine:
+          type: string
         id:
           type: string
         name:
           type: string
-          examples: [NetherlandsAWG]
-        engine:
-          $ref: '#/components/schemas/EngineKind'
-        endpoint:
-          type: string
-          description: host:port.
-          examples: ["203.0.113.10:443"]
-
-    NodeStatus:
+      required:
+        - id
+        - name
+        - engine
+        - endpoint
       type: object
-      required: [nodeId, active, handshakeAgeSec, rxBytes, txBytes]
+    NodeStatus:
+      additionalProperties: false
       properties:
-        nodeId:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/NodeStatus.json
+          format: uri
+          readOnly: true
           type: string
         active:
           type: boolean
-          description: True if this node is the current egress.
         handshakeAgeSec:
+          format: int64
           type: integer
-          description: Seconds since last handshake; -1 = never. Source of truth for liveness.
         lastError:
           type: string
+        nodeId:
+          type: string
         rxBytes:
-          type: integer
           format: int64
+          type: integer
         txBytes:
-          type: integer
           format: int64
-
-    NodeWithStatus:
+          type: integer
+      required:
+        - nodeId
+        - active
+        - handshakeAgeSec
+        - rxBytes
+        - txBytes
       type: object
-      required: [node]
+    NodeWithStatus:
+      additionalProperties: false
       properties:
         node:
-          $ref: '#/components/schemas/Node'
+          $ref: "#/components/schemas/Node"
         status:
-          $ref: '#/components/schemas/NodeStatus'
-
-    ImportRequest:
-      oneOf:
-        - $ref: '#/components/schemas/ImportConfigBody'
-        - $ref: '#/components/schemas/ImportSubscriptionBody'
-      discriminator:
-        propertyName: kind
-        mapping:
-          awg-config: '#/components/schemas/ImportConfigBody'
-          subscription: '#/components/schemas/ImportSubscriptionBody'
-
-    ImportConfigBody:
+          $ref: "#/components/schemas/NodeStatus"
+      required:
+        - node
       type: object
-      required: [kind, content]
+    PathProbe:
+      additionalProperties: false
       properties:
-        kind:
-          type: string
-          const: awg-config
-        content:
-          type: string
-          description: Raw AmneziaWG .conf file content.
-
-    ImportSubscriptionBody:
-      type: object
-      required: [kind, url]
-      properties:
-        kind:
-          type: string
-          const: subscription
-        url:
-          type: string
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/PathProbe.json
           format: uri
-
-    RouteRule:
+          readOnly: true
+          type: string
+        actualVia:
+          type: string
+        detail:
+          type: string
+        expectedVia:
+          type: string
+        ok:
+          type: boolean
+        target:
+          type: string
+      required:
+        - target
+        - expectedVia
+        - actualVia
+        - ok
       type: object
-      required: [id, kind, value, target]
+    ProbeInputBody:
+      additionalProperties: false
       properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ProbeInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        expectedVia:
+          description: Expected path
+          enum:
+            - tunnel
+            - direct
+          type: string
+        target:
+          description: Domain or IP to test
+          type: string
+      required:
+        - target
+        - expectedVia
+      type: object
+    RouteRule:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/RouteRule.json
+          format: uri
+          readOnly: true
+          type: string
         id:
           type: string
         kind:
-          $ref: '#/components/schemas/RuleKind'
-        value:
           type: string
-          description: Domain ("youtube.com") or CIDR ("128.116.0.0/17").
-        target:
-          $ref: '#/components/schemas/Target'
         note:
           type: string
-
-    RouteRuleInput:
+        target:
+          type: string
+        value:
+          type: string
+      required:
+        - id
+        - kind
+        - value
+        - target
       type: object
-      required: [kind, value, target]
+    RuleBody:
+      additionalProperties: false
       properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/RuleBody.json
+          format: uri
+          readOnly: true
+          type: string
         kind:
-          $ref: '#/components/schemas/RuleKind'
-        value:
+          description: Match kind
+          enum:
+            - domain
+            - subnet
+          type: string
+        note:
+          description: User comment
           type: string
         target:
-          $ref: '#/components/schemas/Target'
-        note:
+          description: Where to send it
+          enum:
+            - tunnel
+            - direct
           type: string
-
-    SystemInfo:
+        value:
+          description: Domain or CIDR
+          type: string
+      required:
+        - kind
+        - value
+        - target
       type: object
-      description: Dashboard snapshot. Maps to the Keenetic-style live tiles.
-      required: [platform, hostname, uptimeSec, cpuPercent, memUsed, memTotal, tunnelUp]
+    SystemInfo:
+      additionalProperties: false
       properties:
-        platform:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/SystemInfo.json
+          format: uri
+          readOnly: true
           type: string
-          enum: [openwrt, ubuntu]
-        hostname:
-          type: string
-        uptimeSec:
-          type: integer
-          format: int64
         cpuPercent:
-          type: number
           format: double
-        memUsed:
-          type: integer
-          format: int64
-        memTotal:
-          type: integer
-          format: int64
-        wanIP:
-          type: string
-          description: Direct egress (e.g. the RU ISP IP).
-        egressIP:
-          type: string
-          description: Actual egress through the active node.
+          type: number
         egressGeo:
           type: string
-          examples: ["NL / Amsterdam"]
+        egressIP:
+          type: string
+        hostname:
+          type: string
+        memTotal:
+          format: int64
+          type: integer
+        memUsed:
+          format: int64
+          type: integer
+        platform:
+          type: string
         tunnelUp:
           type: boolean
-          description: Whether traffic actually flows through the tunnel (verified, not assumed).
-
-    ProbeRequest:
+        uptimeSec:
+          format: int64
+          type: integer
+        wanIP:
+          type: string
+      required:
+        - platform
+        - hostname
+        - uptimeSec
+        - cpuPercent
+        - memUsed
+        - memTotal
+        - tunnelUp
       type: object
-      required: [target, expectedVia]
-      properties:
-        target:
-          type: string
-          description: Domain or IP to test.
-        expectedVia:
-          $ref: '#/components/schemas/Target'
-
-    PathProbe:
-      type: object
-      required: [target, expectedVia, actualVia, ok]
-      properties:
-        target:
-          type: string
-        expectedVia:
-          $ref: '#/components/schemas/Target'
-        actualVia:
-          $ref: '#/components/schemas/Target'
-        ok:
-          type: boolean
-          description: actualVia == expectedVia.
-        detail:
-          type: string
-          description: Egress IP, timing, method used.
-
-    DiagnosticsResult:
-      type: object
-      required: [target, output]
-      properties:
-        target:
-          type: string
-        output:
-          type: string
-          description: Raw ping/traceroute text.
-
-    ApplyResult:
-      type: object
-      required: [ok]
-      properties:
-        ok:
-          type: boolean
-        detail:
-          type: string
-
-    ConfigDocument:
-      type: object
-      description: Full VeilBridge config for backup/restore. INCLUDES secrets (node keys).
-      required: [version, nodes, routes]
-      properties:
-        version:
-          type: string
-          examples: ["0.1.0"]
-        nodes:
-          type: array
-          items:
-            type: object
-            description: Node plus its secret engine params (opaque to the UI).
-            additionalProperties: true
-        routes:
-          type: array
-          items:
-            $ref: '#/components/schemas/RouteRule'
-        settings:
-          type: object
-          additionalProperties: true
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+info:
+  title: VeilBridge Router Core API
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security: []
+      summary: Exchange admin password for a JWT
+      tags:
+        - auth
+  /config/export:
+    get:
+      operationId: exportConfig
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                description: Full VeilBridge config document (includes secrets)
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Export the full config (includes secrets)
+      tags:
+        - config
+  /config/import:
+    post:
+      operationId: importConfig
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Import and apply a backup
+      tags:
+        - config
+  /nodes:
+    get:
+      operationId: listNodes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/NodeWithStatus"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: List nodes with status
+      tags:
+        - nodes
+  /nodes/import:
+    post:
+      operationId: importNodes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportInputBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Node"
+                type:
+                  - array
+                  - "null"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Import node(s) from a .conf or subscription
+      tags:
+        - nodes
+  /nodes/{id}:
+    delete:
+      operationId: removeNode
+      parameters:
+        - description: Node ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Node ID
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Remove a node
+      tags:
+        - nodes
+  /nodes/{id}/activate:
+    post:
+      operationId: activateNode
+      parameters:
+        - description: Node ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Node ID
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Switch the active exit to this node
+      tags:
+        - nodes
+  /nodes/{id}/status:
+    get:
+      operationId: nodeStatus
+      parameters:
+        - description: Node ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Node ID
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeStatus"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Fresh status for one node
+      tags:
+        - nodes
+  /routes:
+    get:
+      operationId: listRoutes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/RouteRule"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: List routing rules
+      tags:
+        - routes
+    post:
+      operationId: addRoute
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuleBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RouteRule"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Add a routing rule
+      tags:
+        - routes
+  /routes/apply:
+    post:
+      operationId: applyRoutes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Apply the rule set to the OS
+      tags:
+        - routes
+  /routes/{id}:
+    delete:
+      operationId: deleteRoute
+      parameters:
+        - description: Node ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Node ID
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Delete a routing rule
+      tags:
+        - routes
+    put:
+      operationId: updateRoute
+      parameters:
+        - description: Rule ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule ID
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuleBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RouteRule"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Update a routing rule
+      tags:
+        - routes
+  /system:
+    get:
+      operationId: getSystem
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: System snapshot for the dashboard
+      tags:
+        - system
+  /system/diagnostics:
+    get:
+      operationId: diagnostics
+      parameters:
+        - description: Host or IP to diagnose
+          explode: false
+          in: query
+          name: target
+          schema:
+            description: Host or IP to diagnose
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticsOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: ping/traceroute from the agent
+      tags:
+        - system
+  /system/probe:
+    post:
+      operationId: probePath
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProbeInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PathProbe"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Probe whether traffic goes via tunnel or direct
+      tags:
+        - system
+servers:
+  - url: /api/v1

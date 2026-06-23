@@ -1,0 +1,400 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humago"
+
+	"github.com/veilbridge-os/veilbridge/internal/config"
+	"github.com/veilbridge-os/veilbridge/internal/core"
+)
+
+// Server wires the core managers (for operations) and the config store (for
+// auth + backup/restore) into a Huma API mounted on a net/http mux.
+type Server struct {
+	adapter core.Adapter
+	store   *config.Store
+	tokens  *tokenIssuer
+	api     huma.API
+	mux     *http.ServeMux
+}
+
+// Options controls API construction.
+type Options struct {
+	// Dev enables the live OpenAPI spec (/openapi.json) and Swagger UI (/docs).
+	// Off in production builds (D-9).
+	Dev bool
+}
+
+// New builds the Router Core API. The token signing key is derived from the
+// stored password hash; if no password is set yet, auth will reject everything
+// until one is configured.
+func New(adapter core.Adapter, store *config.Store, opts Options) (*Server, error) {
+	doc, err := store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := huma.DefaultConfig("VeilBridge Router Core API", "0.1.0")
+	// Declare the bearer (JWT) scheme so the generated spec documents auth and
+	// validators are satisfied. Protected operations reference it via authSecurity.
+	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"bearerAuth": {Type: "http", Scheme: "bearer", BearerFormat: "JWT"},
+	}
+	// D-9: dev-only spec/docs. Empty paths disable the built-in endpoints.
+	if !opts.Dev {
+		cfg.OpenAPIPath = ""
+		cfg.DocsPath = ""
+		cfg.SchemasPath = ""
+	}
+
+	mux := http.NewServeMux()
+	s := &Server{
+		adapter: adapter,
+		store:   store,
+		tokens:  newTokenIssuer(doc.Settings.PasswordHash),
+		api:     humago.NewWithPrefix(mux, "/api/v1", cfg),
+		mux:     mux,
+	}
+	s.register()
+	return s, nil
+}
+
+// Handler returns the http.Handler serving the API (mount the embedded UI on
+// the same mux in cmd/veilbridged).
+func (s *Server) Handler() http.Handler { return s.mux }
+
+// Mux exposes the underlying mux so the daemon can add the embedded UI routes.
+func (s *Server) Mux() *http.ServeMux { return s.mux }
+
+// OpenAPIYAML returns the generated OpenAPI 3.1 spec. This is the source of the
+// checked-in api/openapi.yaml snapshot (D-8) — regenerate and diff it in CI.
+func (s *Server) OpenAPIYAML() ([]byte, error) {
+	return s.api.OpenAPI().YAML()
+}
+
+// requireAuth is per-operation middleware enforcing a valid bearer token.
+func (s *Server) requireAuth(ctx huma.Context, next func(huma.Context)) {
+	auth := ctx.Header("Authorization")
+	raw := strings.TrimPrefix(auth, "Bearer ")
+	if raw == auth || !s.tokens.verify(raw) {
+		_ = huma.WriteErr(s.api, ctx, http.StatusUnauthorized, "missing or invalid token")
+		return
+	}
+	next(ctx)
+}
+
+func (s *Server) register() {
+	authed := huma.Middlewares{s.requireAuth}
+	// authSec marks an operation as requiring the bearer scheme in the spec.
+	authSec := []map[string][]string{{"bearerAuth": {}}}
+
+	// --- auth (open) ---
+	// Security: empty (non-nil) slice → `security: []` in the spec = explicitly
+	// no auth required (login is the one open endpoint).
+	huma.Register(s.api, huma.Operation{
+		OperationID: "login", Method: http.MethodPost, Path: "/auth/login",
+		Summary: "Exchange admin password for a JWT", Tags: []string{"auth"},
+		Security: []map[string][]string{},
+	}, s.login)
+
+	// --- nodes ---
+	huma.Register(s.api, huma.Operation{
+		OperationID: "listNodes", Method: http.MethodGet, Path: "/nodes",
+		Summary: "List nodes with status", Tags: []string{"nodes"}, Middlewares: authed, Security: authSec,
+	}, s.listNodes)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "importNodes", Method: http.MethodPost, Path: "/nodes/import",
+		Summary: "Import node(s) from a .conf or subscription", Tags: []string{"nodes"},
+		DefaultStatus: http.StatusCreated, Middlewares: authed, Security: authSec,
+	}, s.importNodes)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "removeNode", Method: http.MethodDelete, Path: "/nodes/{id}",
+		Summary: "Remove a node", Tags: []string{"nodes"},
+		DefaultStatus: http.StatusNoContent, Middlewares: authed, Security: authSec,
+	}, s.removeNode)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "activateNode", Method: http.MethodPost, Path: "/nodes/{id}/activate",
+		Summary: "Switch the active exit to this node", Tags: []string{"nodes"}, Middlewares: authed, Security: authSec,
+	}, s.activateNode)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "nodeStatus", Method: http.MethodGet, Path: "/nodes/{id}/status",
+		Summary: "Fresh status for one node", Tags: []string{"nodes"}, Middlewares: authed, Security: authSec,
+	}, s.nodeStatus)
+
+	// --- routes ---
+	huma.Register(s.api, huma.Operation{
+		OperationID: "listRoutes", Method: http.MethodGet, Path: "/routes",
+		Summary: "List routing rules", Tags: []string{"routes"}, Middlewares: authed, Security: authSec,
+	}, s.listRoutes)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "addRoute", Method: http.MethodPost, Path: "/routes",
+		Summary: "Add a routing rule", Tags: []string{"routes"},
+		DefaultStatus: http.StatusCreated, Middlewares: authed, Security: authSec,
+	}, s.addRoute)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "updateRoute", Method: http.MethodPut, Path: "/routes/{id}",
+		Summary: "Update a routing rule", Tags: []string{"routes"}, Middlewares: authed, Security: authSec,
+	}, s.updateRoute)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "deleteRoute", Method: http.MethodDelete, Path: "/routes/{id}",
+		Summary: "Delete a routing rule", Tags: []string{"routes"},
+		DefaultStatus: http.StatusNoContent, Middlewares: authed, Security: authSec,
+	}, s.deleteRoute)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "applyRoutes", Method: http.MethodPost, Path: "/routes/apply",
+		Summary: "Apply the rule set to the OS", Tags: []string{"routes"}, Middlewares: authed, Security: authSec,
+	}, s.applyRoutes)
+
+	// --- system ---
+	huma.Register(s.api, huma.Operation{
+		OperationID: "getSystem", Method: http.MethodGet, Path: "/system",
+		Summary: "System snapshot for the dashboard", Tags: []string{"system"}, Middlewares: authed, Security: authSec,
+	}, s.getSystem)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "probePath", Method: http.MethodPost, Path: "/system/probe",
+		Summary: "Probe whether traffic goes via tunnel or direct", Tags: []string{"system"}, Middlewares: authed, Security: authSec,
+	}, s.probePath)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "diagnostics", Method: http.MethodGet, Path: "/system/diagnostics",
+		Summary: "ping/traceroute from the agent", Tags: []string{"system"}, Middlewares: authed, Security: authSec,
+	}, s.diagnostics)
+
+	// --- config backup/restore ---
+	huma.Register(s.api, huma.Operation{
+		OperationID: "exportConfig", Method: http.MethodGet, Path: "/config/export",
+		Summary: "Export the full config (includes secrets)", Tags: []string{"config"}, Middlewares: authed, Security: authSec,
+	}, s.exportConfig)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "importConfig", Method: http.MethodPost, Path: "/config/import",
+		Summary: "Import and apply a backup", Tags: []string{"config"}, Middlewares: authed, Security: authSec,
+	}, s.importConfig)
+}
+
+// --- handlers ---
+
+func (s *Server) login(ctx context.Context, in *LoginInput) (*LoginOutput, error) {
+	doc, err := s.store.Load()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("load config", err)
+	}
+	if !doc.VerifyPassword(in.Body.Password) {
+		return nil, huma.Error401Unauthorized("invalid password")
+	}
+	// Re-derive the issuer in case the password changed since New.
+	s.tokens = newTokenIssuer(doc.Settings.PasswordHash)
+	tok, exp, err := s.tokens.issue()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("issue token", err)
+	}
+	out := &LoginOutput{}
+	out.Body.Token = tok
+	out.Body.ExpiresAt = exp.Format(time.RFC3339)
+	return out, nil
+}
+
+func (s *Server) listNodes(ctx context.Context, _ *struct{}) (*NodesOutput, error) {
+	nodes, err := s.adapter.VPN().ListNodes()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("list nodes", err)
+	}
+	out := &NodesOutput{Body: make([]core.NodeWithStatus, 0, len(nodes))}
+	for _, n := range nodes {
+		nw := core.NodeWithStatus{Node: n}
+		if st, err := s.adapter.VPN().Status(n.ID); err == nil {
+			nw.Status = &st
+		}
+		out.Body = append(out.Body, nw)
+	}
+	return out, nil
+}
+
+func (s *Server) importNodes(ctx context.Context, in *ImportInput) (*ImportOutput, error) {
+	var (
+		nodes []core.Node
+		err   error
+	)
+	switch in.Body.Kind {
+	case "awg-config":
+		nodes, err = s.adapter.VPN().ImportConfig([]byte(in.Body.Content))
+	case "subscription":
+		nodes, err = s.adapter.VPN().ImportSubscription(in.Body.URL)
+	default:
+		return nil, huma.Error400BadRequest("unknown import kind: " + in.Body.Kind)
+	}
+	if err != nil {
+		return nil, huma.Error400BadRequest("import failed", err)
+	}
+	return &ImportOutput{Body: nodes}, nil
+}
+
+func (s *Server) removeNode(ctx context.Context, in *NodeIDInput) (*struct{}, error) {
+	if err := s.adapter.VPN().RemoveNode(in.ID); err != nil {
+		return nil, huma.Error404NotFound("remove node", err)
+	}
+	return nil, nil
+}
+
+func (s *Server) activateNode(ctx context.Context, in *NodeIDInput) (*SystemOutput, error) {
+	if err := s.adapter.VPN().Activate(in.ID); err != nil {
+		return nil, huma.Error502BadGateway("activate node", err)
+	}
+	info, err := s.adapter.System().Info()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("system info", err)
+	}
+	return &SystemOutput{Body: info}, nil
+}
+
+func (s *Server) nodeStatus(ctx context.Context, in *NodeIDInput) (*NodeStatusOutput, error) {
+	st, err := s.adapter.VPN().Status(in.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("node status", err)
+	}
+	return &NodeStatusOutput{Body: st}, nil
+}
+
+func (s *Server) listRoutes(ctx context.Context, _ *struct{}) (*RoutesOutput, error) {
+	rules, err := s.adapter.Routing().ListRules()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("list routes", err)
+	}
+	return &RoutesOutput{Body: rules}, nil
+}
+
+func (s *Server) addRoute(ctx context.Context, in *RuleInput) (*RuleOutput, error) {
+	rules, err := s.adapter.Routing().ListRules()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("list routes", err)
+	}
+	rule := in.Body.toRule(newRuleID(rules))
+	if err := s.adapter.Routing().SetRules(append(rules, rule)); err != nil {
+		return nil, huma.Error400BadRequest("add route", err)
+	}
+	return &RuleOutput{Body: rule}, nil
+}
+
+func (s *Server) updateRoute(ctx context.Context, in *RuleIDInput) (*RuleOutput, error) {
+	rules, err := s.adapter.Routing().ListRules()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("list routes", err)
+	}
+	updated := in.Body.toRule(in.ID)
+	found := false
+	for i := range rules {
+		if rules[i].ID == in.ID {
+			rules[i] = updated
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, huma.Error404NotFound("rule not found: " + in.ID)
+	}
+	if err := s.adapter.Routing().SetRules(rules); err != nil {
+		return nil, huma.Error400BadRequest("update route", err)
+	}
+	return &RuleOutput{Body: updated}, nil
+}
+
+func (s *Server) deleteRoute(ctx context.Context, in *NodeIDInput) (*struct{}, error) {
+	rules, err := s.adapter.Routing().ListRules()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("list routes", err)
+	}
+	out := rules[:0]
+	found := false
+	for _, r := range rules {
+		if r.ID == in.ID {
+			found = true
+			continue
+		}
+		out = append(out, r)
+	}
+	if !found {
+		return nil, huma.Error404NotFound("rule not found: " + in.ID)
+	}
+	if err := s.adapter.Routing().SetRules(out); err != nil {
+		return nil, huma.Error500InternalServerError("delete route", err)
+	}
+	return nil, nil
+}
+
+func (s *Server) applyRoutes(ctx context.Context, _ *struct{}) (*ApplyOutput, error) {
+	out := &ApplyOutput{}
+	if err := s.adapter.Routing().Apply(); err != nil {
+		out.Body.OK = false
+		out.Body.Detail = err.Error()
+		return nil, huma.Error502BadGateway("apply routes", err)
+	}
+	out.Body.OK = true
+	return out, nil
+}
+
+func (s *Server) getSystem(ctx context.Context, _ *struct{}) (*SystemOutput, error) {
+	info, err := s.adapter.System().Info()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("system info", err)
+	}
+	return &SystemOutput{Body: info}, nil
+}
+
+func (s *Server) probePath(ctx context.Context, in *ProbeInput) (*ProbeOutput, error) {
+	probe, err := s.adapter.System().ProbePath(in.Body.Target, in.Body.ExpectedVia)
+	if err != nil {
+		return nil, huma.Error400BadRequest("probe", err)
+	}
+	return &ProbeOutput{Body: probe}, nil
+}
+
+func (s *Server) diagnostics(ctx context.Context, in *DiagnosticsInput) (*DiagnosticsOutput, error) {
+	out, err := s.adapter.System().Diagnostics(in.Target)
+	if err != nil {
+		return nil, huma.Error400BadRequest("diagnostics", err)
+	}
+	res := &DiagnosticsOutput{}
+	res.Body.Target = in.Target
+	res.Body.Output = out
+	return res, nil
+}
+
+func (s *Server) exportConfig(ctx context.Context, _ *struct{}) (*ConfigOutput, error) {
+	doc, err := s.store.Load()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("export config", err)
+	}
+	return &ConfigOutput{Body: doc}, nil
+}
+
+func (s *Server) importConfig(ctx context.Context, in *ConfigImportInput) (*ApplyOutput, error) {
+	var doc config.Document
+	if err := json.Unmarshal(in.RawBody, &doc); err != nil {
+		return nil, huma.Error400BadRequest("parse config", err)
+	}
+	if err := s.store.Save(&doc); err != nil {
+		return nil, huma.Error500InternalServerError("save config", err)
+	}
+	out := &ApplyOutput{}
+	out.Body.OK = true
+	return out, nil
+}
+
+// newRuleID returns a short unique rule ID not already used.
+func newRuleID(existing []core.RouteRule) string {
+	used := make(map[string]bool, len(existing))
+	for _, r := range existing {
+		used[r.ID] = true
+	}
+	for i := 1; ; i++ {
+		id := "rule-" + strconv.Itoa(i)
+		if !used[id] {
+			return id
+		}
+	}
+}

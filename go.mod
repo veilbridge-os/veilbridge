@@ -23,6 +23,8 @@ toolchain go1.26.4
 
 require (
 	github.com/amnezia-vpn/amneziawg-go v1.0.4
+	github.com/danielgtaylor/huma/v2 v2.38.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	golang.org/x/crypto v0.53.0
 	golang.org/x/net v0.55.0
 	gvisor.dev/gvisor v0.0.0-20260622202500-b859e3a10a38
