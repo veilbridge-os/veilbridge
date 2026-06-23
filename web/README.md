@@ -31,4 +31,21 @@ then `go build -tags ui`.
   (egress-comparing path check, D-5).
 
 Types in `src/api/schema.ts` are generated from `api/openapi.yaml` — the frontend
-never drifts from the backend contract (D-8).
+never drifts from the backend contract.
+
+## i18n
+
+Localized with vue-i18n. Two layers move under one selected locale:
+- **our strings** — `src/i18n/messages/*.ts` (vue-i18n);
+- **Element Plus components** — applied via `<el-config-provider :locale>` in App.vue.
+
+13 languages are offered (en, ru, de, fr, es, it, pt, pl, uk, tr, sv, da, fi) —
+the same set Keenetic's web UI exposes, and all of them exist in Element Plus.
+`en` and `ru` are fully translated; the rest fall back to `en` for our strings
+(Element Plus components are already localized for all 13). Add a language by
+filling in a `messages/<code>.ts` bundle.
+
+Type-safe: `t()` keys are checked against the English schema (`i18n/types.d.ts`),
+and every locale bundle must `satisfy` `MessageSchema` — a missing or misspelled
+key is a compile error, not a silent runtime fallback. The choice is persisted in
+localStorage and defaults to the browser language when supported.

@@ -3,6 +3,7 @@ import { createApp } from 'vue'
 import 'element-plus/dist/index.css'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { isAuthed } from '@/api/client'
+import { i18n } from '@/i18n'
 import Dashboard from '@/views/Dashboard.vue'
 import Login from '@/views/Login.vue'
 import Nodes from '@/views/Nodes.vue'
@@ -26,4 +27,4 @@ router.beforeEach((to) => {
   return true
 })
 
-createApp(App).use(router).use(ElementPlus).mount('#app')
+createApp(App).use(router).use(i18n).use(ElementPlus).mount('#app')

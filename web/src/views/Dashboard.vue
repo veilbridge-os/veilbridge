@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api, type SystemInfo } from '@/api/client'
 
 const router = useRouter()
+const { t } = useI18n()
 const info = ref<SystemInfo | null>(null)
 const error = ref('')
 let timer: number | undefined
@@ -34,7 +36,7 @@ function uptime(sec?: number): string {
 
 onMounted(() => {
   refresh()
-  // Live-ish dashboard: poll every 5s (WebSocket is roadmap, DESIGN §3).
+  // Live-ish dashboard: poll every 5s (WebSocket streaming is a later milestone).
   timer = window.setInterval(refresh, 5000)
 })
 onUnmounted(() => clearInterval(timer))
@@ -46,18 +48,18 @@ onUnmounted(() => clearInterval(timer))
     <!-- Egress through the active tunnel — the headline tile. Click → Nodes. -->
     <el-col :span="6">
       <el-card shadow="hover" class="vb-tile" @click="router.push('/nodes')">
-        <div class="vb-tile-label">Egress (tunnel)</div>
+        <div class="vb-tile-label">{{ t('dashboard.egressTunnel') }}</div>
         <div class="vb-tile-value">{{ info?.egressGeo || '—' }}</div>
-        <div class="vb-tile-sub">{{ info?.egressIP || 'no tunnel' }}</div>
+        <div class="vb-tile-sub">{{ info?.egressIP || t('dashboard.noTunnel') }}</div>
         <el-tag :type="info?.tunnelUp ? 'success' : 'info'" size="small">
-          {{ info?.tunnelUp ? 'Tunnel up' : 'Direct' }}
+          {{ info?.tunnelUp ? t('dashboard.tunnelUp') : t('dashboard.direct') }}
         </el-tag>
       </el-card>
     </el-col>
 
     <el-col :span="6">
       <el-card shadow="hover" class="vb-tile">
-        <div class="vb-tile-label">Direct WAN</div>
+        <div class="vb-tile-label">{{ t('dashboard.directWan') }}</div>
         <div class="vb-tile-value">{{ info?.wanIP || '—' }}</div>
         <div class="vb-tile-sub">{{ info?.platform }} · {{ info?.hostname }}</div>
       </el-card>
@@ -65,17 +67,17 @@ onUnmounted(() => clearInterval(timer))
 
     <el-col :span="6">
       <el-card shadow="hover" class="vb-tile">
-        <div class="vb-tile-label">CPU</div>
+        <div class="vb-tile-label">{{ t('dashboard.cpu') }}</div>
         <el-progress type="dashboard" :percentage="Math.round(info?.cpuPercent || 0)" :width="90" />
       </el-card>
     </el-col>
 
     <el-col :span="6">
       <el-card shadow="hover" class="vb-tile">
-        <div class="vb-tile-label">Memory</div>
+        <div class="vb-tile-label">{{ t('dashboard.memory') }}</div>
         <el-progress type="dashboard" :percentage="pct(info?.memUsed, info?.memTotal)" :width="90" />
         <div class="vb-tile-sub">{{ mib(info?.memUsed) }} / {{ mib(info?.memTotal) }}</div>
-        <div class="vb-tile-sub">up {{ uptime(info?.uptimeSec) }}</div>
+        <div class="vb-tile-sub">{{ t('dashboard.up') }} {{ uptime(info?.uptimeSec) }}</div>
       </el-card>
     </el-col>
   </el-row>
