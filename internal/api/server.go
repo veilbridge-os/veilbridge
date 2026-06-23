@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -63,7 +65,32 @@ func New(adapter core.Adapter, store *config.Store, opts Options) (*Server, erro
 		mux:     mux,
 	}
 	s.register()
+	s.mountUI()
 	return s, nil
+}
+
+// mountUI serves the embedded web assets at / when built with `-tags ui`.
+// Without that tag uiFS() is nil and only the API is served (dev uses Vite).
+func (s *Server) mountUI() {
+	files := uiFS()
+	if files == nil {
+		return
+	}
+	fileServer := http.FileServer(http.FS(files))
+	// Serve assets; fall back to index.html for unknown paths so the SPA's
+	// client-side (hash) router handles them.
+	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := fs.Stat(files, strings.TrimPrefix(r.URL.Path, "/")); err != nil && r.URL.Path != "/" {
+			r2 := new(http.Request)
+			*r2 = *r
+			r2.URL = new(url.URL)
+			*r2.URL = *r.URL
+			r2.URL.Path = "/"
+			fileServer.ServeHTTP(w, r2)
+			return
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 }
 
 // Handler returns the http.Handler serving the API (mount the embedded UI on
