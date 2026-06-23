@@ -15,3 +15,5 @@ toolchain go1.26.4
 // dev-only (DESIGN D-9). See internal/api.
 //
 //	github.com/danielgtaylor/huma/v2    v2.x
+
+require golang.org/x/crypto v0.53.0
