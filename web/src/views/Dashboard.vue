@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, type SystemInfo } from '../api/client'
+import { api, type SystemInfo } from '@/api/client'
 
 const router = useRouter()
 const info = ref<SystemInfo | null>(null)

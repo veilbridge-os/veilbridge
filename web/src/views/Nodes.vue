@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
-import { api, type NodeWithStatus } from '../api/client'
+import { api, type NodeWithStatus } from '@/api/client'
 
 const nodes = ref<NodeWithStatus[]>([])
 const loading = ref(false)

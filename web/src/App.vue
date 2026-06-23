@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { clearToken, isAuthed } from './api/client'
+import { clearToken, isAuthed } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()

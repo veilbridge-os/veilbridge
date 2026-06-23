@@ -1,6 +1,6 @@
 // Thin typed client over the Router Core API. Types come from schema.ts, which
-// is generated from api/openapi.yaml (the code-first snapshot, DESIGN D-8) — so
-// the frontend never drifts from the backend contract.
+// is generated from api/openapi.yaml — so the frontend never drifts from the
+// backend contract.
 import type { components } from './schema'
 
 export type Node = components['schemas']['Node']

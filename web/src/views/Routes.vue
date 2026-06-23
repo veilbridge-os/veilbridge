@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
 import { onMounted, ref } from 'vue'
-import { api, type RouteRule } from '../api/client'
+import { api, type RouteRule } from '@/api/client'
 
 const rules = ref<RouteRule[]>([])
 const loading = ref(false)
