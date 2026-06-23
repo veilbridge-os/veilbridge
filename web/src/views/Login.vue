@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { api } from '../api/client'
 
 const router = useRouter()

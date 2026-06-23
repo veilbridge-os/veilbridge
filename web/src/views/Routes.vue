@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { onMounted, ref } from 'vue'
 import { api, type RouteRule } from '../api/client'
 
 const rules = ref<RouteRule[]>([])
 const loading = ref(false)
 const addOpen = ref(false)
-const draft = ref<{ kind: 'domain' | 'subnet'; value: string; target: 'tunnel' | 'direct'; note: string }>({
+const draft = ref<{
+  kind: 'domain' | 'subnet'
+  value: string
+  target: 'tunnel' | 'direct'
+  note: string
+}>({
   kind: 'domain',
   value: '',
   target: 'tunnel',
@@ -61,7 +66,10 @@ async function probe(row: RouteRule) {
     const p = await api.probe(row.value, row.target as 'tunnel' | 'direct')
     const verdict = p.ok ? 'OK' : 'MISMATCH'
     const type = p.ok ? 'success' : 'warning'
-    ElMessage({ type, message: `${verdict}: expected ${p.expectedVia}, got ${p.actualVia}. ${p.detail || ''}` })
+    ElMessage({
+      type,
+      message: `${verdict}: expected ${p.expectedVia}, got ${p.actualVia}. ${p.detail || ''}`,
+    })
   } catch (e) {
     ElMessage.error('Probe failed: ' + (e as Error).message)
   }

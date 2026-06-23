@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { onMounted, ref } from 'vue'
 import { api, type NodeWithStatus } from '../api/client'
 
 const nodes = ref<NodeWithStatus[]>([])
@@ -43,7 +43,9 @@ async function activate(id: string) {
 }
 
 async function remove(id: string) {
-  await ElMessageBox.confirm('Remove this node?', 'Confirm', { type: 'warning' }).catch(() => 'cancel')
+  await ElMessageBox.confirm('Remove this node?', 'Confirm', { type: 'warning' }).catch(
+    () => 'cancel',
+  )
   try {
     await api.removeNode(id)
     refresh()

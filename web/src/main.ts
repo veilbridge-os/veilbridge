@@ -1,14 +1,14 @@
-import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
+import { createApp } from 'vue'
 import 'element-plus/dist/index.css'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import App from './App.vue'
-import Login from './views/Login.vue'
+import { isAuthed } from './api/client'
 import Dashboard from './views/Dashboard.vue'
+import Login from './views/Login.vue'
 import Nodes from './views/Nodes.vue'
 import Routes from './views/Routes.vue'
-import { isAuthed } from './api/client'
 
 const router = createRouter({
   history: createWebHashHistory(),
