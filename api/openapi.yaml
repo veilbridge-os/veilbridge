@@ -1,3 +1,9 @@
+# ⚠️ TEMPORARY HAND-WRITTEN DRAFT. The project is code-first (Huma, DESIGN D-8):
+# once internal/api handlers exist, this file becomes a GENERATED snapshot
+# (`huma openapi > api/openapi.yaml`, checked in CI) and must NOT be hand-edited.
+# Until then it serves as the agreed contract for the frontend and for shaping
+# the Go input/output types. Source of truth flips to the Go code at first commit
+# of the API layer.
 openapi: 3.1.0
 info:
   title: VeilBridge Router Core API
