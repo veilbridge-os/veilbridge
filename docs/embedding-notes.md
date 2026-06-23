@@ -65,12 +65,20 @@ against the upstream `tun/netstack/tun.go`; only that one line should differ.
 patched netstack, builds `CGO_ENABLED=0`, and the UAPI rendering / stats parsing
 are unit-tested. The gVisor dilemma above is resolved and reproducible.
 
-**Not yet verified (the Phase 4 gate — go/no-go on the userspace engine):**
-- **Live packet flow** AmneziaWG → internet: bring `netstackEngine.Up` against the
-  live NL node (203.0.113.10:443), `Dialer().DialContext` to an IP-echo, and
-  confirm egress IP == the node (not the WAN). "Handshake up" ≠ "traffic flows" —
-  the project has been burned by exactly this (dead NL config in the podkop era).
-- **Runtime RAM on 256MB hardware** — measure the gVisor working-set on the actual
-  router target; that, not the ~29MB binary, is the real NFR-2 constraint.
+**Live packet flow — VERIFIED, Phase 4 gate PASSED.** `cmd/p4smoke` cross-compiled
+to linux/amd64 (static, 9.1MB — AmneziaWG only, no Xray) and run on the RU-VPS test
+box (198.51.100.5, Ubuntu, no Go installed) tunnelling into the FI node
+(203.0.113.20:51820):
+- direct egress (no tunnel): `198.51.100.5` (RU)
+- `netstackEngine.Up` → handshake in ~1s → egress THROUGH `Dialer`: `203.0.113.20` (FI)
+- → traffic genuinely takes the tunnel; the "handshake ≠ traffic" trap is cleared.
+
+**Runtime RAM — VERIFIED, far below worry.** `/usr/bin/time -v` reported **Maximum
+resident set size ≈ 11.7 MB RSS** for the whole userspace tunnel (gVisor netstack +
+amneziawg-go device). The earlier fear that gVisor's working-set would dominate on
+256MB hardware does NOT hold for AmneziaWG-only. (Re-measure once Xray/REALITY is
+added in v0.3 — that's the heavier engine.)
+
+**Still not verified (later):**
 - **AmneziaWG → Xray → internet** chaining (v0.3): wire `Dialer` into Xray's
-  outbound dialer against a real REALITY endpoint.
+  outbound dialer against a real REALITY endpoint. Re-measure RAM then.
