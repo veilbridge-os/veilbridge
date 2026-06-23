@@ -160,13 +160,6 @@ func (m *vpnManager) Status(id string) (core.NodeStatus, error) {
 	return st, nil
 }
 
-// activeNodeID returns the ID of the running node (for the system manager).
-func (m *vpnManager) activeNodeID() string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.up
-}
-
 // activeDialer returns the active tunnel's dialer (nil if down or kernel engine).
 func (m *vpnManager) activeDialer() vpn.Dialer {
 	m.mu.Lock()

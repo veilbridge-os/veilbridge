@@ -43,8 +43,7 @@ func (m *systemManager) Info() (core.SystemInfo, error) {
 
 	// If a tunnel is active, report its egress + that traffic flows through it.
 	if d := m.vpn.activeDialer(); d != nil {
-		client := tunnelClient(d)
-		info.EgressIP = m.egress(client.Do)
+		info.EgressIP = m.egressVia(d)
 		info.TunnelUp = info.EgressIP != "" && info.EgressIP != info.WANIP
 	} else {
 		info.EgressIP = info.WANIP
@@ -67,7 +66,7 @@ func (m *systemManager) ProbePath(target string, expected core.Target) (core.Pat
 		probe.ActualVia = core.TargetDirect
 		probe.Detail = fmt.Sprintf("no active tunnel; egress=%s", direct)
 	default:
-		through := m.egress(tunnelClient(dialer).Do)
+		through := m.egressVia(dialer)
 		switch {
 		case through == "":
 			probe.ActualVia = core.TargetDirect
@@ -181,6 +180,15 @@ func egressIP(do func(*http.Request) (*http.Response, error)) string {
 		}
 	}
 	return ""
+}
+
+// egressVia resolves the public IP reached through dialer's tunnel, using a
+// throwaway client whose idle connections are closed afterwards so repeated
+// dashboard polls don't leak transports/goroutines.
+func (m *systemManager) egressVia(d vpn.Dialer) string {
+	client := tunnelClient(d)
+	defer client.CloseIdleConnections()
+	return m.egress(client.Do)
 }
 
 // tunnelClient builds an HTTP client whose connections dial through the tunnel.
