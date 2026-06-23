@@ -2,7 +2,7 @@ module github.com/veilbridge-os/veilbridge
 
 go 1.26
 
-toolchain go1.26.2
+toolchain go1.26.4
 
 // Pinned engine versions (the gVisor pin is the fragile joint between the two —
 // gate any bump behind a CI build). See docs/embedding-notes.md.
