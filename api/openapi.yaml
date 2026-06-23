@@ -1,0 +1,666 @@
+openapi: 3.1.0
+info:
+  title: VeilBridge Router Core API
+  version: 0.1.0
+  summary: REST/JSON contract between the Vue UI and the Go agent (veilbridged).
+  description: |
+    The **only** surface the frontend sees. No OS specifics leak through here —
+    no uci, no systemctl, no nft. Only domain concepts (node, route rule, status).
+
+    Auth: all paths except `POST /auth/login` require `Authorization: Bearer <jwt>`.
+    Errors use a single envelope `{ "error": { "code", "message" } }`.
+
+    See `CONTRIBUTING.md` §3 for the design rationale (D-3, D-4, D-5, D-6).
+  license:
+    name: MIT
+    url: https://github.com/veilbridge-os/veilbridge/blob/main/LICENSE
+servers:
+  - url: /api/v1
+    description: Agent base path (UI talks to same-origin embedded server).
+
+tags:
+  - name: auth
+    description: Local JWT authentication (single admin password, bcrypt in config).
+  - name: nodes
+    description: VPN exit nodes (NL/FI/DE…). FR-1, FR-2, FR-3.
+  - name: routes
+    description: Selective routing rules — domain/subnet → tunnel|direct. FR-5.
+  - name: system
+    description: Dashboard, path probing, diagnostics. FR-4, FR-7, FR-9.
+  - name: config
+    description: Backup / restore of the whole VeilBridge config. FR-8.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Exchange admin password for a JWT.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /nodes:
+    get:
+      tags: [nodes]
+      summary: List nodes with their latest status (no secrets).
+      operationId: listNodes
+      responses:
+        '200':
+          description: Nodes and their last known status.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NodeWithStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /nodes/import:
+    post:
+      tags: [nodes]
+      summary: Import node(s) from an AmneziaWG .conf file or a subscription URL.
+      operationId: importNodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRequest'
+      responses:
+        '201':
+          description: One or more nodes imported.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Node'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/AdapterError'
+
+  /nodes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    delete:
+      tags: [nodes]
+      summary: Remove a node.
+      operationId: removeNode
+      responses:
+        '204':
+          description: Removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /nodes/{id}/activate:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    post:
+      tags: [nodes]
+      summary: Switch the active exit to this node (FR-3).
+      description: |
+        Brings up this node's tunnel and makes it the current egress. The response
+        carries the fresh SystemInfo so the UI can confirm the egress IP/geo changed
+        — the acceptance criterion for node switching (DESIGN §7).
+      operationId: activateNode
+      responses:
+        '200':
+          description: Node activated; current system state returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/AdapterError'
+
+  /nodes/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      tags: [nodes]
+      summary: Fresh status for one node (handshake age = liveness source of truth, D-5).
+      operationId: nodeStatus
+      responses:
+        '200':
+          description: Node status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /routes:
+    get:
+      tags: [routes]
+      summary: List routing rules.
+      operationId: listRoutes
+      responses:
+        '200':
+          description: Rules.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RouteRule'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [routes]
+      summary: Add a routing rule (domain or subnet → tunnel|direct).
+      operationId: addRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRuleInput'
+      responses:
+        '201':
+          description: Rule created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /routes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RuleId'
+    put:
+      tags: [routes]
+      summary: Update a routing rule.
+      operationId: updateRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRuleInput'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [routes]
+      summary: Delete a routing rule.
+      operationId: deleteRoute
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /routes/apply:
+    post:
+      tags: [routes]
+      summary: Apply the whole rule set to the OS via the adapter (generates nftables).
+      description: Idempotent. Declarative apply of the current rule set (D-4).
+      operationId: applyRoutes
+      responses:
+        '200':
+          description: Applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/AdapterError'
+
+  /system:
+    get:
+      tags: [system]
+      summary: System snapshot for the dashboard (FR-4).
+      operationId: getSystem
+      responses:
+        '200':
+          description: System info.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /system/probe:
+    post:
+      tags: [system]
+      summary: Probe whether traffic to a target goes via tunnel or direct (D-5, FR-7).
+      description: |
+        Does NOT trust HTTP status. Compares egress IP via the rule's path against the
+        node egress vs the direct WAN IP. The "curl 200 ≠ tunnel" lesson, encoded.
+      operationId: probePath
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProbeRequest'
+      responses:
+        '200':
+          description: Probe result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathProbe'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /system/diagnostics:
+    get:
+      tags: [system]
+      summary: Run ping/traceroute from the agent (FR-9, SHOULD).
+      operationId: diagnostics
+      parameters:
+        - name: target
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Host or IP to diagnose.
+      responses:
+        '200':
+          description: Raw diagnostic output.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagnosticsResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /config/export:
+    get:
+      tags: [config]
+      summary: Export the full VeilBridge config (includes secrets) for backup (FR-8).
+      operationId: exportConfig
+      responses:
+        '200':
+          description: Config document.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /config/import:
+    post:
+      tags: [config]
+      summary: Import a backup, validate, and apply (FR-8).
+      operationId: importConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigDocument'
+      responses:
+        '200':
+          description: Imported and applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/AdapterError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    NodeId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable node ID (derived from the peer public key).
+    RuleId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    BadRequest:
+      description: Validation failed (bad domain/CIDR, malformed config, …).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    AdapterError:
+      description: The OS adapter / underlying system refused or failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Machine-readable code (e.g. "validation", "not_found", "adapter").
+            message:
+              type: string
+              description: Human-readable message (safe to show in UI).
+
+    LoginRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      required: [token, expiresAt]
+      properties:
+        token:
+          type: string
+          description: JWT bearer token.
+        expiresAt:
+          type: string
+          format: date-time
+
+    EngineKind:
+      type: string
+      enum: [amneziawg, xray]
+      description: VPN engine. v0.1 = amneziawg only; xray (VLESS/REALITY) from v0.3.
+
+    Target:
+      type: string
+      enum: [tunnel, direct]
+
+    RuleKind:
+      type: string
+      enum: [domain, subnet]
+
+    Node:
+      type: object
+      description: A VPN exit node. Secret params (keys) are NOT exposed here.
+      required: [id, name, engine, endpoint]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          examples: [NetherlandsAWG]
+        engine:
+          $ref: '#/components/schemas/EngineKind'
+        endpoint:
+          type: string
+          description: host:port.
+          examples: ["203.0.113.10:443"]
+
+    NodeStatus:
+      type: object
+      required: [nodeId, active, handshakeAgeSec, rxBytes, txBytes]
+      properties:
+        nodeId:
+          type: string
+        active:
+          type: boolean
+          description: True if this node is the current egress.
+        handshakeAgeSec:
+          type: integer
+          description: Seconds since last handshake; -1 = never. Source of truth for liveness.
+        lastError:
+          type: string
+        rxBytes:
+          type: integer
+          format: int64
+        txBytes:
+          type: integer
+          format: int64
+
+    NodeWithStatus:
+      type: object
+      required: [node]
+      properties:
+        node:
+          $ref: '#/components/schemas/Node'
+        status:
+          $ref: '#/components/schemas/NodeStatus'
+
+    ImportRequest:
+      oneOf:
+        - $ref: '#/components/schemas/ImportConfigBody'
+        - $ref: '#/components/schemas/ImportSubscriptionBody'
+      discriminator:
+        propertyName: kind
+        mapping:
+          awg-config: '#/components/schemas/ImportConfigBody'
+          subscription: '#/components/schemas/ImportSubscriptionBody'
+
+    ImportConfigBody:
+      type: object
+      required: [kind, content]
+      properties:
+        kind:
+          type: string
+          const: awg-config
+        content:
+          type: string
+          description: Raw AmneziaWG .conf file content.
+
+    ImportSubscriptionBody:
+      type: object
+      required: [kind, url]
+      properties:
+        kind:
+          type: string
+          const: subscription
+        url:
+          type: string
+          format: uri
+
+    RouteRule:
+      type: object
+      required: [id, kind, value, target]
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/RuleKind'
+        value:
+          type: string
+          description: Domain ("youtube.com") or CIDR ("128.116.0.0/17").
+        target:
+          $ref: '#/components/schemas/Target'
+        note:
+          type: string
+
+    RouteRuleInput:
+      type: object
+      required: [kind, value, target]
+      properties:
+        kind:
+          $ref: '#/components/schemas/RuleKind'
+        value:
+          type: string
+        target:
+          $ref: '#/components/schemas/Target'
+        note:
+          type: string
+
+    SystemInfo:
+      type: object
+      description: Dashboard snapshot. Maps to the Keenetic-style live tiles.
+      required: [platform, hostname, uptimeSec, cpuPercent, memUsed, memTotal, tunnelUp]
+      properties:
+        platform:
+          type: string
+          enum: [openwrt, ubuntu]
+        hostname:
+          type: string
+        uptimeSec:
+          type: integer
+          format: int64
+        cpuPercent:
+          type: number
+          format: double
+        memUsed:
+          type: integer
+          format: int64
+        memTotal:
+          type: integer
+          format: int64
+        wanIP:
+          type: string
+          description: Direct egress (e.g. the RU ISP IP).
+        egressIP:
+          type: string
+          description: Actual egress through the active node.
+        egressGeo:
+          type: string
+          examples: ["NL / Amsterdam"]
+        tunnelUp:
+          type: boolean
+          description: Whether traffic actually flows through the tunnel (verified, not assumed).
+
+    ProbeRequest:
+      type: object
+      required: [target, expectedVia]
+      properties:
+        target:
+          type: string
+          description: Domain or IP to test.
+        expectedVia:
+          $ref: '#/components/schemas/Target'
+
+    PathProbe:
+      type: object
+      required: [target, expectedVia, actualVia, ok]
+      properties:
+        target:
+          type: string
+        expectedVia:
+          $ref: '#/components/schemas/Target'
+        actualVia:
+          $ref: '#/components/schemas/Target'
+        ok:
+          type: boolean
+          description: actualVia == expectedVia.
+        detail:
+          type: string
+          description: Egress IP, timing, method used.
+
+    DiagnosticsResult:
+      type: object
+      required: [target, output]
+      properties:
+        target:
+          type: string
+        output:
+          type: string
+          description: Raw ping/traceroute text.
+
+    ApplyResult:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        detail:
+          type: string
+
+    ConfigDocument:
+      type: object
+      description: Full VeilBridge config for backup/restore. INCLUDES secrets (node keys).
+      required: [version, nodes, routes]
+      properties:
+        version:
+          type: string
+          examples: ["0.1.0"]
+        nodes:
+          type: array
+          items:
+            type: object
+            description: Node plus its secret engine params (opaque to the UI).
+            additionalProperties: true
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteRule'
+        settings:
+          type: object
+          additionalProperties: true

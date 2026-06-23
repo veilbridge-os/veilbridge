@@ -1,0 +1,33 @@
+# --- Secrets / local config (NEVER commit) ---
+*.env
+.env*
+*.key
+*.pem
+*.conf.local
+config.local.*
+secrets/
+*_secret*
+
+# --- Go ---
+/veilbridged
+/bin/
+*.exe
+*.test
+*.out
+vendor/
+
+# --- Vue / Node (web/) ---
+web/node_modules/
+web/dist/
+web/.vite/
+npm-debug.log*
+yarn-error.log
+
+# --- Editors / OS ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Build artifacts of embedded UI ---
+internal/api/dist/
