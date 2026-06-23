@@ -23,16 +23,31 @@ no `exec`. This was verified empirically (a combined binary was built and run).
 - License: MPL-2.0 is file-level copyleft. Importing (no modification) does **not**
   affect our MIT code. Only modified Xray `.go` files must stay MPL and be published.
 
-## The one required patch (gVisor version conflict)
+## The gVisor pin conflict — VERIFIED in Phase 3 (and the original note corrected)
 
-Both libraries import `gvisor.dev/gvisor` but pin different versions. Go's MVS picks
-Xray's newer pin (2026-01-22), which removed `PacketBuffer.IsNil()`. amneziawg-go's
-upstream `tun/netstack` still calls it, so a naive combined build fails to compile.
+This was empirically pinned down while building Phase 3. The real problem is a
+**two-horned dilemma**, and it bites at v0.1 already (no Xray needed):
 
-**Fix:** one line — `pkt.IsNil()` → `pkt == nil` — in a vendored copy of the
-netstack package. See [`internal/awgnetstack/`](../internal/awgnetstack/). The
-conflict touches **only** that file; amnezia's core/device/kernel-TUN packages
-build clean.
+- **amneziawg-go's own gVisor pin** (`~2025-06-06`): `PacketBuffer.IsNil()` still
+  exists ✅, BUT that gVisor snapshot's `pkg/tcpip/stack` dir mixes `bridge_test`
+  and `stack_test` package names — Go's loader refuses it, so even a plain
+  `go build` of `tun/netstack` (via the gonet adapter) fails. ❌
+- **The newer gVisor `go` branch** (`~2026-06`): the package-name inconsistency is
+  gone ✅, BUT `PacketBuffer.IsNil()` was removed, so amneziawg's upstream
+  `tun/netstack/tun.go:158` (`pkt.IsNil()`) no longer compiles. ❌
+
+> Correction: the earlier draft (from a research agent) claimed amnezia's netstack
+> "builds clean" and blamed only Xray's pin. Both points were wrong — the break is
+> real at v0.1, and it's a packaging quirk + a removed method, not just MVS.
+
+**Fix (verified to compile):** force the newer gVisor pin AND vendor amneziawg's
+`tun/netstack` as [`internal/awgnetstack/`](../internal/awgnetstack/) with one line
+changed — `pkt.IsNil()` → `pkt == nil`. The vendored file keeps the upstream MIT
+header and documents the single diff. amnezia's `conn`/`device` packages build
+clean against the newer gVisor; only `tun/netstack` needed the patch.
+
+Re-derive the patch on any amneziawg-go bump: diff `internal/awgnetstack/tun.go`
+against the upstream `tun/netstack/tun.go`; only that one line should differ.
 
 ## Build facts
 
@@ -43,10 +58,19 @@ build clean.
 - **Pin exact versions** in go.mod; gate dependency bumps behind a CI build, because
   the gVisor pin is the fragile joint between the two engines.
 
-## Not yet verified (follow-up before committing architecture)
+## Verified vs not (status after Phase 3)
 
-- **End-to-end packet flow** AmneziaWG → Xray → internet (no live REALITY server in
-  the test sandbox). Smoke test: wire `awgNet.DialContext` into Xray's outbound
-  dialer against a real REALITY endpoint.
-- **Runtime RAM footprint on 256MB hardware** — measure on the actual router target.
-  gVisor + Xray working-set is the real constraint, not the 29MB binary size.
+**Verified (Phase 3):** the combined build compiles — `netstackEngine`
+(`internal/vpn/amneziawg`) brings up a userspace AmneziaWG tunnel via the vendored
+patched netstack, builds `CGO_ENABLED=0`, and the UAPI rendering / stats parsing
+are unit-tested. The gVisor dilemma above is resolved and reproducible.
+
+**Not yet verified (the Phase 4 gate — go/no-go on the userspace engine):**
+- **Live packet flow** AmneziaWG → internet: bring `netstackEngine.Up` against the
+  live NL node (203.0.113.10:443), `Dialer().DialContext` to an IP-echo, and
+  confirm egress IP == the node (not the WAN). "Handshake up" ≠ "traffic flows" —
+  the project has been burned by exactly this (dead NL config in the podkop era).
+- **Runtime RAM on 256MB hardware** — measure the gVisor working-set on the actual
+  router target; that, not the ~29MB binary, is the real NFR-2 constraint.
+- **AmneziaWG → Xray → internet** chaining (v0.3): wire `Dialer` into Xray's
+  outbound dialer against a real REALITY endpoint.

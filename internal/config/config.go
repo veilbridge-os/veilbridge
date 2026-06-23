@@ -28,6 +28,8 @@ type NodeSecret struct {
 	DNS []string `json:"dns,omitempty"`
 	// AllowedIPs routed into the tunnel (e.g. "0.0.0.0/0").
 	AllowedIPs []string `json:"allowedIPs,omitempty"`
+	// PersistentKeepalive in seconds (0 = off).
+	PersistentKeepalive int `json:"persistentKeepalive,omitempty"`
 	// Obfuscation holds AmneziaWG params: jc, jmin, jmax, s1-s4, h1-h4.
 	// Kept as a map so the parser and engine pass them through opaquely.
 	Obfuscation map[string]string `json:"obfuscation,omitempty"`
