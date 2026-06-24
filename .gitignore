@@ -32,3 +32,4 @@ yarn-error.log
 
 # --- Build artifacts of embedded UI ---
 internal/api/dist/
+/.serena/
