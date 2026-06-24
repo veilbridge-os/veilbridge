@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,6 +41,11 @@ func (s *Store) Load() (*Document, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("config: read %s: %w", s.path, err)
+	}
+	// An empty or whitespace-only file is first run, not corruption: a truncated
+	// write or an external `touch` must not wedge the daemon (same as missing).
+	if len(bytes.TrimSpace(b)) == 0 {
+		return Default(), nil
 	}
 	var d Document
 	if err := json.Unmarshal(b, &d); err != nil {

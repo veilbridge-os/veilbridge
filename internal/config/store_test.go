@@ -28,6 +28,26 @@ func TestLoadMissingReturnsDefault(t *testing.T) {
 	}
 }
 
+// TestLoadEmptyReturnsDefault: an empty or whitespace-only file is treated as
+// first run, not corruption. A zero-byte config (e.g. a truncated write, or an
+// external `touch`) must not wedge the daemon — same outcome as a missing file.
+func TestLoadEmptyReturnsDefault(t *testing.T) {
+	for _, body := range []string{"", "   \n\t  "} {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.json")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatalf("write empty: %v", err)
+		}
+		d, err := config.NewStore(path).Load()
+		if err != nil {
+			t.Fatalf("load empty %q: %v", body, err)
+		}
+		if d.Version != config.Version || d.Settings.ListenAddr != ":8080" {
+			t.Errorf("empty file did not yield Default(): %+v", d.Settings)
+		}
+	}
+}
+
 func TestSaveLoadRoundTrip(t *testing.T) {
 	s := tmpStore(t)
 	in := config.Default()
