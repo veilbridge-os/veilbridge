@@ -22,17 +22,19 @@ import (
 // probes. It borrows the VPN manager to know the active node and its dialer.
 type systemManager struct {
 	vpn *vpnManager
+	// platform labels SystemInfo ("ubuntu" or "openwrt"); set by the adapter ctor.
+	platform string
 	// egress resolves the public IP reached via the given HTTP-do function.
 	// Overridable in tests so probes don't hit the real network.
 	egress func(do func(*http.Request) (*http.Response, error)) string
 }
 
 func newSystemManager(v *vpnManager) *systemManager {
-	return &systemManager{vpn: v, egress: egressIP}
+	return &systemManager{vpn: v, platform: "ubuntu", egress: egressIP}
 }
 
 func (m *systemManager) Info() (core.SystemInfo, error) {
-	info := core.SystemInfo{Platform: "ubuntu"}
+	info := core.SystemInfo{Platform: m.platform}
 	info.Hostname, _ = os.Hostname()
 	info.UptimeSec = readUptime()
 	info.MemUsed, info.MemTotal = readMem()

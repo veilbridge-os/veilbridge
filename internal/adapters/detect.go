@@ -6,6 +6,7 @@ package adapters
 import (
 	"os"
 
+	"github.com/veilbridge-os/veilbridge/internal/adapters/openwrt"
 	"github.com/veilbridge-os/veilbridge/internal/adapters/ubuntu"
 	"github.com/veilbridge-os/veilbridge/internal/core"
 )
@@ -28,17 +29,13 @@ func DetectPlatform() Platform {
 }
 
 // New constructs the adapter for the detected platform, backed by the config
-// store at configPath (config.DefaultPath if empty).
-//
-// OpenWrt's adapter (kernel engine) lands in Phase 8; until then OpenWrt hosts
-// fall through to the Ubuntu adapter, which is wrong for transparent forwarding
-// but lets the agent at least run. The detected platform is reported by
-// SystemManager.Info so the UI shows the truth.
+// store at configPath (config.DefaultPath if empty). OpenWrt gets the kernel
+// engine (transparent nft forwarding); everything else the userspace netstack
+// engine. The detected platform is reported by SystemManager.Info.
 func New(configPath string) (core.Adapter, error) {
 	switch DetectPlatform() {
 	case PlatformOpenWrt:
-		// TODO(Phase 8): return openwrt.New(configPath)
-		return ubuntu.New(configPath), nil
+		return openwrt.New(configPath), nil
 	default:
 		return ubuntu.New(configPath), nil
 	}

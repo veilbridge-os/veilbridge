@@ -6,34 +6,48 @@ import (
 
 	"github.com/veilbridge-os/veilbridge/internal/config"
 	"github.com/veilbridge-os/veilbridge/internal/core"
+	"github.com/veilbridge-os/veilbridge/internal/vpn"
 	"github.com/veilbridge-os/veilbridge/internal/vpn/amneziawg"
 )
 
-// Adapter is the Ubuntu/Debian implementation of core.Adapter. It wires the
-// userspace AmneziaWG engine, nftables routing, and /proc system info together,
-// all backed by one config store.
+// Adapter is the Ubuntu/Debian implementation of core.Adapter. It wires an
+// AmneziaWG engine, nftables routing, and /proc system info together, all backed
+// by one config store. The same wiring serves OpenWrt (Phase 8): only the engine
+// (kernel vs netstack) and the platform label differ, so OpenWrt reuses this via
+// NewWithEngine rather than duplicating three managers.
 type Adapter struct {
-	vpn     *vpnManager
-	routing *routingManager
-	system  *systemManager
-	network networkManager
-	device  deviceManager
+	vpn      *vpnManager
+	routing  *routingManager
+	system   *systemManager
+	network  networkManager
+	device   deviceManager
+	platform string
 }
 
 // New builds the Ubuntu adapter backed by the config store at the given path
 // (config.DefaultPath if empty). The active engine is the userspace netstack
-// engine (proven in Phase 4); the kernel engine is OpenWrt's adapter (Phase 8).
+// engine (proven in Phase 4); the kernel engine is OpenWrt's (Phase 8).
 func New(configPath string) *Adapter {
+	return NewWithEngine(configPath, amneziawg.NewNetstackEngine(), "ubuntu")
+}
+
+// NewWithEngine builds the adapter with an explicit engine and platform label.
+// It is the shared constructor: Ubuntu passes the netstack engine, OpenWrt the
+// kernel engine. Routing and system info are platform-agnostic (/proc + nft).
+func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapter {
 	store := config.NewStore(configPath)
-	v := newVPNManager(store, amneziawg.NewNetstackEngine())
+	v := newVPNManager(store, engine)
+	s := newSystemManager(v)
+	s.platform = platform
 	return &Adapter{
-		vpn:     v,
-		routing: newRoutingManager(store),
-		system:  newSystemManager(v),
+		vpn:      v,
+		routing:  newRoutingManager(store),
+		system:   s,
+		platform: platform,
 	}
 }
 
-func (*Adapter) Platform() string               { return "ubuntu" }
+func (a *Adapter) Platform() string             { return a.platform }
 func (a *Adapter) VPN() core.VPNManager         { return a.vpn }
 func (a *Adapter) Routing() core.RoutingManager { return a.routing }
 func (a *Adapter) System() core.SystemManager   { return a.system }
