@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -102,6 +103,15 @@ func main() {
 	}
 }
 
+// openAPIHeader is prepended to the dumped spec so the committed
+// api/openapi.yaml self-documents as generated. It must match the file's header
+// byte-for-byte, since CI diffs the two (see .github/workflows/ci.yml).
+const openAPIHeader = `# GENERATED — do not edit by hand.
+# Produced from the Go handler types (code-first, Huma — DESIGN D-8) via:
+#   go run ./cmd/veilbridged -dump-openapi > api/openapi.yaml
+# CI regenerates this and fails on drift (git diff --exit-code).
+`
+
 // dumpSpec prints the code-generated OpenAPI YAML to stdout. It uses a mock
 // adapter so the spec is platform-independent (it describes shapes, not state).
 func dumpSpec(store *config.Store) error {
@@ -111,6 +121,9 @@ func dumpSpec(store *config.Store) error {
 	}
 	spec, err := srv.OpenAPIYAML()
 	if err != nil {
+		return err
+	}
+	if _, err := io.WriteString(os.Stdout, openAPIHeader); err != nil {
 		return err
 	}
 	_, err = os.Stdout.Write(spec)
