@@ -1,6 +1,7 @@
 // Thin typed client over the Router Core API. Types come from schema.ts, which
 // is generated from api/openapi.yaml — so the frontend never drifts from the
 // backend contract.
+import { ref } from 'vue'
 import type { components } from './schema'
 
 export type Node = components['schemas']['Node']
@@ -13,17 +14,24 @@ export type PathProbe = components['schemas']['PathProbe']
 const TOKEN_KEY = 'veilbridge.token'
 const BASE = '/api/v1'
 
+// Reactive mirror of the persisted token so Vue computed/watch (e.g. the nav
+// bar's showNav) react to login/logout immediately, not just on reload —
+// localStorage alone is not reactive.
+const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
+
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  return token.value
 }
 function setToken(t: string) {
+  token.value = t
   localStorage.setItem(TOKEN_KEY, t)
 }
 export function clearToken() {
+  token.value = null
   localStorage.removeItem(TOKEN_KEY)
 }
 export function isAuthed(): boolean {
-  return !!getToken()
+  return !!token.value
 }
 
 export class ApiError extends Error {

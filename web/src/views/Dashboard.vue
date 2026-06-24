@@ -49,8 +49,10 @@ onUnmounted(() => clearInterval(timer))
     <el-col :span="6">
       <el-card shadow="hover" class="vb-tile" @click="router.push('/nodes')">
         <div class="vb-tile-label">{{ t('dashboard.egressTunnel') }}</div>
-        <div class="vb-tile-value">{{ info?.egressGeo || '—' }}</div>
-        <div class="vb-tile-sub">{{ info?.egressIP || t('dashboard.noTunnel') }}</div>
+        <!-- Headline is the egress IP. egressGeo is a later milestone (backend
+             leaves it empty for now); when present it shows as the subtitle. -->
+        <div class="vb-tile-value">{{ info?.tunnelUp ? info?.egressIP : '—' }}</div>
+        <div class="vb-tile-sub">{{ info?.egressGeo || (info?.tunnelUp ? '' : t('dashboard.noTunnel')) }}</div>
         <el-tag :type="info?.tunnelUp ? 'success' : 'info'" size="small">
           {{ info?.tunnelUp ? t('dashboard.tunnelUp') : t('dashboard.direct') }}
         </el-tag>
