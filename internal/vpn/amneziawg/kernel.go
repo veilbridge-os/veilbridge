@@ -144,6 +144,19 @@ func (e *kernelEngine) Dialer() (vpn.Dialer, error) {
 	return nil, nil
 }
 
+// TunName reports the kernel TUN interface name while the tunnel is up ("" when
+// down). The system manager uses it to verify egress for kernel engines, where
+// there is no Dialer to probe through — it binds a socket to this interface
+// instead. Satisfies vpn.InterfaceEngine.
+func (e *kernelEngine) TunName() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.dev == nil {
+		return ""
+	}
+	return e.name
+}
+
 // ipCmd runs `ip <args...>`, surfacing the command output on failure.
 func ipCmd(args ...string) error {
 	out, err := exec.Command("ip", args...).CombinedOutput()

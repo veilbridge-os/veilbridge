@@ -44,9 +44,17 @@ func (m *systemManager) Info() (core.SystemInfo, error) {
 	info.WANIP = m.egress(http.DefaultClient.Do)
 
 	// If a tunnel is active, report its egress + that traffic flows through it.
-	if d := m.vpn.activeDialer(); d != nil {
+	// Userspace engines expose a Dialer; kernel engines (OpenWrt) a TUN interface.
+	switch d := m.vpn.activeDialer(); {
+	case d != nil:
 		info.EgressIP = m.egressVia(d)
-		info.TunnelUp = info.EgressIP != "" && info.EgressIP != info.WANIP
+	default:
+		if tun := m.vpn.activeTunName(); tun != "" {
+			info.EgressIP = m.egressViaInterface(tun)
+		}
+	}
+	if info.EgressIP != "" {
+		info.TunnelUp = info.EgressIP != info.WANIP
 	} else {
 		info.EgressIP = info.WANIP
 	}
@@ -60,26 +68,33 @@ func (m *systemManager) ProbePath(target string, expected core.Target) (core.Pat
 	probe := core.PathProbe{Target: target, ExpectedVia: expected}
 
 	direct := m.egress(http.DefaultClient.Do)
+
+	// Resolve the tunnel egress regardless of engine type: userspace engines via
+	// their Dialer, kernel engines (OpenWrt) by binding to the tunnel interface.
 	dialer := m.vpn.activeDialer()
+	tun := m.vpn.activeTunName()
+	var through string
+	switch {
+	case dialer != nil:
+		through = m.egressVia(dialer)
+	case tun != "":
+		through = m.egressViaInterface(tun)
+	}
 
 	switch {
-	case dialer == nil:
+	case dialer == nil && tun == "":
 		// No tunnel up: everything goes direct.
 		probe.ActualVia = core.TargetDirect
 		probe.Detail = fmt.Sprintf("no active tunnel; egress=%s", direct)
+	case through == "":
+		probe.ActualVia = core.TargetDirect
+		probe.Detail = "tunnel up but no traffic flowed through it"
+	case through != direct:
+		probe.ActualVia = core.TargetTunnel
+		probe.Detail = fmt.Sprintf("tunnel egress=%s (direct=%s)", through, direct)
 	default:
-		through := m.egressVia(dialer)
-		switch {
-		case through == "":
-			probe.ActualVia = core.TargetDirect
-			probe.Detail = "tunnel up but no traffic flowed through it"
-		case through != direct:
-			probe.ActualVia = core.TargetTunnel
-			probe.Detail = fmt.Sprintf("tunnel egress=%s (direct=%s)", through, direct)
-		default:
-			probe.ActualVia = core.TargetDirect
-			probe.Detail = fmt.Sprintf("tunnel egress == direct (%s)", direct)
-		}
+		probe.ActualVia = core.TargetDirect
+		probe.Detail = fmt.Sprintf("tunnel egress == direct (%s)", direct)
 	}
 	probe.OK = probe.ActualVia == expected
 	return probe, nil
@@ -203,6 +218,25 @@ func tunnelClient(d vpn.Dialer) *http.Client {
 			},
 		},
 	}
+}
+
+// egressViaInterface resolves the public IP reached by binding outbound sockets
+// to the named OS interface (the kernel-engine equivalent of egressVia: kernel
+// tunnels have no Dialer, so we pin egress to awg0 instead). Returns "" if the
+// interface can't be bound or no IP comes back.
+func (m *systemManager) egressViaInterface(ifname string) string {
+	dialer := &net.Dialer{
+		Timeout: 15 * time.Second,
+		Control: bindToDevice(ifname),
+	}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			DialContext: dialer.DialContext,
+		},
+	}
+	defer client.CloseIdleConnections()
+	return m.egress(client.Do)
 }
 
 // validHost rejects shell-dangerous input for the ping exec (host or IP only).

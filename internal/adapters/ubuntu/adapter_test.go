@@ -34,6 +34,24 @@ func (f *fakeEngine) Stats() (vpn.Stats, error) {
 }
 func (f *fakeEngine) Dialer() (vpn.Dialer, error) { return f.dialer, nil }
 
+// fakeKernelEngine mimics a kernel engine: no Dialer, but a TUN interface name
+// while up (satisfies vpn.InterfaceEngine). Lets us test the OpenWrt probe path
+// — egress verified by interface, not Dialer — without root or a real tunnel.
+type fakeKernelEngine struct{ up bool }
+
+func (f *fakeKernelEngine) Up(vpn.NodeConfig) error { f.up = true; return nil }
+func (f *fakeKernelEngine) Down() error             { f.up = false; return nil }
+func (f *fakeKernelEngine) Stats() (vpn.Stats, error) {
+	return vpn.Stats{HandshakeAgeSec: 1, RxBytes: 10, TxBytes: 20}, nil
+}
+func (f *fakeKernelEngine) Dialer() (vpn.Dialer, error) { return nil, nil }
+func (f *fakeKernelEngine) TunName() string {
+	if !f.up {
+		return ""
+	}
+	return "awg0"
+}
+
 // stubDialer is a non-nil vpn.Dialer; it never actually dials (the egress func
 // is stubbed in tests, so DialContext is never called).
 type stubDialer struct{}
@@ -184,6 +202,33 @@ func TestProbePathThroughTunnel(t *testing.T) {
 	}
 	if probe.ActualVia != core.TargetTunnel || !probe.OK {
 		t.Errorf("tunnel probe wrong: %+v", probe)
+	}
+}
+
+// TestProbePathKernelTunnel: the OpenWrt path — a kernel engine has no Dialer,
+// so the probe must verify egress via the TUN interface and still report tunnel.
+func TestProbePathKernelTunnel(t *testing.T) {
+	eng := &fakeKernelEngine{}
+	m, _ := newTestVPN(t, eng)
+	nodes, _ := m.ImportConfig([]byte(sampleConf))
+	if err := m.Activate(nodes[0].ID); err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+	sys := newSystemManager(m)
+	calls := 0
+	sys.egress = func(func(*http.Request) (*http.Response, error)) string {
+		calls++
+		if calls == 1 {
+			return "198.51.100.1" // direct WAN
+		}
+		return "203.0.113.20" // via awg0
+	}
+	probe, err := sys.ProbePath("youtube.com", core.TargetTunnel)
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if probe.ActualVia != core.TargetTunnel || !probe.OK {
+		t.Errorf("kernel tunnel probe wrong: %+v", probe)
 	}
 }
 

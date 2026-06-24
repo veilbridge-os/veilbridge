@@ -173,3 +173,20 @@ func (m *vpnManager) activeDialer() vpn.Dialer {
 	}
 	return d
 }
+
+// activeTunName returns the OS interface name of the active kernel tunnel, or ""
+// when down, when the userspace engine is in use (it has a Dialer instead), or
+// when no node is active. Lets the system manager verify egress on OpenWrt where
+// there is no Dialer to probe through.
+func (m *vpnManager) activeTunName() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.up == "" {
+		return ""
+	}
+	ie, ok := m.engine.(vpn.InterfaceEngine)
+	if !ok {
+		return ""
+	}
+	return ie.TunName()
+}

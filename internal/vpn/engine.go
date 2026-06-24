@@ -66,3 +66,11 @@ type Engine interface {
 	// kernel engines where forwarding is transparent.
 	Dialer() (Dialer, error)
 }
+
+// InterfaceEngine is an optional Engine capability: a kernel engine exposes the
+// OS interface name of its tunnel so callers can verify egress by binding to it
+// (kernel engines have no Dialer). Userspace engines do not implement this; the
+// system manager type-asserts for it. "" means the tunnel is down.
+type InterfaceEngine interface {
+	TunName() string
+}
