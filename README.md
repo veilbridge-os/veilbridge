@@ -10,27 +10,34 @@ and exposes a clean web UI (Vue + Element Plus) on top of a platform-agnostic AP
 The UI never talks to `uci`, `systemd`, or `nftables` directly — all OS specifics
 live behind **adapters**, so the same binary works across platforms.
 
+![VeilBridge dashboard](docs/img/dashboard.png)
+
 ## Status
 
-🚧 **Early development.** Targeting an `v0.1` MVP. Not production-ready yet.
+🧪 **v0.1 MVP — feature-complete, in testing.** The core value path works end to
+end and has been verified on real hardware on **both** platforms: the *same*
+binary brings a tunnel up via the userspace engine on Ubuntu and via the kernel
+engine on OpenWrt, and the dashboard confirms traffic egresses through it. Not
+yet tagged as a release — see the [roadmap](#roadmap) for what's next.
 
-## Features (planned MVP — v0.1)
+## Features (v0.1)
 
-- **Import VPN configs** — AmneziaWG config files and subscriptions
-- **Exit node list** — see your gateways with handshake status and throughput
-- **One-click exit switch** — change the active exit node from the dashboard
-- **Dashboard** — WAN IP, current exit geo, tunnel status, CPU / RAM / uptime
-- **Routing control** — manage which domains/subnets go through the tunnel vs direct
-- **Path-aware checks** — verify traffic actually flows through the tunnel (not just `200 OK`)
+- **Import VPN configs** — AmneziaWG config files (obfuscation params included)
+- **Exit node list** — your gateways with live handshake status
+- **One-click exit switch** — change the active exit node from the UI
+- **Dashboard** — WAN IP, tunnel egress IP, tunnel status, CPU / RAM / uptime
+- **Routing control** — choose which domains/subnets go through the tunnel vs direct (nftables)
+- **Path-aware checks** — verify traffic *actually* egresses through the tunnel, by comparing the egress IP, not by trusting `200 OK`
+- **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
 ## Roadmap
 
-| Version | Highlights |
-|---------|-----------|
-| `v0.1`  | AmneziaWG engine, own routing, dashboard, OpenWrt + Ubuntu adapters |
-| `v0.2`  | FakeIP, health-check failover between nodes, dynamic rule lists |
-| `v0.3`  | VLESS + REALITY via Xray-core, automatic node selection (urltest) |
-| `v0.4+` | Wi-Fi & device management, plugin/component system, remote access |
+| Version | Highlights | Status |
+|---------|-----------|--------|
+| `v0.1`  | AmneziaWG engine, own routing, dashboard, OpenWrt + Ubuntu adapters | ✅ feature-complete |
+| `v0.2`  | FakeIP, health-check failover between nodes, device policies, dynamic rule lists | planned |
+| `v0.3`  | VLESS + REALITY via Xray-core, automatic node selection (urltest) | planned |
+| `v0.4+` | Wi-Fi & device management, plugin/component system, remote access | planned |
 
 ## Architecture
 
@@ -58,14 +65,45 @@ live behind **adapters**, so the same binary works across platforms.
 
 ## Building
 
+Requires **Go 1.26+** (the toolchain directive in `go.mod` pulls the exact
+version) and **Node 22+** for the UI. The binary is pure Go (`CGO_ENABLED=0`),
+so it cross-compiles to any target without a C toolchain.
+
 ```bash
-# (coming soon — project is scaffolding stage)
-go build ./cmd/veilbridged
+# API-only daemon (no embedded UI)
+go build -o veilbridged ./cmd/veilbridged
+
+# With the embedded web UI — build the frontend first, then tag the Go build:
+( cd web && npm ci && npm run build )
+go build -tags ui -o veilbridged ./cmd/veilbridged
+
+# Cross-compile a static binary for a router (linux/arm64):
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags ui -o veilbridged ./cmd/veilbridged
 ```
+
+## Running
+
+```bash
+# First run: set the admin password (stored bcrypt-hashed, never in plaintext)
+./veilbridged -set-password 'choose-a-password'
+
+# Start the daemon — serves the API and (with -tags ui) the dashboard on one port
+sudo ./veilbridged -listen 0.0.0.0:8080
+```
+
+`sudo`/root is needed to bring tunnels up (the userspace engine needs
+`/dev/net/tun`; the kernel engine needs to create the `awg0` interface). Then
+open `http://<host>:8080/` and sign in.
+
+> **Security note:** the panel speaks plain HTTP today — run it on a trusted LAN
+> or behind a TLS-terminating reverse proxy. Built-in TLS is on the roadmap.
 
 ## Contributing
 
-Contributions are welcome once the MVP scaffolding lands. See `docs/` for design notes.
+Contributions are welcome. The architecture is hexagonal — `api → core ← adapters` —
+so adding a platform or a VPN engine means implementing an interface, not touching
+the core. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the per-package `README.md`
+files under `internal/`.
 
 ## License
 
