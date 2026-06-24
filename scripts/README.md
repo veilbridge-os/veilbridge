@@ -57,5 +57,28 @@ script uses sudo (NOPASSWD on the VM). Pass a config path that does **not** yet
 exist — `store.Load()` treats a missing file as first run, but an empty file
 fails JSON parse.
 
+## p8-e2e.sh
+
+Phase-8 end-to-end check of the **OpenWrt adapter** (kernel engine), through the
+same product API. POSIX sh / ash (no bash), runs as root (no sudo), and uses no
+python3 (not on OpenWrt) — JSON is poked with sed. Prerequisites on the OpenWrt
+target: `kmod-tun` (for `/dev/net/tun`) and `curl`.
+
+```sh
+# on vb-openwrt, with the binary + conf at /root/vb/:
+cd /root/vb
+sh p8-e2e.sh fi-node.conf 203.0.113.20
+```
+
+Flow: confirm `/etc/openwrt_release` → start daemon → login → assert
+`platform=openwrt` → import → activate (kernel engine brings up `awg0`) → assert
+the interface has an inet addr → handshake → probe (verified **by interface**,
+since kernel engines have no Dialer). PASS proves the *same binary* that ran the
+Ubuntu adapter (userspace) brings a tunnel up on OpenWrt via the kernel engine —
+the NFR-1 interchangeability proof. Last green run: `awg0 inet 10.8.1.5/32`,
+`tunnel egress=203.0.113.20 (direct=198.51.100.7)`, EXIT=0.
+
+Note: busybox `ip` has no `-brief` flag — match `inet ` on plain `ip addr show`.
+
 Stand topology and credentials live in the project memory
 (`project-the hypervisor-veilbridge-test-vms`), not in the repo.
