@@ -18,6 +18,7 @@ import (
 	"github.com/veilbridge-os/veilbridge/internal/adapters"
 	"github.com/veilbridge-os/veilbridge/internal/api"
 	"github.com/veilbridge-os/veilbridge/internal/config"
+	"github.com/veilbridge-os/veilbridge/internal/core"
 	"github.com/veilbridge-os/veilbridge/internal/core/mock"
 )
 
@@ -28,6 +29,7 @@ func main() {
 		dev         = flag.Bool("dev", false, "enable the OpenAPI spec + Swagger UI endpoints (dev only)")
 		setPass     = flag.String("set-password", "", "set the admin password and exit")
 		dumpOpenAPI = flag.Bool("dump-openapi", false, "print the generated OpenAPI YAML and exit (CI snapshot)")
+		demo        = flag.Bool("demo", false, "serve sample data from an in-memory adapter: no OS access, no tunnels (UI development, screenshots, trying the panel without hardware)")
 	)
 	flag.Parse()
 
@@ -59,9 +61,17 @@ func main() {
 			"Run with -set-password <pw> first.")
 	}
 
-	adapter, err := adapters.New(*configPath)
-	if err != nil {
-		log.Fatalf("init adapter: %v", err)
+	var adapter core.Adapter
+	if *demo {
+		// Demo mode touches nothing on the host: no uci, no nftables, no TUN.
+		// Sample addresses come from the RFC 5737 documentation ranges.
+		log.Println("DEMO MODE: sample data, no OS access and no real tunnels")
+		adapter = mock.NewDemoAdapter()
+	} else {
+		adapter, err = adapters.New(*configPath)
+		if err != nil {
+			log.Fatalf("init adapter: %v", err)
+		}
 	}
 
 	srv, err := api.New(adapter, store, api.Options{Dev: *dev})

@@ -172,6 +172,32 @@ func NewAdapter() *Adapter {
 	return &Adapter{vpn: &VPN{}, routing: &Routing{}}
 }
 
+// Seed pre-populates the manager with nodes and marks activeID as the current
+// egress. It exists so a demo instance can show a populated UI without an OS,
+// a router, or a real VPN endpoint.
+func (m *VPN) Seed(activeID string, nodes ...core.Node) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.nodes = append(m.nodes, nodes...)
+	m.active = activeID
+}
+
+// NewDemoAdapter returns a mock adapter pre-loaded with plausible sample data.
+// Every address it reports comes from the IANA documentation ranges (RFC 5737),
+// so demo output is safe to publish as screenshots.
+func NewDemoAdapter() *Adapter {
+	a := NewAdapter()
+	a.vpn.Seed("node-nl",
+		core.Node{ID: "node-nl", Name: "amsterdam", Engine: core.EngineAmneziaWG, Endpoint: "203.0.113.10:443"},
+		core.Node{ID: "node-fi", Name: "helsinki", Engine: core.EngineAmneziaWG, Endpoint: "203.0.113.20:51820"},
+	)
+	_ = a.routing.SetRules([]core.RouteRule{
+		{ID: "r1", Kind: core.RuleDomain, Value: "example.com", Target: core.TargetTunnel},
+		{ID: "r2", Kind: core.RuleSubnet, Value: "198.51.100.0/24", Target: core.TargetDirect},
+	})
+	return a
+}
+
 func (*Adapter) Platform() string               { return "mock" }
 func (a *Adapter) VPN() core.VPNManager         { return a.vpn }
 func (a *Adapter) Routing() core.RoutingManager { return a.routing }

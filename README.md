@@ -95,6 +95,20 @@ sudo ./veilbridged -listen 0.0.0.0:8080
 `/dev/net/tun`; the kernel engine needs to create the `awg0` interface). Then
 open `http://<host>:8080/` and sign in.
 
+### Trying it without hardware
+
+`-demo` serves sample data from an in-memory adapter — no root, no tunnels and
+nothing touched on the host. Useful for a first look and for UI work:
+
+```bash
+./veilbridged -config /tmp/demo.json -set-password 'demo-password'
+./veilbridged -demo -config /tmp/demo.json -listen 127.0.0.1:8099
+```
+
+The screenshots above are captured from exactly this mode by
+[`scripts/screenshots.mjs`](./scripts/screenshots.mjs), so every address in them
+is from the documentation ranges reserved by RFC 5737.
+
 > **Security note:** the panel speaks plain HTTP today — run it on a trusted LAN
 > or behind a TLS-terminating reverse proxy. Built-in TLS is on the roadmap.
 
