@@ -1,7 +1,7 @@
 // Package ubuntu implements the core managers for Ubuntu/Debian hosts: userspace
 // AmneziaWG (netstack engine), nftables routing, and /proc-based system info.
 // Selected by adapters.Detect() when /etc/openwrt_release is absent. See
-// CONTRIBUTING.md §5 and the project history Phase 5.
+// the architecture notes in CONTRIBUTING.md.
 package ubuntu
 
 import (

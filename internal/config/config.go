@@ -1,6 +1,6 @@
 // Package config holds VeilBridge's persisted state: the single JSON document
 // that is the source of truth for nodes, routing rules, and settings, plus a
-// Store that loads and saves it atomically. See CONTRIBUTING.md §2 (D-4).
+// Store that loads and saves it atomically. See the architecture notes in CONTRIBUTING.md.
 //
 // Secrets (node private keys, peer keys, obfuscation params, the admin password
 // hash) live HERE — never in core.Node, which crosses the API boundary. The

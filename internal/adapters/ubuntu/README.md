@@ -12,4 +12,4 @@ Ubuntu/Debian implementation of the core managers, all backed by one config stor
 - `adapter.go` — wires the managers; Network/Device are roadmap stubs.
 
 Selected by `internal/adapters`.`New` when `/etc/openwrt_release` is absent.
-See `CONTRIBUTING.md` §5 and `the project history` Phase 5.
+See the architecture notes in CONTRIBUTING.md.

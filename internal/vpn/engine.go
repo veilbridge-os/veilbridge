@@ -1,6 +1,6 @@
 // Package vpn defines the engine abstraction that hides the TUN type (userspace
 // netstack vs kernel-TUN) behind one interface, chosen by the OS adapter. See
-// CONTRIBUTING.md §5 (D-2). The concrete AmneziaWG engines live in the
+// the architecture notes in CONTRIBUTING.md. The concrete AmneziaWG engines live in the
 // internal/vpn/amneziawg subpackage; Xray (v0.3) will implement the same Engine.
 package vpn
 

@@ -3,7 +3,7 @@
 // standard library — no OS specifics, no concrete adapters, no engine packages.
 //
 // The dependency rule is one-way: the API layer and adapters both point at
-// core, never the other way around. See CONTRIBUTING.md §1, §4.
+// core, never the other way around. See the architecture notes in CONTRIBUTING.md
 package core
 
 // EngineKind identifies a VPN engine. v0.1 ships amneziawg only; xray

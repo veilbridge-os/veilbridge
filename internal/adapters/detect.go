@@ -1,6 +1,6 @@
 // Package adapters selects and constructs the per-platform core.Adapter at
 // runtime. The API layer depends only on core interfaces; this is the one place
-// that knows which concrete adapter to build. See CONTRIBUTING.md §1, §4.
+// that knows which concrete adapter to build. See the architecture notes in CONTRIBUTING.md
 package adapters
 
 import (

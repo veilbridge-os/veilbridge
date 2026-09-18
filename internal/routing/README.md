@@ -11,4 +11,4 @@ static rules; FakeIP and health-check failover arrive in v0.2.
 
 Engine caveat: marks/routes transparently forward LAN traffic with the kernel
 engine (OpenWrt); with the userspace netstack engine (Ubuntu v0.1) the ruleset is
-a correct declaration but transit forwarding is v0.2. See `CONTRIBUTING.md` §5.2.
+a correct declaration but transit forwarding is v0.2. See the architecture notes in CONTRIBUTING.md

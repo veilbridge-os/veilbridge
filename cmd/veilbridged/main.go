@@ -1,6 +1,6 @@
 // Command veilbridged is the VeilBridge agent daemon. It detects the platform,
 // builds the matching adapter, and serves the Router Core API (and, later, the
-// embedded web UI) over HTTP. See CONTRIBUTING.md §1.
+// embedded web UI) over HTTP. See the architecture notes in CONTRIBUTING.md
 package main
 
 import (

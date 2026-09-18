@@ -12,4 +12,4 @@ The upstream MIT header is preserved; only that single line differs.
 Re-derive on any amneziawg-go bump: diff `tun.go` against the upstream
 `tun/netstack/tun.go` — only the one line should differ. Drop this fork once
 amneziawg-go itself targets a gVisor with the field removed. See
-`docs/embedding-notes.md` and `CONTRIBUTING.md` §5.2.
+`docs/embedding-notes.md` and the architecture notes in CONTRIBUTING.md

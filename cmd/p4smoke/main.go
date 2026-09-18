@@ -5,7 +5,7 @@
 //
 //	go run ./cmd/p4smoke -conf node.conf -expect-egress 203.0.113.20
 //
-// See the project history Phase 4 and docs/embedding-notes.md.
+// See docs/embedding-notes.md.
 package main
 
 import (

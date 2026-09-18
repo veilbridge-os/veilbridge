@@ -10,7 +10,7 @@
 // still exists, but that gVisor snapshot has a package-name inconsistency
 // (bridge_test vs stack_test) that breaks `go build`. The newer gVisor `go`
 // branch fixes that but removed IsNil(). We use the newer gVisor and apply the
-// one-line fix amneziawg upstream hasn't yet. See CONTRIBUTING.md §5.2 and
+// one-line fix amneziawg upstream hasn't yet. See the architecture notes in CONTRIBUTING.md and
 // docs/embedding-notes.md.
 //
 // THE PATCH (one line, in WriteNotify): pkt.IsNil() -> pkt == nil.

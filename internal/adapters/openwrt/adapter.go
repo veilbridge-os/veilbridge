@@ -6,7 +6,7 @@
 // to Ubuntu's; only the VPN engine and the platform label differ. So the adapter
 // is the Ubuntu adapter built with the kernel engine — this is the concrete proof
 // of NFR-1 (the same code runs on both platforms, the adapter just picks the
-// engine). See CONTRIBUTING.md §5 and the project history Phase 8.
+// engine). See the architecture notes in CONTRIBUTING.md.
 package openwrt
 
 import (

@@ -13,7 +13,7 @@ CI against the code — not edited by hand. It feeds the frontend's typed client
 The live `/openapi.json` and `/docs` (Swagger UI) endpoints are **dev-only**
 (`Options.Dev` / the daemon's `-dev` flag, off by default) — production ships
 without them. Regenerate the snapshot with `veilbridged -dump-openapi`. See
-`CONTRIBUTING.md` §3 (D-8, D-9).
+the architecture notes in CONTRIBUTING.md.
 
 Files:
 - `server.go` — Huma API: operation registration, per-op JWT middleware
