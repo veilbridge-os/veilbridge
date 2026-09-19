@@ -17,6 +17,7 @@ import (
 
 	"github.com/veilbridge-os/veilbridge/internal/adapters"
 	"github.com/veilbridge-os/veilbridge/internal/api"
+	"github.com/veilbridge-os/veilbridge/internal/buildinfo"
 	"github.com/veilbridge-os/veilbridge/internal/config"
 	"github.com/veilbridge-os/veilbridge/internal/core"
 	"github.com/veilbridge-os/veilbridge/internal/core/mock"
@@ -30,8 +31,20 @@ func main() {
 		setPass     = flag.String("set-password", "", "set the admin password and exit")
 		dumpOpenAPI = flag.Bool("dump-openapi", false, "print the generated OpenAPI YAML and exit (CI snapshot)")
 		demo        = flag.Bool("demo", false, "serve sample data from an in-memory adapter: no OS access, no tunnels (UI development, screenshots, trying the panel without hardware)")
+		showVersion = flag.Bool("version", false, "print the build version and exit")
 	)
 	flag.Parse()
+
+	build := buildinfo.Read()
+
+	// -version must answer without touching the config or the host, so that it
+	// works on a fresh machine and in a release smoke test.
+	if *showVersion {
+		if _, err := io.WriteString(os.Stdout, build.String()+"\n"); err != nil {
+			log.Fatalf("version: %v", err)
+		}
+		return
+	}
 
 	store := config.NewStore(*configPath)
 
@@ -95,7 +108,7 @@ func main() {
 
 	// Graceful shutdown on SIGINT/SIGTERM.
 	go func() {
-		log.Printf("veilbridged listening on %s (platform=%s, dev=%v)", addr, adapter.Platform(), *dev)
+		log.Printf("%s listening on %s (platform=%s, dev=%v)", build, addr, adapter.Platform(), *dev)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("http server: %v", err)
 		}
