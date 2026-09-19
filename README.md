@@ -17,8 +17,9 @@ live behind **adapters**, so the same binary works across platforms.
 🧪 **v0.1 MVP — feature-complete, in testing.** The core value path works end to
 end and has been verified on real hardware on **both** platforms: the *same*
 binary brings a tunnel up via the userspace engine on Ubuntu and via the kernel
-engine on OpenWrt, and the dashboard confirms traffic egresses through it. Not
-yet tagged as a release — see the [roadmap](#roadmap) for what's next.
+engine on OpenWrt, and the dashboard confirms traffic egresses through it.
+See [Install](#install) for the release binaries and the [roadmap](#roadmap)
+for what's next.
 
 ## Features (v0.1)
 
@@ -62,6 +63,28 @@ yet tagged as a release — see the [roadmap](#roadmap) for what's next.
 - **Backend / agent:** Go (single static binary, cross-compiled for x86 / ARM)
 - **Frontend:** Vue 3 + Element Plus (built to static assets, embedded into the binary)
 - **VPN:** [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) (MIT); [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0) from v0.3
+
+## Install
+
+Grab a static binary from the
+[latest release](https://github.com/veilbridge-os/veilbridge/releases/latest) —
+no runtime, no dependencies, the web UI is inside the binary:
+
+```bash
+# Pick your architecture: amd64 (x86-64 server/VM) or arm64 (most routers)
+ARCH=amd64
+BASE=https://github.com/veilbridge-os/veilbridge/releases/latest/download
+
+curl -fL -o veilbridged "$BASE/veilbridged-linux-$ARCH"
+curl -fL -o SHA256SUMS "$BASE/SHA256SUMS"
+sha256sum --check --ignore-missing SHA256SUMS
+
+chmod +x veilbridged
+./veilbridged -version
+```
+
+Then continue with [Running](#running). Packages (`.deb`, opkg) and firmware
+images are on the roadmap; until then the binary is the supported path.
 
 ## Building
 
