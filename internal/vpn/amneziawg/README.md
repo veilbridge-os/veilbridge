@@ -2,11 +2,16 @@
 
 AmneziaWG VPN engine (amneziawg-go, MIT). The default and only engine in v0.1.
 
-Two implementations of the `vpn.Engine` interface will live here: `netstackEngine`
-(Ubuntu/test, userspace via the vendored `internal/awgnetstack`, no root — DONE)
-and `kernelEngine` (OpenWrt, kmod-amneziawg, transparent nftables forwarding —
-Phase 8). The adapter picks which one based on platform; the TUN type is an
-adapter detail. See the architecture notes in CONTRIBUTING.md
+Two implementations of the `vpn.Engine` interface live here: `kernelEngine` (the
+product path — a real `awg0` interface, so nftables can forward the whole LAN
+through it; needs root and `kmod-tun`) and `netstackEngine` (userspace via the
+vendored `internal/awgnetstack`, no root and no kernel TUN, the fallback for
+devices without `kmod-tun` and the harness used by `cmd/p4smoke`).
+
+Neither needs `kmod-amneziawg`: the AmneziaWG protocol runs in-process via
+amneziawg-go, and the kernel only provides the TUN device. The adapter picks the
+engine; the TUN type is an adapter detail. See the architecture notes in
+CONTRIBUTING.md
 
 Files:
 - `parse.go` — AmneziaWG `.conf` parser → `core.Node` + `config.NodeSecret`

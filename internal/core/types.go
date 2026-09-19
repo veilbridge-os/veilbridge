@@ -81,7 +81,7 @@ type RouteRule struct {
 // SystemInfo is the dashboard snapshot (FR-4). TunnelUp reflects whether traffic
 // actually flows through the tunnel, verified rather than assumed. See DESIGN §2.
 type SystemInfo struct {
-	// Platform is "openwrt" or "ubuntu" (the detected adapter).
+	// Platform is the detected adapter's label, e.g. "openwrt" ("mock" in -demo).
 	Platform   string  `json:"platform"`
 	Hostname   string  `json:"hostname"`
 	UptimeSec  int64   `json:"uptimeSec"`

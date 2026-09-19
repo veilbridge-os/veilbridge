@@ -19,8 +19,8 @@ import (
 //
 // It shares the UAPI rendering and stats parsing with netstackEngine; the only
 // difference is the TUN (kernel device + OS-level addr/route) vs gVisor netstack.
-// Both satisfy vpn.Engine, which is the whole point of Phase 8 (NFR-1: the same
-// code runs on both platforms, the adapter just picks the engine).
+// Both satisfy vpn.Engine, so the tunnel implementation is a swappable detail:
+// this one needs kmod-tun and root, the netstack one needs neither.
 type kernelEngine struct {
 	mu   sync.Mutex
 	dev  *device.Device
@@ -72,8 +72,8 @@ func (e *kernelEngine) Up(cfg vpn.NodeConfig) error {
 	}
 
 	// Bring the OS interface up with its tunnel address and route the AllowedIPs
-	// into it. `ip` is present on both OpenWrt (busybox/ip-full) and Ubuntu, so
-	// this stays portable instead of binding to a netlink library per platform.
+	// into it. `ip` is present on OpenWrt (busybox or ip-full), so this stays
+	// portable across targets instead of binding to a netlink library.
 	if err := e.configureLink(cfg); err != nil {
 		dev.Close()
 		return fmt.Errorf("amneziawg: configure link: %w", err)

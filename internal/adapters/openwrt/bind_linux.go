@@ -1,6 +1,6 @@
 //go:build linux
 
-package ubuntu
+package openwrt
 
 import (
 	"syscall"

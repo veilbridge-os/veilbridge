@@ -1,11 +1,11 @@
 // Package routing renders VeilBridge's selective-routing rules to nftables and
 // applies them. v0.1 is static (domain/subnet → tunnel|direct), no FakeIP — that
-// arrives in v0.2 (D-7). The generator is shared by both OS adapters; only the
+// arrives in v0.2 (D-7). The generator is engine-agnostic; only the
 // transparent-forwarding behaviour differs by engine (see note below).
 //
-// Engine caveat (DESIGN §5.2): with the kernel engine (OpenWrt) these marks/routes
-// transparently forward LAN traffic into the tunnel interface. With the userspace
-// netstack engine (Ubuntu v0.1) there is no transit forwarding yet — the rendered
+// Engine caveat (DESIGN §5.2): with the kernel engine these marks/routes
+// transparently forward LAN traffic into the tunnel interface. With the
+// userspace netstack engine there is no transit forwarding yet — the rendered
 // ruleset is a correct declaration of intent, but the agent's own out-of-tunnel
 // traffic still needs the engine Dialer. Full userspace transit is v0.2.
 package routing

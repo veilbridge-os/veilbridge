@@ -1,9 +1,9 @@
 # scripts/
 
-Dev tooling and on-hardware end-to-end checks for a VeilBridge test stand (e.g.
-a pair of Ubuntu + OpenWrt VMs). These are not part of CI — they need a stand and
-real AmneziaWG nodes. Configure your own hosts via environment variables; nothing
-here hardcodes a network.
+Dev tooling and on-hardware end-to-end checks for a VeilBridge test stand (an
+OpenWrt device or an OpenWrt x86 VM). These are not part of CI — they need a
+stand and real AmneziaWG nodes. Configure your own hosts via environment
+variables; nothing here hardcodes a network.
 
 ## deploy-stand.sh
 
@@ -38,29 +38,6 @@ ssh "$VB_VM_HOST" 'cd ~/veilbridge-bin && sudo ./p4smoke -conf node.conf -expect
 PASS = egress through the tunnel equals the node IP and differs from the direct
 host WAN (userspace engine heap stays around ~25 MiB).
 
-## p5-e2e.sh
-
-Phase-5 end-to-end check of the **Ubuntu adapter** through the product API
-(`veilbridged`), not the p4smoke harness. Runs on vb-ubuntu; needs the daemon
-binary + a node `.conf` already delivered there.
-
-```sh
-# on the Ubuntu VM, after deploy-stand.sh veilbridged:
-cd ~/veilbridge-bin
-bash p5-e2e.sh node.conf <expect-egress-ip>    # <conf> <node public IP>
-```
-
-Flow: set-password → start daemon → login (JWT) → import .conf → activate →
-poll status for handshake → `POST /system/probe` (expect tunnel) → teardown.
-PASS = probe reports `actualVia=tunnel` with egress == the node IP, differing
-from the direct WAN. Last green run (FI node): `tunnel egress=203.0.113.20
-(direct=198.51.100.7)`, EXIT=0.
-
-Note: the daemon and probe both need root (userspace TUN → CAP_NET_ADMIN); the
-script uses sudo (NOPASSWD on the VM). Pass a config path that does **not** yet
-exist — `store.Load()` treats a missing file as first run, but an empty file
-fails JSON parse.
-
 ## p8-e2e.sh
 
 Phase-8 end-to-end check of the **OpenWrt adapter** (kernel engine), through the
@@ -77,9 +54,16 @@ sh p8-e2e.sh node.conf <expect-egress-ip>
 Flow: confirm `/etc/openwrt_release` → start daemon → login → assert
 `platform=openwrt` → import → activate (kernel engine brings up `awg0`) → assert
 the interface has an inet addr → handshake → probe (verified **by interface**,
-since kernel engines have no Dialer). PASS proves the *same binary* that ran the
-Ubuntu adapter (userspace) brings a tunnel up on OpenWrt via the kernel engine —
-the NFR-1 interchangeability proof. Last green run: `awg0 inet 10.8.1.5/32`,
+since kernel engines have no Dialer). PASS proves the product path end to end on
+the target platform. Last green run: `awg0 inet 10.8.1.5/32`,
 `tunnel egress=203.0.113.20 (direct=198.51.100.7)`, EXIT=0.
 
 Note: busybox `ip` has no `-brief` flag — match `inet ` on plain `ip addr show`.
+
+## Engine coverage
+
+The kernel engine (the product path) is covered end to end by `p8-e2e.sh`. The
+userspace netstack engine — the fallback for devices without `kmod-tun` — is
+covered by the `p4smoke` harness above, not through the product API: engine
+auto-detection is not implemented yet, so there is no API-level path to select
+it. Closing that gap is part of the platform-layer milestone.

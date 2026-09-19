@@ -52,8 +52,8 @@ type Stats struct {
 }
 
 // Engine drives a single VPN tunnel. One process may run one Engine at a time
-// (the active node). Implementations: netstackEngine (userspace, Ubuntu/test)
-// and kernelEngine (OpenWrt). See DESIGN §5.2.
+// (the active node). Implementations: netstackEngine (userspace, no kernel TUN)
+// and kernelEngine (real awg0 interface, the product path). See DESIGN §5.2.
 type Engine interface {
 	// Up brings the tunnel up with cfg. It is an error to call Up twice without
 	// an intervening Down.

@@ -17,8 +17,8 @@ func TestPlatformLabel(t *testing.T) {
 	}
 }
 
-// TestSatisfiesAdapter: structural proof of interchangeability (NFR-1) — the
-// OpenWrt adapter is a core.Adapter, same as Ubuntu, exposing all managers.
+// TestSatisfiesAdapter: structural proof that the adapter satisfies the port —
+// it is a core.Adapter exposing every manager the API may ask for.
 // (Info() is not exercised here: it makes a real WAN egress HTTP call, which
 // belongs in the on-VM e2e, not a unit test.)
 func TestSatisfiesAdapter(t *testing.T) {

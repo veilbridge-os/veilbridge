@@ -5,10 +5,10 @@
 # with sed. The daemon must be at /root/vb/veilbridged with the node .conf
 # alongside, delivered by the deploy step.
 #
-# Proves the SAME binary that ran the Ubuntu adapter (userspace engine) brings a
-# tunnel up on OpenWrt via the KERNEL engine: platform auto-detects as openwrt,
-# awg0 appears, handshake completes, and egress goes through the tunnel — the
-# probe verifies egress by interface (kernel engines have no Dialer).
+# Proves the product path end to end on the target platform: the daemon detects
+# openwrt, the KERNEL engine brings awg0 up, the handshake completes, and egress
+# goes through the tunnel — the probe verifies egress by interface, since kernel
+# engines have no Dialer.
 #
 # Usage:  ./p8-e2e.sh <conf> <expect-egress-ip>
 set -eu

@@ -1,4 +1,4 @@
-package ubuntu
+package openwrt
 
 import (
 	"bufio"
@@ -7,14 +7,16 @@ import (
 	"github.com/veilbridge-os/veilbridge/internal/config"
 	"github.com/veilbridge-os/veilbridge/internal/core"
 	"github.com/veilbridge-os/veilbridge/internal/vpn"
-	"github.com/veilbridge-os/veilbridge/internal/vpn/amneziawg"
 )
 
-// Adapter is the Ubuntu/Debian implementation of core.Adapter. It wires an
-// AmneziaWG engine, nftables routing, and /proc system info together, all backed
-// by one config store. The same wiring serves OpenWrt (Phase 8): only the engine
-// (kernel vs netstack) and the platform label differ, so OpenWrt reuses this via
-// NewWithEngine rather than duplicating three managers.
+// Adapter is the OpenWrt implementation of core.Adapter. It wires an AmneziaWG
+// engine, nftables routing, and /proc system info together, all backed by one
+// config store.
+//
+// The wiring is deliberately engine-agnostic: the tunnel engine is injected,
+// not hardcoded. Devices differ in what they can run (a kernel TUN needs
+// kmod-tun; the userspace netstack engine does not), so engine choice is a
+// per-device decision, not a per-OS one — see NewWithEngine.
 type Adapter struct {
 	vpn      *vpnManager
 	routing  *routingManager
@@ -24,16 +26,10 @@ type Adapter struct {
 	platform string
 }
 
-// New builds the Ubuntu adapter backed by the config store at the given path
-// (config.DefaultPath if empty). The active engine is the userspace netstack
-// engine (proven in Phase 4); the kernel engine is OpenWrt's (Phase 8).
-func New(configPath string) *Adapter {
-	return NewWithEngine(configPath, amneziawg.NewNetstackEngine(), "ubuntu")
-}
-
 // NewWithEngine builds the adapter with an explicit engine and platform label.
-// It is the shared constructor: Ubuntu passes the netstack engine, OpenWrt the
-// kernel engine. Routing and system info are platform-agnostic (/proc + nft).
+// New() is the product path (kernel engine); this constructor exists for the
+// userspace-netstack fallback on devices without kmod-tun and for tests, which
+// inject a fake engine to exercise manager logic offline.
 func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapter {
 	store := config.NewStore(configPath)
 	v := newVPNManager(store, engine)

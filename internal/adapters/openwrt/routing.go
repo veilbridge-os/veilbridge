@@ -1,4 +1,4 @@
-package ubuntu
+package openwrt
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package ubuntu
+package openwrt
 
 import (
 	"bufio"
@@ -22,7 +22,7 @@ import (
 // probes. It borrows the VPN manager to know the active node and its dialer.
 type systemManager struct {
 	vpn *vpnManager
-	// platform labels SystemInfo ("ubuntu" or "openwrt"); set by the adapter ctor.
+	// platform labels SystemInfo (e.g. "openwrt"); set by the adapter ctor.
 	platform string
 	// egress resolves the public IP reached via the given HTTP-do function.
 	// Overridable in tests so probes don't hit the real network.
@@ -30,7 +30,7 @@ type systemManager struct {
 }
 
 func newSystemManager(v *vpnManager) *systemManager {
-	return &systemManager{vpn: v, platform: "ubuntu", egress: egressIP}
+	return &systemManager{vpn: v, platform: "openwrt", egress: egressIP}
 }
 
 func (m *systemManager) Info() (core.SystemInfo, error) {
@@ -102,14 +102,14 @@ func (m *systemManager) ProbePath(target string, expected core.Target) (core.Pat
 
 func (m *systemManager) Diagnostics(target string) (string, error) {
 	if !validHost(target) {
-		return "", fmt.Errorf("ubuntu: invalid diagnostics target %q", target)
+		return "", fmt.Errorf("openwrt: invalid diagnostics target %q", target)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	// -c 4: four pings, bounded. ping must be on PATH.
 	out, err := exec.CommandContext(ctx, "ping", "-c", "4", target).CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("ubuntu: ping %q: %w", target, err)
+		return string(out), fmt.Errorf("openwrt: ping %q: %w", target, err)
 	}
 	return string(out), nil
 }

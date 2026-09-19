@@ -42,7 +42,6 @@ body:
       options:
         - OpenWrt (router)
         - OpenWrt (x86 / VM)
-        - Ubuntu / Debian
         - Demo mode (-demo)
         - Other
     validations:
@@ -52,8 +51,9 @@ body:
     id: platform-details
     attributes:
       label: Platform details
-      description: OS release and device model, if relevant.
-      placeholder: OpenWrt 24.10.0, Cudy WR3000S v1 / Ubuntu 24.04, x86-64
+      description: >-
+        OpenWrt release and device model (`ubus call system board`).
+      placeholder: OpenWrt 24.10.0 r28427, Cudy WR3000S v1, aarch64
 
   - type: dropdown
     id: install
@@ -70,10 +70,10 @@ body:
     id: logs
     attributes:
       label: Daemon log
-      description: |
-        Relevant lines from `journalctl -u veilbridge` (Ubuntu) or
-        `logread -e veilbridge` (OpenWrt). Rendered as a code block — no
-        backticks needed.
+      description: >-
+        Relevant lines from `logread -e veilbridge`, or the daemon's own output
+        if you started it by hand. Rendered as a code block — no backticks
+        needed.
       render: text
 
   - type: checkboxes

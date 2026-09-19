@@ -23,7 +23,7 @@ It creates a private advisory visible only to the maintainers.
 
 Please include:
 
-- affected version (`veilbridged -version` output) and platform (OpenWrt / Debian / Ubuntu);
+- affected version (`veilbridged -version` output), OpenWrt release and device;
 - what an attacker gains (read config, bypass auth, run code, reach the LAN…);
 - reproduction steps or a proof-of-concept;
 - anything you already know about the root cause.

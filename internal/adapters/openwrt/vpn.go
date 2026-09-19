@@ -1,8 +1,7 @@
-// Package ubuntu implements the core managers for Ubuntu/Debian hosts: userspace
-// AmneziaWG (netstack engine), nftables routing, and /proc-based system info.
-// Selected by adapters.Detect() when /etc/openwrt_release is absent. See
-// the architecture notes in CONTRIBUTING.md.
-package ubuntu
+// vpnManager owns the node inventory and the active tunnel: it parses imported
+// .conf files, persists nodes and secrets through the config store, and drives
+// the injected engine. See the package doc in adapter.go.
+package openwrt
 
 import (
 	"fmt"
@@ -60,7 +59,7 @@ func (m *vpnManager) ImportConfig(raw []byte) ([]core.Node, error) {
 
 func (m *vpnManager) ImportSubscription(url string) ([]core.Node, error) {
 	// Subscription fetch/parse is v0.2 (needs the multi-node format). Stub now.
-	return nil, fmt.Errorf("ubuntu: subscription import not implemented in v0.1: %w", core.ErrNotImplemented)
+	return nil, fmt.Errorf("openwrt: subscription import not implemented in v0.1: %w", core.ErrNotImplemented)
 }
 
 func (m *vpnManager) ListNodes() ([]core.Node, error) {
@@ -86,7 +85,7 @@ func (m *vpnManager) RemoveNode(id string) error {
 		}
 	}
 	if idx < 0 {
-		return fmt.Errorf("ubuntu: node %q not found", id)
+		return fmt.Errorf("openwrt: node %q not found", id)
 	}
 	// If the node being removed is active, tear the tunnel down first.
 	if m.up == id {
@@ -113,7 +112,7 @@ func (m *vpnManager) Activate(id string) error {
 		}
 	}
 	if sn == nil {
-		return fmt.Errorf("ubuntu: node %q not found", id)
+		return fmt.Errorf("openwrt: node %q not found", id)
 	}
 	// Bring the current tunnel down before switching (one engine, one tunnel).
 	if m.up != "" {
@@ -122,7 +121,7 @@ func (m *vpnManager) Activate(id string) error {
 	}
 	cfg := amneziawg.ToNodeConfig(sn.Endpoint, sn.Secret)
 	if err := m.engine.Up(cfg); err != nil {
-		return fmt.Errorf("ubuntu: activate %q: %w", id, err)
+		return fmt.Errorf("openwrt: activate %q: %w", id, err)
 	}
 	m.up = id
 	doc.Settings.ActiveNodeID = id
@@ -144,7 +143,7 @@ func (m *vpnManager) Status(id string) (core.NodeStatus, error) {
 		}
 	}
 	if !found {
-		return core.NodeStatus{}, fmt.Errorf("ubuntu: node %q not found", id)
+		return core.NodeStatus{}, fmt.Errorf("openwrt: node %q not found", id)
 	}
 	st := core.NodeStatus{NodeID: id, Active: m.up == id, HandshakeAgeSec: -1}
 	if m.up == id {

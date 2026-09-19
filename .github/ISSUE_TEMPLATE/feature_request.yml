@@ -5,10 +5,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        VeilBridge aims to be a full control panel for a router — on
-        **both** OpenWrt and Ubuntu/Debian. Proposals that only work on one
-        platform are still welcome; say so explicitly, so the feature can be
-        exposed as a platform capability instead of a broken button.
+        VeilBridge aims to be a full control panel for an OpenWrt router:
+        the feature level of a commercial router OS, on any hardware that
+        runs OpenWrt.
+
+        Hardware differs wildly — no Wi-Fi radio, no USB, tiny flash. Say
+        what your proposal assumes: a feature that cannot exist on a device
+        must degrade to a reported capability, not to a broken button.
 
   - type: textarea
     id: problem
@@ -30,13 +33,16 @@ body:
       required: true
 
   - type: dropdown
-    id: platforms
+    id: hardware
     attributes:
-      label: Platforms this should cover
+      label: What does it need from the hardware
       multiple: true
       options:
-        - OpenWrt
-        - Ubuntu / Debian
+        - Nothing special (any OpenWrt device)
+        - Wi-Fi radio
+        - Multiple LAN ports / switch
+        - USB port
+        - Extra flash or RAM headroom
     validations:
       required: true
 

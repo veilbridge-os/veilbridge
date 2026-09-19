@@ -7,8 +7,9 @@ import "errors"
 // API layer can detect it to surface a clean "not available in this version".
 var ErrNotImplemented = errors.New("veilbridge: not implemented in this version")
 
-// VPNManager owns VPN nodes and the active tunnel. Implemented per platform by
-// adapters (kernel-TUN on OpenWrt, userspace netstack on Ubuntu). See DESIGN §4.
+// VPNManager owns VPN nodes and the active tunnel. The adapter implements it on
+// top of a tunnel engine — kernel-TUN by default, userspace netstack on devices
+// without kmod-tun. See DESIGN §4.
 type VPNManager interface {
 	// ImportConfig parses a raw AmneziaWG .conf into one or more nodes.
 	ImportConfig(raw []byte) ([]Node, error)
@@ -61,7 +62,7 @@ type DeviceManager interface {
 // layer. The API depends only on the interfaces above, never on a concrete
 // adapter. See DESIGN §1, §4.
 type Adapter interface {
-	// Platform reports "openwrt" or "ubuntu".
+	// Platform reports the adapter label, e.g. "openwrt".
 	Platform() string
 	VPN() VPNManager
 	Routing() RoutingManager

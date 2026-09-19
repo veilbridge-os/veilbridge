@@ -1,7 +1,8 @@
 // Package amneziawg implements the AmneziaWG VPN engine (amneziawg-go, MIT) and
 // the parser for its .conf files. Two Engine implementations live here: a
-// netstackEngine (userspace, Ubuntu/test) and a kernelEngine (OpenWrt). The OS
-// adapter picks which one — the TUN type is an adapter detail. See DESIGN §5.
+// netstackEngine (userspace, no kernel TUN) and a kernelEngine (a real awg0
+// interface). The adapter picks which one — the TUN type is an adapter detail,
+// decided by what the device can run. See DESIGN §5.
 package amneziawg
 
 import (

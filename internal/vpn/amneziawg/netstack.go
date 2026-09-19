@@ -18,11 +18,12 @@ import (
 
 // netstackEngine runs the whole AmneziaWG tunnel in userspace via gVisor's
 // netstack — no root, no kernel TUN. Outbound connections egress through the
-// tunnel via the Dialer. This is the engine for Ubuntu/test targets and the
-// Phase-4 smoke test. See DESIGN §5.2 and docs/embedding-notes.md.
+// tunnel via the Dialer. This is the engine for devices without kmod-tun, for
+// unprivileged runs, and for the Phase-4 smoke test. See DESIGN §5.2 and
+// docs/embedding-notes.md.
 //
-// On OpenWrt the kernelEngine is used instead (transparent nftables forwarding);
-// the OS adapter picks. Both satisfy vpn.Engine.
+// The product path is the kernelEngine (transparent nftables forwarding for the
+// whole LAN); the adapter picks. Both satisfy vpn.Engine.
 type netstackEngine struct {
 	mu   sync.Mutex
 	dev  *device.Device

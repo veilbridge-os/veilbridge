@@ -1,26 +1,27 @@
 # Contributing to VeilBridge
 
-Thanks for your interest! VeilBridge is a single Go binary that controls VPN
-gateways on OpenWrt and Ubuntu/Debian through one platform-agnostic API and an
-embedded Vue UI. This guide covers the layout, the conventions, and how to run
-the checks CI runs.
+Thanks for your interest! VeilBridge is a single Go binary that controls an
+OpenWrt router through one platform-agnostic API and an embedded Vue UI. This
+guide covers the layout, the conventions, and how to run the checks CI runs.
 
 ## Architecture in one minute
 
-The codebase is **hexagonal**: the API depends only on core interfaces, and each
+The codebase is **hexagonal**: the API depends only on core interfaces, and the
 OS plugs in behind an adapter. Nothing in `api` or `core` knows about `uci`,
-`nftables`, or `/dev/net/tun`.
+`nftables`, or `/dev/net/tun`. OpenWrt is the only supported platform, but the
+boundary is kept honest anyway — it is what stops `uci` from leaking into the
+API and the UI.
 
-```
+```text
 internal/
   api/        Router Core API (Huma, code-first) — the only contract the UI sees
   core/       domain types + manager interfaces (VPN/Routing/System/...) + mocks
   config/     persisted state (atomic JSON store, bcrypt password, node secrets)
-  routing/    nftables rule generator (shared by both adapters)
+  routing/    nftables rule generator (engine-agnostic)
   vpn/        Engine abstraction; amneziawg/ has the userspace + kernel engines
   adapters/
-    ubuntu/   userspace (netstack) engine + /proc system info
-    openwrt/  kernel engine (transparent nft forwarding) — reuses ubuntu wiring
+    detect.go platform detection (non-OpenWrt hosts are refused)
+    openwrt/  the adapter: kernel engine, nft routing, /proc system info
   awgnetstack/ vendored, patched amneziawg-go netstack (one-line gVisor fix)
 cmd/
   veilbridged/ the daemon (loads config → builds adapter → serves API + UI)
@@ -28,14 +29,16 @@ cmd/
 web/           Vue 3 + Element Plus; built to dist/ and embedded via go:embed
 ```
 
-**Adding a platform** = implement `core.Adapter` (and the managers it returns),
-then wire it into `adapters.New` by detection. **Adding a VPN engine** = implement
-`vpn.Engine`; the adapter picks which engine to use. You should not need to touch
-`api` or `core` for either.
+**Adding a VPN engine** = implement `vpn.Engine`; the adapter picks which engine
+to use. **Adding a platform** = implement `core.Adapter` (and the managers it
+returns), then wire it into `adapters.New` by detection. You should not need to
+touch `api` or `core` for either.
 
-The userspace and kernel engines share UAPI rendering and stats parsing — only the
-TUN differs (gVisor netstack vs a kernel `awg0`). That symmetry is the point: the
-*same binary* runs on both platforms.
+The userspace and kernel engines share UAPI rendering and stats parsing — only
+the TUN differs (gVisor netstack vs a kernel `awg0`). The kernel engine is the
+product path: it creates a real `awg0` interface that nftables can forward the
+whole LAN through. The userspace engine needs no `kmod-tun` and is the fallback
+for devices that lack it (selection is still manual — see `scripts/README.md`).
 
 ## Development
 
@@ -57,9 +60,9 @@ npm run build     # runs vue-tsc (type-check) + bundles into dist/
 ( cd web && npm run build ) && go build -tags ui ./cmd/veilbridged
 ```
 
-The on-hardware end-to-end scripts live in [`scripts/`](./scripts/) (`p5-e2e.sh`
-for the Ubuntu adapter, `p8-e2e.sh` for OpenWrt). They need a test stand and real
-AmneziaWG nodes, so they are not part of CI.
+The on-hardware end-to-end script lives in [`scripts/`](./scripts/)
+(`p8-e2e.sh`). It needs an OpenWrt stand and real AmneziaWG nodes, so it is not
+part of CI. Without a router, `-demo` runs the panel anywhere.
 
 ## Conventions
 

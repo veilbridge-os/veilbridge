@@ -10,5 +10,5 @@ static rules; FakeIP and health-check failover arrive in v0.2.
 - `apply.go` — `Generator.Apply` feeds the script to `nft -f -` (needs root).
 
 Engine caveat: marks/routes transparently forward LAN traffic with the kernel
-engine (OpenWrt); with the userspace netstack engine (Ubuntu v0.1) the ruleset is
-a correct declaration but transit forwarding is v0.2. See the architecture notes in CONTRIBUTING.md
+engine; with the userspace netstack engine the ruleset is a correct declaration
+but transit forwarding is v0.2. See the architecture notes in CONTRIBUTING.md

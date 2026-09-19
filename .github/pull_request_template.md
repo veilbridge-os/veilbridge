@@ -6,18 +6,18 @@
 
 <!--
 "It compiles" is not verification. State what you ran and what it printed.
-Platform-touching changes need a run on the platform they touch — or an
-explicit note that the capability is reported as unavailable there.
+Anything that touches the router (uci, nftables, interfaces, the tunnel) needs
+a run on a real OpenWrt target or an OpenWrt VM — not just unit tests.
 -->
 
 - [ ] `go vet ./...` and `go test ./...` pass
 - [ ] `cd web && npm run lint && npm run build` pass (UI changes)
 - [ ] OpenAPI snapshot regenerated if handlers changed
       (`go run ./cmd/veilbridged -dump-openapi > api/openapi.yaml`)
-- [ ] Verified on OpenWrt
-- [ ] Verified on Ubuntu/Debian
-- [ ] Not applicable to a platform — and the code says so via capabilities,
-      not via a silent failure
+- [ ] Verified on an OpenWrt target (say which device or VM, and the release)
+- [ ] Does not touch the router — unit tests and `-demo` are enough here
+- [ ] Hardware-dependent behaviour degrades to a reported capability, not to a
+      broken button or a silent failure
 
 Evidence (commands, output, screenshots):
 
