@@ -1,0 +1,127 @@
+name: Release
+
+# Cuts a GitHub Release from a tag: static linux binaries with the web UI
+# embedded (-tags ui), plus SHA-256 checksums.
+#
+# Runs on GitHub-hosted runners only. The tag is the single source of truth
+# for the version string baked into the binary.
+#
+# This workflow publishes artifacts, so it is deliberately stricter than CI:
+# actions are pinned to commit SHAs, and the toolchain caches are off (a cache
+# is writable from PR jobs, and must not feed a signed-off release build).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build, e.g. v0.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          # Tags + full history: the Go toolchain stamps vcs.revision from it.
+          fetch-depth: 0
+          # Nothing here pushes; do not leave a token in .git/config.
+          persist-credentials: false
+
+      # actions/setup-go v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.26.4'
+          check-latest: true
+          cache: false
+
+      # actions/setup-node v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+
+      - name: Resolve version
+        id: version
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build frontend (populates the embedded dist)
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Build release binaries
+        env:
+          CGO_ENABLED: '0'
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          pkg=github.com/veilbridge-os/veilbridge/internal/buildinfo
+          ldflags="-s -w -X ${pkg}.version=${VERSION}"
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH="$arch" go build -trimpath -tags ui \
+              -ldflags "$ldflags" \
+              -o "dist/veilbridged-linux-$arch" ./cmd/veilbridged
+          done
+          ls -la dist
+
+      - name: Verify the built binary reports the tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The runner is amd64, so this artifact is the executable one.
+          out="$(./dist/veilbridged-linux-amd64 -version)"
+          echo "$out"
+          case "$out" in
+            *"$VERSION"*) ;;
+            *)
+              echo "::error::binary reports '$out', want '$VERSION'"
+              exit 1
+              ;;
+          esac
+
+      - name: 'Smoke test: demo mode serves the embedded UI'
+        run: |
+          set -euo pipefail
+          ./dist/veilbridged-linux-amd64 -demo -listen 127.0.0.1:8099 &
+          pid=$!
+          trap 'kill $pid' EXIT
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /tmp/index.html http://127.0.0.1:8099/; then
+              break
+            fi
+            sleep 1
+          done
+          grep -qi '<div id="app"' /tmp/index.html
+          echo "embedded UI served ($(wc -c < /tmp/index.html) bytes)"
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum veilbridged-linux-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish GitHub Release
+        # softprops/action-gh-release v2
+        uses: >-
+          softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/veilbridged-linux-amd64
+            dist/veilbridged-linux-arm64
+            dist/SHA256SUMS
