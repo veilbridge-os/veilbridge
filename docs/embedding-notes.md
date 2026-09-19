@@ -77,8 +77,8 @@ box (198.51.100.5, Ubuntu, no Go installed) tunnelling into the FI node
 resident set size ≈ 11.7 MB RSS** for the whole userspace tunnel (gVisor netstack +
 amneziawg-go device). The earlier fear that gVisor's working-set would dominate on
 256MB hardware does NOT hold for AmneziaWG-only. (Re-measure once Xray/REALITY is
-added in v0.3 — that's the heavier engine.)
+added (roadmap M10) — that's the heavier engine.)
 
 **Still not verified (later):**
-- **AmneziaWG → Xray → internet** chaining (v0.3): wire `Dialer` into Xray's
+- **AmneziaWG → Xray → internet** chaining (roadmap M10): wire `Dialer` into Xray's
   outbound dialer against a real REALITY endpoint. Re-measure RAM then.

@@ -70,7 +70,7 @@ needs one.
 
 - **Backend / agent:** Go (single static binary, cross-compiled for x86 / ARM)
 - **Frontend:** Vue 3 + Element Plus (built to static assets, embedded into the binary)
-- **VPN:** [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) (MIT); [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0) from v0.3
+- **VPN:** [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) (MIT); [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0) from v0.5
 
 ## Install
 

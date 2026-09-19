@@ -156,7 +156,7 @@ func readMem() (used, total int64) {
 
 // readLoadAsCPU approximates CPU usage from the 1-minute load average over the
 // CPU count. Cheap and adequate for a dashboard; a true %busy would need two
-// /proc/stat samples (v0.2).
+// /proc/stat samples (dashboard milestone M2).
 func readLoadAsCPU() float64 {
 	b, err := os.ReadFile("/proc/loadavg")
 	if err != nil {

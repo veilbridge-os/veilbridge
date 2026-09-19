@@ -45,13 +45,13 @@ type SystemManager interface {
 	Diagnostics(target string) (string, error)
 }
 
-// NetworkManager is a roadmap stub (WAN/interfaces, failover — v0.2). Its v0.1
+// NetworkManager is a roadmap stub (WAN/interfaces — M1/M3). Its v0.1
 // implementations return ErrNotImplemented. See DESIGN §4.
 type NetworkManager interface {
 	WANInfo() (SystemInfo, error)
 }
 
-// DeviceManager is a roadmap stub (clients/Wi-Fi/PBR binding — v0.4). Its v0.1
+// DeviceManager is a roadmap stub (clients/Wi-Fi/PBR binding — M4). Its v0.1
 // implementations return ErrNotImplemented. See DESIGN §4, D-1.
 type DeviceManager interface {
 	ListDevices() ([]Device, error)

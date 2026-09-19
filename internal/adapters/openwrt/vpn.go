@@ -58,7 +58,8 @@ func (m *vpnManager) ImportConfig(raw []byte) ([]core.Node, error) {
 }
 
 func (m *vpnManager) ImportSubscription(url string) ([]core.Node, error) {
-	// Subscription fetch/parse is v0.2 (needs the multi-node format). Stub now.
+	// Subscription fetch/parse lands with exit nodes (M5, needs the multi-node
+	// format). Stub now.
 	return nil, fmt.Errorf("openwrt: subscription import not implemented in v0.1: %w", core.ErrNotImplemented)
 }
 

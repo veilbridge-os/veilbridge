@@ -50,7 +50,7 @@ func (a *Adapter) System() core.SystemManager   { return a.system }
 func (a *Adapter) Network() core.NetworkManager { return a.network }
 func (a *Adapter) Device() core.DeviceManager   { return a.device }
 
-// networkManager / deviceManager are roadmap stubs (v0.2 / v0.4).
+// networkManager / deviceManager are roadmap stubs (M1/M3 and M4).
 type networkManager struct{}
 
 func (networkManager) WANInfo() (core.SystemInfo, error) {

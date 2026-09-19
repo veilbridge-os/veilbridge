@@ -7,7 +7,7 @@
 package core
 
 // EngineKind identifies a VPN engine. v0.1 ships amneziawg only; xray
-// (VLESS/REALITY) arrives in v0.3. See DESIGN §2.
+// (VLESS/REALITY) arrives later as a market app (roadmap M10). See DESIGN §2.
 type EngineKind string
 
 const (
@@ -114,7 +114,7 @@ type PathProbe struct {
 }
 
 // Device is a LAN client. v0.1 only ever returns these from a stub; full device
-// management (Wi-Fi, PBR binding) is roadmap v0.4. See DESIGN §4, D-1.
+// management (Wi-Fi, PBR binding) is roadmap M4. See DESIGN §4, D-1.
 type Device struct {
 	MAC      string `json:"mac"`
 	IP       string `json:"ip"`

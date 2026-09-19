@@ -1,13 +1,13 @@
 // Package routing renders VeilBridge's selective-routing rules to nftables and
 // applies them. v0.1 is static (domain/subnet → tunnel|direct), no FakeIP — that
-// arrives in v0.2 (D-7). The generator is engine-agnostic; only the
+// arrives with the DNS milestone M6 (D-7). The generator is engine-agnostic; only the
 // transparent-forwarding behaviour differs by engine (see note below).
 //
 // Engine caveat (DESIGN §5.2): with the kernel engine these marks/routes
 // transparently forward LAN traffic into the tunnel interface. With the
 // userspace netstack engine there is no transit forwarding yet — the rendered
 // ruleset is a correct declaration of intent, but the agent's own out-of-tunnel
-// traffic still needs the engine Dialer. Full userspace transit is v0.2.
+// traffic still needs the engine Dialer. Full userspace transit is not built yet.
 package routing
 
 import (
@@ -38,7 +38,7 @@ type Generator struct {
 // Render produces a complete, idempotent `nft -f` script for the given rules.
 // Subnet rules go into named sets directly; domain rules are emitted as comments
 // listing the domains (v0.1 has no DNS-driven set population — that is the FakeIP
-// work in v0.2). The script always starts by deleting any existing table so a
+// work in M6). The script always starts by deleting any existing table so a
 // re-apply fully replaces prior state.
 func (g Generator) Render(rules []core.RouteRule) (string, error) {
 	tunnelV4, tunnelV6, directV4, directV6, domains, err := classify(rules)
@@ -81,7 +81,7 @@ func (g Generator) Render(rules []core.RouteRule) (string, error) {
 
 	// Domain rules are recorded as comments in v0.1 (no DNS-set population yet).
 	if len(domains) > 0 {
-		fmt.Fprintf(&b, "# domain rules (v0.1: not yet enforced — needs FakeIP, v0.2):\n")
+		fmt.Fprintf(&b, "# domain rules (not yet enforced — needs FakeIP, roadmap M6):\n")
 		for _, d := range domains {
 			fmt.Fprintf(&b, "#   %s -> %s\n", d.Value, d.Target)
 		}
