@@ -75,10 +75,12 @@ no runtime, no dependencies, the web UI is inside the binary:
 ARCH=amd64
 BASE=https://github.com/veilbridge-os/veilbridge/releases/latest/download
 
-curl -fL -o veilbridged "$BASE/veilbridged-linux-$ARCH"
-curl -fL -o SHA256SUMS "$BASE/SHA256SUMS"
-sha256sum --check --ignore-missing SHA256SUMS
+# Keep the published file name — the checksums are listed under it
+curl -fL -O "$BASE/veilbridged-linux-$ARCH"
+curl -fL -O "$BASE/SHA256SUMS"
+sha256sum --check --ignore-missing SHA256SUMS   # must print: OK
 
+mv "veilbridged-linux-$ARCH" veilbridged
 chmod +x veilbridged
 ./veilbridged -version
 ```
