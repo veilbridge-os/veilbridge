@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/veilbridge-os/veilbridge/security/advisories/new
+    about: >-
+      Report privately. Never open a public issue for a vulnerability.
+  - name: Question or idea
+    url: https://github.com/veilbridge-os/veilbridge/discussions
+    about: >-
+      Usage questions, "is this supported", and half-formed ideas go to
+      Discussions.

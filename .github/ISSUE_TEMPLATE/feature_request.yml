@@ -1,0 +1,55 @@
+name: Feature request
+description: Propose a capability or a UX improvement
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        VeilBridge aims to be a full control panel for a router — on
+        **both** OpenWrt and Ubuntu/Debian. Proposals that only work on one
+        platform are still welcome; say so explicitly, so the feature can be
+        exposed as a platform capability instead of a broken button.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can you not do today, and what do you do instead?
+      placeholder: >-
+        I have two exit nodes and want traffic to fail over automatically
+        when one stops answering. Today I switch nodes by hand.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should the panel do? Which screen does it belong on?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platforms this should cover
+      multiple: true
+      options:
+        - OpenWrt
+        - Ubuntu / Debian
+    validations:
+      required: true
+
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art
+      description: >-
+        How do Keenetic, LuCI, OPNsense or others solve this? Links to
+        packages that already implement the mechanism are especially useful —
+        VeilBridge prefers to be the interface, not a reimplementation.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
