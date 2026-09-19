@@ -1,0 +1,36 @@
+#!/bin/sh /etc/rc.common
+# procd service for veilbridged. Installed by the opkg package.
+
+# Start late: the panel needs the network up, and it is not part of booting the
+# router — if it fails, the router itself must still come up.
+START=95
+STOP=10
+
+USE_PROCD=1
+
+PROG=/usr/bin/veilbridged
+CONF=/etc/veilbridge/config.json
+
+start_service() {
+	if [ ! -f "$CONF" ]; then
+		echo "veilbridge: no config yet — set the admin password first:" >&2
+		echo "  $PROG -set-password '<password>'" >&2
+		return 1
+	fi
+
+	procd_open_instance
+	procd_set_param command "$PROG" -config "$CONF" -listen 0.0.0.0:8080
+	# Respawn, but back off instead of hammering a router that is out of RAM:
+	# threshold 3600s, timeout 5s, retry 5 times.
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	# Restart the service when its config changes (password set, nodes imported
+	# by another process), so the running daemon never lags behind on disk state.
+	procd_set_param file "$CONF"
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger "network"
+}

@@ -33,3 +33,6 @@ yarn-error.log
 # --- Build artifacts of embedded UI ---
 internal/api/dist/
 /.serena/
+
+# --- Release artifacts (built locally, published by CI) ---
+/dist/

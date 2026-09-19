@@ -106,10 +106,41 @@ jobs:
           grep -qi '<div id="app"' /tmp/index.html
           echo "embedded UI served ($(wc -c < /tmp/index.html) bytes)"
 
+      - name: Build OpenWrt packages (.ipk)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Pinned: the packaging recipe depends on nfpm behaviour (env
+          # expansion in contents needs `expand: true`), so an unpinned @latest
+          # could change the package without a commit here.
+          nfpm=github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+          for arch in amd64 arm64; do
+            VB_ARCH="$arch" go run "$nfpm" \
+              package -f packaging/nfpm.yaml -p ipk \
+              -t "dist/veilbridge_${arch}.ipk"
+          done
+          ls -la dist/*.ipk
+
+      - name: 'Smoke test: the package contains what it promises'
+        run: |
+          set -euo pipefail
+          cd "$(mktemp -d)"
+          tar xzf "$GITHUB_WORKSPACE/dist/veilbridge_arm64.ipk"
+          tar xzf control.tar.gz
+          tar tzf data.tar.gz
+          # Architecture must stay "all": OpenWrt arch names are per-subtarget,
+          # so anything else is refused by opkg on real routers.
+          grep -qx 'Architecture: all' control
+          grep -q 'Depends: .*kmod-tun' control
+          tar tzf data.tar.gz | grep -qx './usr/bin/veilbridged'
+          tar tzf data.tar.gz | grep -qx './etc/init.d/veilbridge'
+          echo 'package layout ok'
+
       - name: Checksums
         run: |
           cd dist
-          sha256sum veilbridged-linux-* > SHA256SUMS
+          sha256sum veilbridged-linux-* veilbridge_*.ipk > SHA256SUMS
           cat SHA256SUMS
 
       - name: Publish GitHub Release
@@ -124,4 +155,6 @@ jobs:
           files: |
             dist/veilbridged-linux-amd64
             dist/veilbridged-linux-arm64
+            dist/veilbridge_amd64.ipk
+            dist/veilbridge_arm64.ipk
             dist/SHA256SUMS

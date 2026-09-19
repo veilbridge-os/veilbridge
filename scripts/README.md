@@ -67,3 +67,17 @@ userspace netstack engine — the fallback for devices without `kmod-tun` — is
 covered by the `p4smoke` harness above, not through the product API: engine
 auto-detection is not implemented yet, so there is no API-level path to select
 it. Closing that gap is part of the platform-layer milestone.
+
+## install.sh
+
+The one-command installer for the router (`wget -qO- … | sh`). It is a thin
+wrapper, not a third installation path: it picks the build for the CPU, verifies
+the checksum against `SHA256SUMS`, and calls `opkg`. Everything that decides
+*how* VeilBridge is installed — the procd service, config permissions, package
+dependencies — lives in [`../packaging/nfpm.yaml`](../packaging/nfpm.yaml).
+
+Verified on the OpenWrt stand: clean install prints the two remaining steps and
+refuses to start without a password; upgrade keeps the config and brings the
+service back; `opkg remove` stops the service, drops the autostart links and
+deliberately keeps `/etc/veilbridge` (it holds VPN private keys); after a reboot
+the panel comes up on its own.

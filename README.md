@@ -78,33 +78,47 @@ Grab a static binary from the
 [latest release](https://github.com/veilbridge-os/veilbridge/releases/latest) —
 no runtime, no dependencies, the web UI is inside the binary:
 
-Run these **on the router** (`ssh root@192.168.1.1`). Check the architecture
-with `uname -m`: `x86_64` → `amd64`, `aarch64` → `arm64`.
+Run this **on the router** (`ssh root@192.168.1.1`):
 
-```bash
+```sh
+wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | sh
+```
+
+The script picks the build for your CPU, verifies its SHA-256 checksum and
+hands over to `opkg`. Prefer to do it by hand? That is the same two steps:
+
+```sh
+# x86_64 -> amd64, aarch64 -> arm64
 ARCH=arm64
 BASE=https://github.com/veilbridge-os/veilbridge/releases/latest/download
 
-# Keep the published file name — the checksums are listed under it
-curl -fL -O "$BASE/veilbridged-linux-$ARCH"
-curl -fL -O "$BASE/SHA256SUMS"
-sha256sum --check --ignore-missing SHA256SUMS   # must print: OK
+wget -O "veilbridge_$ARCH.ipk" "$BASE/veilbridge_$ARCH.ipk"
+wget -O SHA256SUMS "$BASE/SHA256SUMS"
+# busybox sha256sum has no --ignore-missing: check exactly the one line,
+# otherwise you verify nothing and never notice.
+grep " veilbridge_$ARCH.ipk$" SHA256SUMS > one.sum && sha256sum -c one.sum
 
-mv "veilbridged-linux-$ARCH" veilbridged
-chmod +x veilbridged
-./veilbridged -version
+opkg install "./veilbridge_$ARCH.ipk"
 ```
 
-On OpenWrt use `wget` and busybox `sha256sum` instead (no `--ignore-missing`):
-`grep veilbridged-linux-$ARCH SHA256SUMS > one.sum && sha256sum -c one.sum`.
+The package installs `/usr/bin/veilbridged`, a procd service
+(`/etc/init.d/veilbridge`, enabled on boot) and an owner-only `/etc/veilbridge`.
+Finish the two steps it prints:
 
-Then continue with [Running](#running). An opkg package, a signed feed and
-ready-made firmware images are on the roadmap; until then the binary is the
-supported path, and it does not install a service — it runs in the foreground.
+```sh
+veilbridged -set-password '<choose-a-password>'
+/etc/init.d/veilbridge start
+```
+
+Then open `http://<router-ip>:8080/`. Upgrades (`opkg install` a newer file)
+keep your nodes and settings and restart the service; `opkg remove` stops it and
+leaves `/etc/veilbridge` alone, because it holds your VPN private keys.
 
 **Requirements on the target:** OpenWrt with `kmod-tun` (for `/dev/net/tun`) and
-`curl`; roughly 25 MiB of RAM for the daemon and ~13 MB of storage for the
-binary, so an 8/64 MB device will not fit it.
+`nftables` — both pulled in as package dependencies; roughly 25 MiB of RAM for
+the daemon and ~12 MB of storage, so an 8/64 MB device will not fit it.
+Standalone binaries are published too, for people who would rather not use a
+package. A signed opkg feed and ready-made firmware images are on the roadmap.
 
 ## Building
 

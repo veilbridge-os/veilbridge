@@ -1,0 +1,71 @@
+# nfpm recipe for the OpenWrt package (.ipk).
+#
+# Build (VERSION and GOARCH come from the release workflow):
+#   VERSION=v0.1.0 VB_ARCH=arm64 \
+#     nfpm package -f packaging/nfpm.yaml -p ipk -t dist/
+#
+# One recipe, one source of truth: the init script, the config permissions and
+# the dependency list live here, not in a wiki page or on a test stand.
+name: veilbridge
+version: ${VERSION}
+
+# Deliberately architecture-independent — see the note below. The CPU build is
+# chosen by the file name (dist/veilbridge_<goarch>.ipk) and enforced for real
+# in packaging/scripts/postinst.sh.
+arch: all
+
+# Why "all" and not a real architecture string: OpenWrt arch names are
+# per-subtarget. `opkg print-architecture` on the x86 stand reports exactly
+# "all / noarch / x86_64", and an aarch64 router reports its own subtarget name
+# (aarch64_cortex-a53 and friends) — so a package stamped "aarch64" would be
+# refused by opkg on every real ARM router, even though the binary runs there.
+# Every device accepts "all". We therefore ship one file per CPU family, keep
+# the package architecture-independent so opkg never refuses it, and check the
+# CPU for real in postinst by executing the binary: a wrong download fails
+# loudly with an explanation instead of installing something that cannot run.
+platform: linux
+maintainer: VeilBridge maintainers <veilbridge-os@users.noreply.github.com>
+description: |
+  Control panel for OpenWrt routers, built around VPN and selective routing.
+  Single Go binary with an embedded web UI.
+homepage: https://github.com/veilbridge-os/veilbridge
+license: MIT
+section: net
+priority: optional
+
+depends:
+  # /dev/net/tun for the kernel engine; nft for the routing rules.
+  # `ip` and `ping` come from busybox, which is always present.
+  - kmod-tun
+  - nftables
+
+contents:
+  # expand: true is required — nfpm substitutes env vars inside `contents`
+  # only for entries that ask for it (see expandEnvVarsContents in nfpm.go).
+  # Without it the source path stays the literal string "${VB_ARCH}".
+  - src: dist/veilbridged-linux-${VB_ARCH}
+    dst: /usr/bin/veilbridged
+    expand: true
+    file_info:
+      mode: 0755
+
+  - src: packaging/openwrt/etc/init.d/veilbridge
+    dst: /etc/init.d/veilbridge
+    file_info:
+      mode: 0755
+
+  # The config holds VPN private keys and the admin password hash: keep the
+  # directory owner-only. The file itself is created by the daemon on first run.
+  - dst: /etc/veilbridge
+    type: dir
+    file_info:
+      mode: 0700
+
+scripts:
+  postinstall: packaging/scripts/postinst.sh
+  preremove: packaging/scripts/prerm.sh
+  postremove: packaging/scripts/postrm.sh
+
+ipk:
+  fields:
+    Bugs: https://github.com/veilbridge-os/veilbridge/issues
