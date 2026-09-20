@@ -1,6 +1,11 @@
 name: CI
 
-# Runs on GitHub-hosted runners (ubuntu-latest). No self-hosted runners.
+# Runs on GitHub-hosted runners. No self-hosted runners.
+#
+# The runner image is pinned to an explicit version rather than ubuntu-latest:
+# that label moves to the next LTS on a schedule GitHub picks, and a release
+# train should change its build environment when we decide to, not on a date
+# announced in a changelog. Bumping it is a one-line, reviewable commit.
 on:
   push:
     branches: [main]
@@ -13,11 +18,11 @@ permissions:
 jobs:
   backend:
     name: Backend (Go)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.26.4'
           # go.mod pins go 1.26.3 + a specific gVisor revision; let the toolchain
@@ -51,14 +56,14 @@ jobs:
 
   frontend:
     name: Frontend (Vue)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -74,18 +79,18 @@ jobs:
 
   ui-binary:
     name: UI binary (-tags ui)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [backend, frontend]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.26.4'
           check-latest: true
           cache: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
