@@ -16,18 +16,40 @@ API and the UI.
 internal/
   api/        Router Core API (Huma, code-first) — the only contract the UI sees
   core/       domain types + manager interfaces (VPN/Routing/System/...) + mocks
+              apply.go: the transaction (snapshot → commit → confirm or revert)
   config/     persisted state (atomic JSON store, bcrypt password, node secrets)
+  metrics/    in-RAM vitals history; nothing here ever touches flash
+  architecture/ a guard test: OS specifics may not leak past the adapter
   routing/    nftables rule generator (engine-agnostic)
   vpn/        Engine abstraction; amneziawg/ has the userspace + kernel engines
   adapters/
     detect.go platform detection (non-OpenWrt hosts are refused)
-    openwrt/  the adapter: kernel engine, nft routing, /proc system info
+    openwrt/  the adapter: engines, nft routing, ubus reads, uci staging,
+              capability probes, and the uci-backed applier
   awgnetstack/ vendored, patched amneziawg-go netstack (one-line gVisor fix)
 cmd/
   veilbridged/ the daemon (loads config → builds adapter → serves API + UI)
   p4smoke/     standalone Phase-4 tunnel smoke test (not part of the product)
 web/           Vue 3 + Element Plus; built to dist/ and embedded via go:embed
 ```
+
+### Two rules that are easy to break by accident
+
+**Reading is safe, writing is not.** A getter may talk to the device
+(`NetworkManager` reads netifd over ubus). Changing configuration goes through
+`core.NetworkWriter`, which only *stages* — `uci set` writes a draft and
+nothing else. The single moment anything becomes live is the apply
+transaction's commit, and it runs under a watchdog that restores the snapshot
+if nobody confirms. Folding "stage" and "commit" into one call would quietly
+undo the safety model that was proven by cutting a real router's own
+management link; there is a test asserting staging never commits.
+
+**Anything on a timer must not leave the device.** `SystemManager.Info()`
+resolves the public address by asking a third party, which is fine once for a
+human looking at a dashboard and is a permanent outbound stream when something
+polls it. Pollers use `core.Vitals` (local reads only). This is not
+hypothetical: it shipped for an hour and showed up in the router's conntrack as
+a connection every three seconds.
 
 **Adding a VPN engine** = implement `vpn.Engine`; the adapter picks which engine
 to use. **Adding a platform** = implement `core.Adapter` (and the managers it
@@ -38,7 +60,10 @@ The userspace and kernel engines share UAPI rendering and stats parsing — only
 the TUN differs (gVisor netstack vs a kernel `awg0`). The kernel engine is the
 product path: it creates a real `awg0` interface that nftables can forward the
 whole LAN through. The userspace engine needs no `kmod-tun` and is the fallback
-for devices that lack it (selection is still manual — see `scripts/README.md`).
+for devices that lack it. The choice is made by probing `/dev/net/tun` at
+start up — the same probe that fills the `kernel-tun` capability, so the
+panel's explanation and the daemon's actual choice cannot drift apart. The
+engine in use is reported as `tunnelEngine` in `GET /system`.
 
 ## Development
 

@@ -16,15 +16,25 @@ and proof of where your traffic actually leaves.
 
 ## Status
 
-🧪 **v0.1 MVP — feature-complete, in testing.** The core value path works end to
-end and is verified on a real OpenWrt target: the binary brings a tunnel up via
-the kernel engine, `awg0` appears, and the dashboard confirms traffic egresses
-through it — checked by comparing egress IPs, not by trusting a `200 OK`.
+🧪 **`v0.1` released; `v0.2` in development on `main`.** Everything below is
+verified on real hardware — an x86 OpenWrt VM and a Cudy WR3000S router — not
+on a developer's laptop.
 
-This is an early release: VeilBridge manages VPN, selective routing and the
-dashboard today. It does **not** yet manage WAN/LAN, DHCP, firewall zones,
-Wi-Fi or clients — keep LuCI around for those. See [Install](#install) for the
-release binaries and the [roadmap](#roadmap) for what's next.
+**In the released binaries (`v0.1.1`):** the tunnel comes up through the kernel
+engine, `awg0` appears, and the dashboard confirms traffic egresses through it
+by comparing egress IPs rather than trusting a `200 OK`.
+
+**On `main`, not yet released:** the platform layer — configuration changes go
+through a transaction that undoes itself if nobody confirms (proven by
+deliberately cutting the router's own management link and watching it come
+back), device capabilities the UI branches on, a live update stream, and a
+rebuilt panel with a dashboard that reports model, firmware, memory and the
+flash space that actually runs out first.
+
+VeilBridge still does **not** manage LAN, DHCP, firewall zones, Wi-Fi or
+clients — keep LuCI around for those. Changing the uplink exists in the API but
+has no screen yet. See [Install](#install) for the release binaries and the
+[roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
 
@@ -36,12 +46,24 @@ release binaries and the [roadmap](#roadmap) for what's next.
 - **Path-aware checks** — verify traffic *actually* egresses through the tunnel, by comparing the egress IP, not by trusting `200 OK`
 - **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
+### Added on `main` since `v0.1.1`
+
+- **Safe apply** — a dangerous change is applied with a confirmation window; no
+  confirmation, and the device restores the previous settings by itself
+- **Capabilities** — the panel hides what the hardware cannot do and says why,
+  instead of showing empty sections (a board with no radio has no Wi-Fi menu)
+- **Live updates** — one event stream instead of polling ten tiles
+- **Device vitals** — model, firmware, kernel, load, memory and writable space,
+  with a short history kept in RAM only (nothing is written to flash)
+- **Uplink configuration over the API** — staged, diffed, then applied through
+  the same transaction; the screen for it lands with `v0.2`
+
 ## Roadmap
 
 | Version | Highlights | Status |
 | --- | --- | --- |
-| `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ feature-complete |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback; router network: WAN/LAN, DHCP, firewall | planned |
+| `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel | 🟡 on `main`: platform layer and panel done; router network (WAN/LAN, DHCP, firewall) in progress |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover | planned |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |
@@ -56,6 +78,7 @@ release binaries and the [roadmap](#roadmap) for what's next.
    ├─ Router Core API        ← the only contract the UI sees
    ├─ embedded UI (go:embed)
    ├─ managers (interfaces)  ← VPN / Routing / Network / System
+   ├─ apply transaction      ← snapshot → commit → confirm or auto-revert
    └─ VPN engines            ← AmneziaWG (Xray-core later)
             │
             ▼
