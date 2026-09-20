@@ -1,0 +1,17 @@
+{
+	"kernel": "6.12.94",
+	"hostname": "OpenWrt",
+	"system": "ARMv8 Processor rev 4",
+	"model": "Cudy WR3000S v1",
+	"board_name": "cudy,wr3000s-v1",
+	"rootfs_type": "squashfs",
+	"release": {
+		"distribution": "OpenWrt",
+		"version": "25.12.5",
+		"firmware_url": "https://downloads.openwrt.org/",
+		"revision": "r33051-f5dae5ece4",
+		"target": "mediatek/filogic",
+		"description": "OpenWrt 25.12.5 r33051-f5dae5ece4",
+		"builddate": "1782737960"
+	}
+}

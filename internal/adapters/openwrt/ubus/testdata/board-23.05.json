@@ -1,0 +1,15 @@
+{
+	"kernel": "5.15.167",
+	"hostname": "OpenWrt",
+	"system": "Intel(R) N100",
+	"model": "QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)",
+	"board_name": "qemu-ubuntu-24-04-pc-v2-i440fx-piix-arch_caps-fix-1996",
+	"rootfs_type": "ext4",
+	"release": {
+		"distribution": "OpenWrt",
+		"version": "23.05.5",
+		"revision": "r24106-10cc5fcd00",
+		"target": "x86/64",
+		"description": "OpenWrt 23.05.5 r24106-10cc5fcd00"
+	}
+}
