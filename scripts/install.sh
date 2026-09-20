@@ -43,8 +43,25 @@ else
 	die "neither curl nor wget found"
 fi
 
+# --- 2a. Which package manager is this? ------------------------------------
+# OpenWrt ≤24.10 ships opkg and installs .ipk; 25.12 replaced it with apk-tools
+# 3, which installs .apk and does not understand .ipk at all. Both formats are
+# built from the same recipe and published in every release, so the only
+# decision here is which file this router can actually consume.
+if command -v apk >/dev/null 2>&1; then
+	PM=apk
+	EXT=apk
+elif command -v opkg >/dev/null 2>&1; then
+	PM=opkg
+	EXT=ipk
+else
+	die "no supported package manager found (looked for apk and opkg).
+  This installer targets OpenWrt; on 25.12 and later that means apk,
+  on 24.10 and earlier opkg."
+fi
+
 mkdir -p "$TMP"
-PKG="veilbridge_${ARCH}.ipk"
+PKG="veilbridge_${ARCH}.${EXT}"
 
 echo "install: downloading $PKG"
 fetch "$TMP/$PKG" "$BASE/$PKG" || die "download failed: $BASE/$PKG"
@@ -58,7 +75,15 @@ grep " $PKG\$" SHA256SUMS > one.sum || die "no checksum for $PKG in SHA256SUMS"
 sha256sum -c one.sum || die "checksum mismatch — refusing to install"
 
 # --- 4. Install ------------------------------------------------------------
-echo "install: opkg update (needed to resolve kmod-tun and nftables)"
-opkg update >/dev/null 2>&1 || echo "install: opkg update failed, trying anyway" >&2
+echo "install: $PM update (needed to resolve kmod-tun and nftables)"
+"$PM" update >/dev/null 2>&1 || echo "install: $PM update failed, trying anyway" >&2
 
-opkg install "$TMP/$PKG"
+if [ "$PM" = apk ]; then
+	# The package is not signed by a repository key (a signed feed is roadmap
+	# D1), so apk needs to be told that installing this local file is intended.
+	# The checksum was already verified against SHA256SUMS above, which is the
+	# guarantee that actually matters here.
+	apk add --allow-untrusted "$TMP/$PKG"
+else
+	opkg install "$TMP/$PKG"
+fi

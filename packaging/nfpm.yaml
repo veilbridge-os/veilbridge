@@ -74,3 +74,21 @@ scripts:
 ipk:
   fields:
     Bugs: https://github.com/veilbridge-os/veilbridge/issues
+
+# OpenWrt 25.12 replaced opkg with apk-tools 3, so the same recipe is also built
+# with `-p apk`. Measured on the router: apk-tools 3.0.5 installs an nfpm apk
+# and resolves kmod-tun from the official feed.
+#
+# apk needs its own script wiring, because it does NOT run .pre-install /
+# .post-install when the package is already installed — it runs .pre-upgrade /
+# .post-upgrade instead. Without these two lines an upgrade runs no scripts at
+# all: measured on OpenWrt 25.12.5, a wrong-CPU package then replaced the
+# working binary silently, with rc=0 and no output at all.
+#
+# Architecture stays "noarch" for the same reason as in the ipk: /etc/apk/arch
+# on this router is `aarch64_cortex-a53`, i.e. per-subtarget, so a real arch
+# string would be refused on every other ARM router.
+apk:
+  scripts:
+    preupgrade: dist/preinst.sh
+    postupgrade: packaging/scripts/postinst.sh

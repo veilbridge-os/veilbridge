@@ -4,8 +4,9 @@ How VeilBridge is delivered to a router. One recipe is the source of truth for
 the service, the permissions and the dependencies — not a wiki page and not a
 hand-made file on someone's test stand.
 
-- [`nfpm.yaml`](./nfpm.yaml) — the package recipe (nfpm builds `.ipk` for
-  OpenWrt). `VERSION` and `VB_ARCH` come from the release workflow.
+- [`nfpm.yaml`](./nfpm.yaml) — the package recipe. One recipe, two formats:
+  `.ipk` for `opkg` (OpenWrt ≤ 24.10) and `.apk` for `apk-tools 3`
+  (OpenWrt ≥ 25.12). `VERSION` and `VB_ARCH` come from the release workflow.
 - [`openwrt/etc/init.d/veilbridge`](./openwrt/etc/init.d/veilbridge) — procd
   service, `START=95`, respawn with back-off, restarts when the config changes.
 - [`scripts/`](./scripts) — `preinst.sh.in` / `postinst` / `prerm` / `postrm`.
@@ -58,6 +59,27 @@ still answering.
 23.05). The scripts use that to keep autostart links during an upgrade and to
 stay quiet about "your settings were kept", which during an upgrade reads like a
 warning about something that never happened.
+
+**apk is not opkg, in two ways that bite.** Measured on the same router running
+OpenWrt 25.12.5 with apk-tools 3.0.5:
+
+1. *Different script names.* apk runs `.pre-install`/`.post-install` only on a
+   fresh install; once the package exists it runs `.pre-upgrade`/`.post-upgrade`
+   (apk-tools `src/database.c`: `.script = upgrade ? APK_SCRIPT_PRE_UPGRADE :
+   APK_SCRIPT_PRE_INSTALL`). A package without those entries upgrades with **no
+   scripts at all** — which is how a wrong-CPU package replaced a working binary
+   silently, with `rc=0` and no output.
+2. *A failing script cannot stop anything.* The script is executed from inside
+   the extraction loop and its result is discarded
+   (`apk_db_run_pending_script()` ignores the return of
+   `apk_ipkg_run_script()`, which only sets `ipkg->broken_script`). `apk add`
+   still exits 0.
+
+So under apk the guard cannot refuse — it rescues instead: `preinst` copies the
+working binary to `/tmp/veilbridge.rescue-bin` before the overwrite, and
+`postinst` puts it back, restarts the panel and prints how to fix the package
+database. Verified on the router: after installing the amd64 package on aarch64
+the panel is running again on a restored arm64 binary, with a new PID.
 
 ## Not yet built (roadmap D1+)
 

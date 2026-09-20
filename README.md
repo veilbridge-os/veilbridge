@@ -84,21 +84,29 @@ Run this **on the router** (`ssh root@192.168.1.1`):
 wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | sh
 ```
 
-The script picks the build for your CPU, verifies its SHA-256 checksum and
-hands over to `opkg`. Prefer to do it by hand? That is the same two steps:
+The script picks the build for your CPU **and for your package manager**,
+verifies its SHA-256 checksum and installs it. OpenWrt 25.12 replaced `opkg`
+with `apk`, so every release ships both formats: `.ipk` for 24.10 and earlier,
+`.apk` for 25.12 and later. Prefer to do it by hand? That is the same two steps:
 
 ```sh
 # x86_64 -> amd64, aarch64 -> arm64
 ARCH=arm64
+# OpenWrt <= 24.10: EXT=ipk. OpenWrt >= 25.12: EXT=apk.
+EXT=$(command -v apk >/dev/null && echo apk || echo ipk)
 BASE=https://github.com/veilbridge-os/veilbridge/releases/latest/download
 
-wget -O "veilbridge_$ARCH.ipk" "$BASE/veilbridge_$ARCH.ipk"
+wget -O "veilbridge_$ARCH.$EXT" "$BASE/veilbridge_$ARCH.$EXT"
 wget -O SHA256SUMS "$BASE/SHA256SUMS"
 # busybox sha256sum has no --ignore-missing: check exactly the one line,
 # otherwise you verify nothing and never notice.
-grep " veilbridge_$ARCH.ipk$" SHA256SUMS > one.sum && sha256sum -c one.sum
+grep " veilbridge_$ARCH.$EXT$" SHA256SUMS > one.sum && sha256sum -c one.sum
 
-opkg install "./veilbridge_$ARCH.ipk"
+# apk: the file is not signed by a repository key (a signed feed is on the
+# roadmap), so it has to be allowed explicitly — the checksum above is the
+# guarantee that matters.
+[ "$EXT" = apk ] && apk add --allow-untrusted "./veilbridge_$ARCH.apk" \
+                 || opkg install "./veilbridge_$ARCH.ipk"
 ```
 
 The package installs `/usr/bin/veilbridged`, a procd service
@@ -110,15 +118,20 @@ veilbridged -set-password '<choose-a-password>'
 /etc/init.d/veilbridge start
 ```
 
-Then open `http://<router-ip>:8080/`. Upgrades (`opkg install` a newer file)
-keep your nodes and settings and restart the service; `opkg remove` stops it and
-leaves `/etc/veilbridge` alone, because it holds your VPN private keys.
+Then open `http://<router-ip>:8080/`. Installing a newer file upgrades in place,
+keeping your nodes and settings and restarting the service; removing the package
+(`apk del veilbridge` / `opkg remove veilbridge`) stops it and leaves
+`/etc/veilbridge` alone, because it holds your VPN private keys.
 
 **Requirements on the target:** OpenWrt with `kmod-tun` (for `/dev/net/tun`) and
 `nftables` — both pulled in as package dependencies; roughly 25 MiB of RAM for
 the daemon and ~12 MB of storage, so an 8/64 MB device will not fit it.
 Standalone binaries are published too, for people who would rather not use a
-package. A signed opkg feed and ready-made firmware images are on the roadmap.
+package. A signed package feed and ready-made firmware images are on the
+roadmap.
+
+Tested on real hardware: a Cudy WR3000S v1 (MediaTek MT7981B, 256 MB RAM,
+aarch64) running OpenWrt 24.10.8 (`opkg`) and 25.12.5 (`apk`).
 
 ## Building
 

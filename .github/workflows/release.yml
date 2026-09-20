@@ -106,7 +106,7 @@ jobs:
           grep -qi '<div id="app"' /tmp/index.html
           echo "embedded UI served ($(wc -c < /tmp/index.html) bytes)"
 
-      - name: Build OpenWrt packages (.ipk)
+      - name: Build OpenWrt packages (.ipk for opkg, .apk for apk-tools 3)
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -122,11 +122,16 @@ jobs:
             sed "s/@VB_ARCH@/$arch/g" \
               packaging/scripts/preinst.sh.in > dist/preinst.sh
             grep -q "PKG_ARCH='$arch'" dist/preinst.sh
-            VB_ARCH="$arch" go run "$nfpm" \
-              package -f packaging/nfpm.yaml -p ipk \
-              -t "dist/veilbridge_${arch}.ipk"
+            # Two formats, one recipe: OpenWrt ≤24.10 consumes .ipk via opkg,
+            # 25.12 and later replaced opkg with apk-tools 3 and consume .apk.
+            # Shipping only one of them means shipping for oldstable only.
+            for fmt in ipk apk; do
+              VB_ARCH="$arch" go run "$nfpm" \
+                package -f packaging/nfpm.yaml -p "$fmt" \
+                -t "dist/veilbridge_${arch}.${fmt}"
+            done
           done
-          ls -la dist/*.ipk
+          ls -la dist/*.ipk dist/*.apk
 
       - name: 'Smoke test: the package contains what it promises'
         run: |
@@ -148,12 +153,28 @@ jobs:
           grep -q 'was-running' preinst
           tar tzf data.tar.gz | grep -qx './usr/bin/veilbridged'
           tar tzf data.tar.gz | grep -qx './etc/init.d/veilbridge'
-          echo 'package layout ok'
+          echo 'ipk layout ok'
+
+          # apk runs .pre-upgrade/.post-upgrade instead of .pre-install and
+          # .post-install once the package is installed. Without those entries
+          # an upgrade runs no scripts at all, and a wrong-CPU package replaces
+          # a working binary silently (measured on OpenWrt 25.12.5).
+          cd "$(mktemp -d)"
+          tar xzf "$GITHUB_WORKSPACE/dist/veilbridge_arm64.apk"
+          for s in .pre-install .post-install .pre-upgrade .post-upgrade \
+            .pre-deinstall .post-deinstall; do
+            test -f "$s" || { echo "apk package lacks $s"; exit 1; }
+          done
+          grep -q "PKG_ARCH='arm64'" .pre-upgrade
+          grep -q 'rescue-bin' .pre-upgrade
+          grep -q 'rescue-bin' .post-upgrade
+          echo 'apk layout ok'
 
       - name: Checksums
         run: |
           cd dist
-          sha256sum veilbridged-linux-* veilbridge_*.ipk > SHA256SUMS
+          sha256sum veilbridged-linux-* veilbridge_*.ipk veilbridge_*.apk \
+            > SHA256SUMS
           cat SHA256SUMS
 
       - name: Publish GitHub Release
@@ -170,4 +191,6 @@ jobs:
             dist/veilbridged-linux-arm64
             dist/veilbridge_amd64.ipk
             dist/veilbridge_arm64.ipk
+            dist/veilbridge_amd64.apk
+            dist/veilbridge_arm64.apk
             dist/SHA256SUMS

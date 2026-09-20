@@ -1,24 +1,56 @@
 #!/bin/sh
-# Runs after the files are unpacked (opkg postinst).
+# Runs after this package's files are written.
+#
+#   opkg  → postinst
+#   apk   → .post-install (fresh) and .post-upgrade (package already installed)
 set -e
 
 BIN=/usr/bin/veilbridged
 CONF=/etc/veilbridge/config.json
+RESCUE=/tmp/veilbridge.rescue-bin
 
-# The first guard is preinst, which refuses a wrong-CPU package before any file
-# is unpacked (see packaging/scripts/preinst.sh.in). This is the second line of
-# defence for whatever preinst cannot foresee — a binary that matches uname but
-# still does not run here (missing loader, wrong libc, corrupted download).
-#
+# Name the command that actually exists on this system, so the advice can be
+# pasted: OpenWrt ≤24.10 has opkg, 25.12 and later have apk.
+remove_cmd() {
+	if command -v apk >/dev/null 2>&1; then
+		echo "apk del veilbridge"
+	else
+		echo "opkg remove veilbridge"
+	fi
+}
+
 # The install reached this far, so the marker prerm left for preinst has done
 # its job; drop it before it can confuse a later run.
 rm -f /tmp/veilbridge.was-running
 
+# Rescue path — apk only. opkg honours a failing preinst and never gets here,
+# but apk executes preinst from inside its extraction loop, ignores the exit
+# code and unpacks the package anyway (measured: `apk add` of the amd64 package
+# on aarch64 replaced the binary and still exited 0). preinst saw that coming
+# and kept a copy of the working binary; put it back.
+if [ -f "$RESCUE" ]; then
+	cat "$RESCUE" > "$BIN" 2>/dev/null || true
+	chmod 0755 "$BIN" 2>/dev/null || true
+	rm -f "$RESCUE"
+	/etc/init.d/veilbridge restart >/dev/null 2>&1 || true
+
+	echo "veilbridge: this package does not match this CPU ($(uname -m))." >&2
+	echo "  The package manager unpacked it anyway, so the working binary was" >&2
+	echo "  restored from a copy and the panel is running again." >&2
+	echo "  The package database now lists a package whose files are not" >&2
+	echo "  installed — fix it: $(remove_cmd), then install the matching file" >&2
+	echo "  (amd64 for x86_64, arm64 for aarch64)." >&2
+	exit 1
+fi
+
+# Second line of defence for whatever preinst cannot foresee — a binary that
+# matches uname but still does not run here (missing loader, corrupted
+# download).
 if ! "$BIN" -version >/dev/null 2>&1; then
 	echo "veilbridge: $BIN does not run on this device." >&2
 	echo "  Most likely the wrong CPU build was installed. This device is:" >&2
 	echo "    $(uname -m)" >&2
-	echo "  Remove this package (opkg remove veilbridge) and install the" >&2
+	echo "  Remove this package ($(remove_cmd)) and install the" >&2
 	echo "  matching file: amd64 for x86_64, arm64 for aarch64." >&2
 	exit 1
 fi
