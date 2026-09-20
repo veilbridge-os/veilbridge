@@ -1,0 +1,87 @@
+#!/bin/sh
+# Runs BEFORE the files are unpacked (opkg preinst).
+#
+# Why this file exists: the package is architecture-independent on purpose (see
+# packaging/nfpm.yaml), so opkg itself will not stop a wrong download. Checking
+# the CPU in postinst is too late — by then the file for the other CPU has
+# already replaced a working binary. Measured on a Cudy WR3000S v1 (aarch64,
+# OpenWrt 24.10.8): `opkg install veilbridge_amd64.ipk` printed the postinst
+# explanation, yet left /usr/bin/veilbridged as an x86 ELF ("ELF: not found")
+# and the panel down.
+#
+# opkg aborts the install when preinst fails, before any data file is written
+# (libopkg/opkg_install.c: preinst_configure() → "Aborting installation of %s",
+# and pkg_extract_data_files_to_dir() runs later), so the installed files of the
+# previous version survive.
+#
+# One thing opkg does NOT do: undo the old package's prerm. Its unwind hook is
+# an explicit stub — prerm_upgrade_old_pkg_unwind() returns 0 with a
+# DPKG_INCOMPATIBILITY note that dpkg would run "old-postinst abort-upgrade"
+# here. Since our prerm stops the service, refusing without repairing would
+# leave a stopped panel. So we start it again ourselves, using the marker prerm
+# left behind.
+#
+# @VB_ARCH@ is substituted at build time from VB_ARCH, so the package knows
+# which CPU its binary was built for without unpacking anything.
+set -e
+
+PKG_ARCH='@VB_ARCH@'
+MARK=/tmp/veilbridge.was-running
+
+# Put back what the old package's prerm stopped: the previous binary and init
+# script are untouched at this point, so this really does restore service.
+#
+# The marker only exists once the *installed* package is new enough to write it
+# (prerm runs from the old package, not from this one — measured: upgrading from
+# 0.1.1 leaves no marker). So fall back to the autostart flag, which prerm keeps
+# during an upgrade and only drops on a real uninstall: enabled + not running
+# right after our own prerm stopped it means we are the reason it is down.
+resume_old_service() {
+	had_marker=0
+	if [ -f "$MARK" ]; then
+		had_marker=1
+		rm -f "$MARK"
+	fi
+
+	[ -x /etc/init.d/veilbridge ] || return 0
+	/etc/init.d/veilbridge running >/dev/null 2>&1 && return 0
+
+	if [ "$had_marker" = 0 ] &&
+		! /etc/init.d/veilbridge enabled >/dev/null 2>&1; then
+		# Disabled panel: it was down before us, leave it alone.
+		return 0
+	fi
+
+	/etc/init.d/veilbridge start >/dev/null 2>&1 || true
+	if /etc/init.d/veilbridge running >/dev/null 2>&1; then
+		echo "veilbridge: the installed panel was left untouched and restarted." >&2
+	else
+		echo "veilbridge: could not restart the installed panel." >&2
+		echo "  Start it by hand: /etc/init.d/veilbridge start" >&2
+	fi
+}
+
+case "$(uname -m)" in
+	x86_64)          DEV_ARCH=amd64 ;;
+	aarch64 | arm64) DEV_ARCH=arm64 ;;
+	*)               DEV_ARCH='' ;;
+esac
+
+if [ -z "$DEV_ARCH" ]; then
+	echo "veilbridge: unsupported CPU: $(uname -m)." >&2
+	echo "  Released packages cover x86_64 (amd64) and aarch64 (arm64)." >&2
+	echo "  For other targets build from source — see the README." >&2
+	resume_old_service
+	exit 1
+fi
+
+if [ "$DEV_ARCH" != "$PKG_ARCH" ]; then
+	echo "veilbridge: this package is built for $PKG_ARCH, this device is $DEV_ARCH ($(uname -m))." >&2
+	echo "  Nothing was installed." >&2
+	echo "  Install the matching file: veilbridge_${DEV_ARCH}.ipk" >&2
+	echo "  Or let the installer pick it: wget -qO- .../scripts/install.sh | sh" >&2
+	resume_old_service
+	exit 1
+fi
+
+exit 0

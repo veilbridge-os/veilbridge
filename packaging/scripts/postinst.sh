@@ -5,10 +5,15 @@ set -e
 BIN=/usr/bin/veilbridged
 CONF=/etc/veilbridge/config.json
 
-# The package is marked architecture-independent so opkg never refuses it on an
-# unusual subtarget (see packaging/nfpm.yaml). That makes this check the real
-# guard: run the binary. A file built for another CPU fails here with a clear
-# message instead of leaving a service that can never start.
+# The first guard is preinst, which refuses a wrong-CPU package before any file
+# is unpacked (see packaging/scripts/preinst.sh.in). This is the second line of
+# defence for whatever preinst cannot foresee — a binary that matches uname but
+# still does not run here (missing loader, wrong libc, corrupted download).
+#
+# The install reached this far, so the marker prerm left for preinst has done
+# its job; drop it before it can confuse a later run.
+rm -f /tmp/veilbridge.was-running
+
 if ! "$BIN" -version >/dev/null 2>&1; then
 	echo "veilbridge: $BIN does not run on this device." >&2
 	echo "  Most likely the wrong CPU build was installed. This device is:" >&2

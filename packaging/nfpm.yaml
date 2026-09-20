@@ -11,7 +11,7 @@ version: ${VERSION}
 
 # Deliberately architecture-independent — see the note below. The CPU build is
 # chosen by the file name (dist/veilbridge_<goarch>.ipk) and enforced for real
-# in packaging/scripts/postinst.sh.
+# in packaging/scripts/preinst.sh.in, before a single file is unpacked.
 arch: all
 
 # Why "all" and not a real architecture string: OpenWrt arch names are
@@ -21,8 +21,9 @@ arch: all
 # refused by opkg on every real ARM router, even though the binary runs there.
 # Every device accepts "all". We therefore ship one file per CPU family, keep
 # the package architecture-independent so opkg never refuses it, and check the
-# CPU for real in postinst by executing the binary: a wrong download fails
-# loudly with an explanation instead of installing something that cannot run.
+# CPU ourselves in preinst, which opkg runs before extracting the data files:
+# a wrong download is refused loudly while the previous installation keeps
+# working. postinst still executes the binary as a second line of defence.
 platform: linux
 maintainer: VeilBridge maintainers <veilbridge-os@users.noreply.github.com>
 description: |
@@ -62,6 +63,10 @@ contents:
       mode: 0700
 
 scripts:
+  # Generated at build time from packaging/scripts/preinst.sh.in with the target
+  # CPU substituted: nfpm does not expand env vars inside script files, so the
+  # substitution happens before nfpm runs (see the release workflow).
+  preinstall: dist/preinst.sh
   postinstall: packaging/scripts/postinst.sh
   preremove: packaging/scripts/prerm.sh
   postremove: packaging/scripts/postrm.sh
