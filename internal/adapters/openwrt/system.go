@@ -45,6 +45,10 @@ type systemManager struct {
 	procCPU    func() float64
 	procUptime func() int64
 	procMem    func() (used, total int64)
+	// run is the exec hook Diagnostics uses. Tests replace it so ping and
+	// traceroute can be asserted without a network or those binaries.
+	// Production uses exec.CommandContext CombinedOutput.
+	run func(ctx context.Context, name string, args ...string) ([]byte, error)
 	// board is cached after the first successful read. A router does not
 	// change its model or firmware while running, and the dashboard polls.
 	boardOnce sync.Once
@@ -137,12 +141,40 @@ func (m *systemManager) Diagnostics(target string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	// -c 4: four pings, bounded. ping must be on PATH.
-	out, err := exec.CommandContext(ctx, "ping", "-c", "4", target).CombinedOutput()
-	if err != nil {
-		return string(out), fmt.Errorf("openwrt: ping %q: %w", target, err)
+	run := m.run
+	if run == nil {
+		run = runDiagnostics
 	}
-	return string(out), nil
+	// -c 4: four pings, bounded. ping must be on PATH.
+	pingOut, pingErr := run(ctx, "ping", "-c", "4", target)
+	// Bound traceroute so a 30-hop default cannot outlive the HTTP request.
+	// -n numeric, -m 8 hops, -w 1s per probe, -q 1 probe per hop.
+	traceBin := "traceroute"
+	if strings.Contains(target, ":") {
+		traceBin = "traceroute6"
+	}
+	traceOut, traceErr := run(ctx, traceBin, "-n", "-m", "8", "-w", "1", "-q", "1", target)
+
+	var b strings.Builder
+	b.WriteString("=== ping ===\n")
+	b.Write(pingOut)
+	if len(pingOut) > 0 && !strings.HasSuffix(string(pingOut), "\n") {
+		b.WriteByte('\n')
+	}
+	b.WriteString("=== traceroute ===\n")
+	b.Write(traceOut)
+	out := b.String()
+	if pingErr != nil {
+		return out, fmt.Errorf("openwrt: ping %q: %w", target, pingErr)
+	}
+	if traceErr != nil {
+		return out, fmt.Errorf("openwrt: %s %q: %w", traceBin, target, traceErr)
+	}
+	return out, nil
+}
+
+func runDiagnostics(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
 // tunnelEngineKind names the engine in use by what it can do, not by what it

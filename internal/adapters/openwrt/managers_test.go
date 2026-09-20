@@ -2,9 +2,11 @@ package openwrt
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/veilbridge-os/veilbridge/internal/config"
@@ -244,5 +246,78 @@ func TestValidHost(t *testing.T) {
 		if validHost(s) {
 			t.Errorf("validHost(%q) = true, want false", s)
 		}
+	}
+}
+
+func TestDiagnosticsRunsPingAndTraceroute(t *testing.T) {
+	sys := &systemManager{}
+	var calls [][]string
+	sys.run = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, append([]string{name}, args...))
+		return []byte(name + " ok\n"), nil
+	}
+	out, err := sys.Diagnostics("example.com")
+	if err != nil {
+		t.Fatalf("Diagnostics: %v", err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %d, want ping then traceroute: %v", len(calls), calls)
+	}
+	if calls[0][0] != "ping" || calls[0][1] != "-c" || calls[0][2] != "4" || calls[0][3] != "example.com" {
+		t.Errorf("ping call = %v", calls[0])
+	}
+	tr := calls[1]
+	wantTrace := []string{"traceroute", "-n", "-m", "8", "-w", "1", "-q", "1", "example.com"}
+	if strings.Join(tr, " ") != strings.Join(wantTrace, " ") {
+		t.Errorf("traceroute call = %v, want %v", tr, wantTrace)
+	}
+	if !strings.Contains(out, "=== ping ===") || !strings.Contains(out, "=== traceroute ===") {
+		t.Errorf("output missing sections:\n%s", out)
+	}
+	if !strings.Contains(out, "ping ok") || !strings.Contains(out, "traceroute ok") {
+		t.Errorf("output missing command bodies:\n%s", out)
+	}
+}
+
+func TestDiagnosticsIPv6UsesTraceroute6(t *testing.T) {
+	sys := &systemManager{}
+	var bins []string
+	sys.run = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		bins = append(bins, name)
+		return []byte("ok\n"), nil
+	}
+	if _, err := sys.Diagnostics("2001:db8::1"); err != nil {
+		t.Fatalf("Diagnostics: %v", err)
+	}
+	if len(bins) != 2 || bins[0] != "ping" || bins[1] != "traceroute6" {
+		t.Errorf("bins = %v, want ping then traceroute6", bins)
+	}
+}
+
+func TestDiagnosticsRejectsInvalidHostWithoutExec(t *testing.T) {
+	sys := &systemManager{}
+	sys.run = func(context.Context, string, ...string) ([]byte, error) {
+		t.Fatal("run must not be called for an invalid target")
+		return nil, nil
+	}
+	if _, err := sys.Diagnostics("x;rm -rf"); err == nil {
+		t.Fatal("expected invalid target error")
+	}
+}
+
+func TestDiagnosticsKeepsPingWhenTracerouteFails(t *testing.T) {
+	sys := &systemManager{}
+	sys.run = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name == "ping" {
+			return []byte("PING ok\n"), nil
+		}
+		return []byte("traceroute: not found\n"), fmt.Errorf("executable file not found")
+	}
+	out, err := sys.Diagnostics("example.com")
+	if err == nil {
+		t.Fatal("expected traceroute error")
+	}
+	if !strings.Contains(out, "PING ok") {
+		t.Errorf("ping output lost: %s", out)
 	}
 }
