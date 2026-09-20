@@ -135,6 +135,22 @@ type WANOutput struct {
 	Body core.WANStatus
 }
 
+// StageWANInput is a requested uplink configuration. Staging is deliberately
+// a separate call from applying: the operator sees the diff first, and the
+// change only reaches the device through the watchdogged transaction.
+type StageWANInput struct {
+	Body core.WANConfig
+}
+
+type ChangesOutput struct {
+	Body struct {
+		Changes []core.ConfigChange `json:"changes"`
+		// Dangerous is true when any staged edit can cut the panel's own
+		// access, which is what makes the confirmation window mandatory.
+		Dangerous bool `json:"dangerous"`
+	}
+}
+
 type ProbeInput struct {
 	Body struct {
 		Target      string      `json:"target" doc:"Domain or IP to test"`

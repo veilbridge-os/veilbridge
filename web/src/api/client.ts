@@ -71,7 +71,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     let msg = `HTTP ${resp.status}`
     try {
       const err = await resp.json()
-      msg = err?.detail || err?.title || msg
+      // Huma puts validation reasons in `errors[]` and a short summary in
+      // `detail`. Showing only `detail` tells the operator "stage uplink" and
+      // hides the one sentence that says what was wrong with their input.
+      const reasons = Array.isArray(err?.errors)
+        ? err.errors.map((e: { message?: string }) => e?.message).filter(Boolean)
+        : []
+      msg = [err?.detail || err?.title || msg, ...reasons].join(': ')
     } catch {
       // non-JSON error body; keep the status message
     }

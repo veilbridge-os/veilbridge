@@ -261,6 +261,22 @@ func (s *Server) register() {
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
 	}, s.listInterfaces)
 	huma.Register(s.api, huma.Operation{
+		OperationID: "stageWAN", Method: http.MethodPut, Path: "/network/wan",
+		Summary: "Stage a new uplink configuration (does not apply it)",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.stageWAN)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stagedChanges", Method: http.MethodGet, Path: "/apply/changes",
+		Summary: "Configuration edits staged but not yet applied",
+		Tags:    []string{"apply"}, Middlewares: authed, Security: authSec,
+	}, s.stagedChanges)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "discardStaged", Method: http.MethodDelete, Path: "/apply/changes",
+		Summary: "Throw away the staged draft without touching the device",
+		Tags:    []string{"apply"}, DefaultStatus: http.StatusNoContent,
+		Middlewares: authed, Security: authSec,
+	}, s.discardStaged)
+	huma.Register(s.api, huma.Operation{
 		OperationID: "getWAN", Method: http.MethodGet, Path: "/network/wan",
 		Summary: "The uplink, and which rule identified it",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
@@ -572,6 +588,89 @@ func (s *Server) getWAN(ctx context.Context, _ *struct{}) (*WANOutput, error) {
 		return nil, huma.Error502BadGateway("wan", err)
 	}
 	return &WANOutput{Body: wan}, nil
+}
+
+// writer returns the adapter's network writer, if this platform has one.
+// Writing is an optional capability of the adapter, asked for rather than
+// required: an adapter that cannot change configuration must be able to say
+// so instead of panicking at the first PUT.
+func (s *Server) writer() (core.NetworkWriter, bool) {
+	w, ok := s.adapter.Network().(core.NetworkWriter)
+	return w, ok
+}
+
+func (s *Server) stageWAN(_ context.Context, in *StageWANInput) (*ChangesOutput, error) {
+	w, ok := s.writer()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the uplink")
+	}
+	// A change may not be staged on top of one that is already live and
+	// waiting to be confirmed: the operator would then confirm two edits
+	// having reviewed one, and the snapshot would roll back both.
+	if st := s.apply.State(); st.Phase == core.PhaseAwaitingConfirm {
+		return nil, huma.Error409Conflict("a change is already waiting for confirmation")
+	}
+	changes, err := w.StageWAN(in.Body)
+	if err != nil {
+		if errors.Is(err, core.ErrNotImplemented) {
+			return nil, huma.Error501NotImplemented("staging", err)
+		}
+		// A rejected value is the caller's mistake, and the message has to
+		// name it where the panel actually reads it: clients show `detail`,
+		// so burying the reason in the errors array means the operator is
+		// told "stage uplink" and nothing else.
+		return nil, huma.Error400BadRequest(reasonFor(err))
+	}
+	return changesOutput(changes), nil
+}
+
+func (s *Server) stagedChanges(_ context.Context, _ *struct{}) (*ChangesOutput, error) {
+	w, ok := s.writer()
+	if !ok {
+		return changesOutput(nil), nil
+	}
+	changes, err := w.StagedChanges()
+	if err != nil {
+		if errors.Is(err, core.ErrNotImplemented) {
+			return changesOutput(nil), nil
+		}
+		return nil, huma.Error502BadGateway("staged changes", err)
+	}
+	return changesOutput(changes), nil
+}
+
+func (s *Server) discardStaged(_ context.Context, _ *struct{}) (*struct{}, error) {
+	w, ok := s.writer()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the uplink")
+	}
+	if err := w.DiscardStaged(); err != nil && !errors.Is(err, core.ErrNotImplemented) {
+		return nil, huma.Error502BadGateway("discard draft", err)
+	}
+	return nil, nil
+}
+
+// reasonFor turns an adapter error into a sentence for the panel. The adapter
+// prefixes its errors with its own package name, which is useful in a log and
+// noise in a dialog.
+func reasonFor(err error) string {
+	return strings.TrimPrefix(err.Error(), "openwrt: ")
+}
+
+func changesOutput(changes []core.ConfigChange) *ChangesOutput {
+	out := &ChangesOutput{}
+	// [] and not null: the apply bar iterates this to decide whether it has
+	// anything to show.
+	out.Body.Changes = changes
+	if out.Body.Changes == nil {
+		out.Body.Changes = []core.ConfigChange{}
+	}
+	for _, c := range changes {
+		if c.Dangerous {
+			out.Body.Dangerous = true
+		}
+	}
+	return out
 }
 
 func (s *Server) probePath(ctx context.Context, in *ProbeInput) (*ProbeOutput, error) {

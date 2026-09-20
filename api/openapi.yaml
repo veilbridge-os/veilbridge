@@ -98,6 +98,47 @@ components:
       required:
         - available
       type: object
+    ChangesOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ChangesOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        changes:
+          items:
+            $ref: "#/components/schemas/ConfigChange"
+          type:
+            - array
+            - "null"
+        dangerous:
+          type: boolean
+      required:
+        - changes
+        - dangerous
+      type: object
+    ConfigChange:
+      additionalProperties: false
+      properties:
+        dangerous:
+          type: boolean
+        detail:
+          type: string
+        from:
+          type: string
+        label:
+          type: string
+        to:
+          type: string
+      required:
+        - label
+        - from
+        - to
+        - dangerous
+      type: object
     DiagnosticsOutputBody:
       additionalProperties: false
       properties:
@@ -587,6 +628,39 @@ components:
         - memTotal
         - tunnelUp
       type: object
+    WANConfig:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/WANConfig.json
+          format: uri
+          readOnly: true
+          type: string
+        address:
+          type: string
+        dns:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        gateway:
+          type: string
+        interface:
+          type: string
+        netmask:
+          type: string
+        password:
+          type: string
+        proto:
+          type: string
+        username:
+          type: string
+      required:
+        - proto
+      type: object
     WANStatus:
       additionalProperties: false
       properties:
@@ -666,6 +740,43 @@ paths:
       security:
         - bearerAuth: []
       summary: Apply staged configuration with an automatic revert
+      tags:
+        - apply
+  /apply/changes:
+    delete:
+      operationId: discardStaged
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Throw away the staged draft without touching the device
+      tags:
+        - apply
+    get:
+      operationId: stagedChanges
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Configuration edits staged but not yet applied
       tags:
         - apply
   /apply/confirm:
@@ -938,6 +1049,32 @@ paths:
       security:
         - bearerAuth: []
       summary: The uplink, and which rule identified it
+      tags:
+        - network
+    put:
+      operationId: stageWAN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WANConfig"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage a new uplink configuration (does not apply it)
       tags:
         - network
   /nodes:

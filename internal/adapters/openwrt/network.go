@@ -13,23 +13,37 @@ import (
 )
 
 // networkManager answers "what is this router's network doing right now" from
-// netifd, via ubus. It reads and never writes: the only path that changes
-// configuration is the apply transaction (uci.go), so a broken getter can
-// never lock anyone out.
+// netifd, via ubus, and stages changes to it via uci (see network_write.go).
 //
-// It asks netifd rather than reading /proc/net/route or /etc/config, and the
-// two rejected options say why:
+// Reading and writing use different tools on purpose. netifd knows what the
+// device is actually doing; uci knows what it was told to do. A getter that
+// read /etc/config would report a DHCP uplink as having no address, and a
+// setter that wrote through netifd would change the running state without
+// changing the configuration that survives a reboot.
 //
-//   - /etc/config/network is what someone intended, not what happened. A DHCP
-//     WAN has no address there at all.
-//   - /proc/net/route knows kernel devices (br-lan, eth1) but not the logical
-//     names the panel and uci speak (lan, wan), so every reading would have to
-//     be mapped back by guesswork.
+// Nothing here commits: staging is one verb and committing is another, owned
+// by the apply transaction (uci.go) under a watchdog. That split is what the
+// M1 risk gate proved, so a getter — or a rejected edit — can never lock
+// anybody out.
+//
+// It asks netifd rather than reading /proc/net/route, and the rejected option
+// says why: /proc/net/route knows kernel devices (br-lan, eth1) but not the
+// logical names the panel and uci speak (lan, wan), so every reading would
+// have to be mapped back by guesswork.
+//
+
 type networkManager struct {
 	bus *ubus.Client
+	// run is the single seam through which this manager touches the OS for
+	// writes, mirroring the one in the applier. Nil means "this build cannot
+	// write" (tests, a dev machine) and every write method says so rather
+	// than pretending to have staged something.
+	run commandRunner
 }
 
-func newNetworkManager(bus *ubus.Client) networkManager { return networkManager{bus: bus} }
+func newNetworkManager(bus *ubus.Client) networkManager {
+	return networkManager{bus: bus, run: runCommand}
+}
 
 // ifaceTimeout bounds a dump. netifd normally answers in milliseconds; when it
 // does not, a dashboard poll must fail rather than hang.

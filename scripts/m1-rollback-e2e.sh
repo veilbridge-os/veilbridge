@@ -21,10 +21,10 @@
 #      OOM, watchdog). Recovery then has to come from the on-disk journal at
 #      the next start, not from a timer in a process that no longer exists.
 #
-# Staging is done over ssh with `uci set`, because no manager writes network
-# configuration yet (that is M1.5). When it does, replace the staging step with
-# the product API and keep everything else: the observation is the valuable
-# part, not the way the break is made.
+# Staging goes through the product API (PUT /network/wan, M3.1), so the break
+# travels the same path an operator's click takes. ssh is still used, but only
+# to observe the device and to schedule the kill in scenario B — never to make
+# or repair the change under test.
 #
 # Usage:
 #   VB_SSH=root@192.168.10.116 VB_PANEL=192.168.10.116:8080 \
@@ -161,29 +161,35 @@ ok "no staged uci changes on the target"
 # --- helpers shared by both scenarios -------------------------------------
 
 stage_break() {
-	# Staged only: `uci set` writes to /tmp/.uci and changes nothing until the
-	# daemon commits it inside the transaction. That is exactly the boundary
-	# the apply model assumes.
-	if ! on_target "uci set network.$BREAK_IFACE.proto='static'; \
-	           uci set network.$BREAK_IFACE.ipaddr='$BREAK_ADDR'; \
-	           uci set network.$BREAK_IFACE.netmask='255.255.255.0'; \
-	           uci -q delete network.$BREAK_IFACE.gateway || true" >/dev/null; then
-		bad "staging the break over ssh failed"
-		# Half-staged changes would fail the next run's preflight and, worse,
-		# would be committed by whoever runs `uci commit` next.
-		on_target "uci revert network" >/dev/null 2>&1
+	# Staged through the product's own API (M3.1): PUT /network/wan writes to
+	# the uci staging area and commits nothing, so the break travels the exact
+	# path an operator's click takes. Until M3 there was no manager that could
+	# write, and this was done over ssh with `uci set` — a gate that proved the
+	# transaction but skipped the code a person actually uses.
+	local resp
+	resp=$(api PUT /network/wan "{\"interface\":\"$BREAK_IFACE\",\"proto\":\"static\",\
+\"address\":\"$BREAK_ADDR\",\"netmask\":\"255.255.255.0\"}" 2>/dev/null)
+	case "$resp" in
+	*'"dangerous":true'*) ;;
+	*)
+		bad "staging the break through the API failed: ${resp:-no answer}"
+		# A half-written draft would be committed by whoever applies next.
+		api DELETE /apply/changes >/dev/null 2>&1
 		return 1
-	fi
-	# Verify it landed. Staging that silently did nothing turns the whole run
-	# into an apply of an empty change set, which of course "recovers".
+		;;
+	esac
+
+	# Verify it landed on the device. An API that answered 200 while staging
+	# nothing would turn the whole run into an apply of an empty change set —
+	# which "recovers" perfectly and proves nothing.
 	local n
 	n=$(on_target "uci changes network" | wc -l | tr -d ' ')
 	if [ "${n:-0}" -lt 1 ]; then
-		bad "uci staged nothing - there is no break to test"
-		on_target "uci revert network" >/dev/null 2>&1
+		bad "the API reported a staged change the device does not have"
+		api DELETE /apply/changes >/dev/null 2>&1
 		return 1
 	fi
-	ok "staged: network.$BREAK_IFACE -> static $BREAK_ADDR ($n staged lines, not committed)"
+	ok "staged via the product API: network.$BREAK_IFACE -> static $BREAK_ADDR ($n lines, not committed)"
 }
 
 # daemon_pid echoes the pid of the running daemon, and fails if the answer is

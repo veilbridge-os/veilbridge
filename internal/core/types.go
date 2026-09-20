@@ -216,6 +216,71 @@ type WANStatus struct {
 	Candidates []string `json:"candidates,omitempty"`
 }
 
+// WANProto is how the uplink gets its address.
+type WANProto string
+
+const (
+	WANProtoDHCP   WANProto = "dhcp"
+	WANProtoStatic WANProto = "static"
+	WANProtoPPPoE  WANProto = "pppoe"
+)
+
+// WANConfig is a requested uplink configuration. It is an intent, not a
+// reading: what the operator asked for, on its way to the apply transaction.
+//
+// Password is write-only by convention — it is accepted here and never
+// returned by any getter, because a panel that can show the PPPoE password
+// back is a panel that leaks it to anyone who reaches an authenticated
+// session (D-3 keeps secrets out of the API surface).
+type WANConfig struct {
+	// Interface is the logical name to reconfigure ("wan"). Empty means the
+	// interface WANInfo currently identifies as the uplink.
+	Interface string   `json:"interface,omitempty"`
+	Proto     WANProto `json:"proto"`
+	// Address/Netmask/Gateway are required for static, ignored otherwise.
+	Address string `json:"address,omitempty"`
+	Netmask string `json:"netmask,omitempty"`
+	Gateway string `json:"gateway,omitempty"`
+	// DNS overrides the resolvers; empty leaves whatever the link provides.
+	DNS []string `json:"dns,omitempty"`
+	// Username/Password are the PPPoE credentials.
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+}
+
+// ConfigChange is one staged edit, described the way the panel will show it
+// rather than the way the OS stores it (D-3). It is what the apply bar renders
+// as "what will change on this device" before anyone presses the button.
+type ConfigChange struct {
+	// Label names the setting in domain words: "Internet connection type".
+	Label string `json:"label"`
+	// From and To are the old and new values, already rendered for a human.
+	From string `json:"from"`
+	To   string `json:"to"`
+	// Dangerous marks an edit that can cut the panel's own access, which is
+	// what turns an apply into a confirm-or-be-reverted transaction (D-14).
+	Dangerous bool `json:"dangerous"`
+	// Detail is the underlying key, for the "technical details" disclosure.
+	Detail string `json:"detail,omitempty"`
+}
+
+// NetworkWriter is the write half of the network manager. It is separate from
+// NetworkManager because reading is safe and writing is not: a getter cannot
+// lock anybody out, and every method here stages an edit that the apply
+// transaction must then commit under a watchdog.
+//
+// Nothing here commits. Staging and committing are deliberately different
+// verbs owned by different objects — that separation is what the M1 risk gate
+// proved on real hardware, and folding them together would quietly undo it.
+type NetworkWriter interface {
+	// StageWAN validates cfg and stages it, returning what will change.
+	StageWAN(cfg WANConfig) ([]ConfigChange, error)
+	// StagedChanges lists edits staged but not yet committed.
+	StagedChanges() ([]ConfigChange, error)
+	// DiscardStaged throws the draft away without touching the live config.
+	DiscardStaged() error
+}
+
 // Device is a LAN client. v0.1 only ever returns these from a stub; full device
 // management (Wi-Fi, PBR binding) is roadmap M4. See DESIGN §4, D-1.
 type Device struct {
