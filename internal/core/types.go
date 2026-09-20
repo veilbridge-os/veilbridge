@@ -15,6 +15,16 @@ const (
 	EngineXray      EngineKind = "xray"
 )
 
+// TunnelEngineKernel / TunnelEngineUserspace name the engine actually driving
+// tunnels on this device (D-34, M1.7). The kernel engine needs /dev/net/tun;
+// where that is absent the userspace netstack takes over, and the panel says
+// so rather than pretending the two are the same thing: only the kernel engine
+// can forward traffic for the whole LAN.
+const (
+	TunnelEngineKernel    = "kernel"
+	TunnelEngineUserspace = "userspace"
+)
+
 // Target is where traffic to a rule's value should go.
 type Target string
 
@@ -112,6 +122,10 @@ type SystemInfo struct {
 	EgressGeo string `json:"egressGeo,omitempty"`
 	// TunnelUp reports whether traffic genuinely flows through the tunnel.
 	TunnelUp bool `json:"tunnelUp"`
+	// TunnelEngine is the engine in use: "kernel" or "userspace". It is the
+	// daemon's actual choice, not a preference, and it is reported because the
+	// two differ in what they can do for the LAN behind the router.
+	TunnelEngine string `json:"tunnelEngine,omitempty"`
 }
 
 // PathProbe is the result of checking whether traffic to a target goes through

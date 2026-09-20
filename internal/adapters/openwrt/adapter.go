@@ -13,17 +13,40 @@ package openwrt
 
 import (
 	"github.com/veilbridge-os/veilbridge/internal/core"
+	"github.com/veilbridge-os/veilbridge/internal/vpn"
 	"github.com/veilbridge-os/veilbridge/internal/vpn/amneziawg"
 )
 
 // New builds the OpenWrt adapter backed by the config store at the given path
 // (config.DefaultPath if empty).
 //
-// It uses the kernel-TUN engine: the tunnel shows up as a real interface (awg0)
-// that the host's nftables can forward through transparently, which is what
-// makes VeilBridge a router-wide gateway rather than a proxy for its own
-// traffic. Devices without kmod-tun need the userspace netstack engine instead
-// — that path is reachable through NewWithEngine and is not yet auto-detected.
+// The tunnel engine is chosen by asking the kernel, not by assuming (D-34,
+// M1.7): see chooseEngine.
 func New(configPath string) core.Adapter {
-	return NewWithEngine(configPath, amneziawg.NewKernelEngine(), "openwrt")
+	engine, _ := chooseEngine(newSysProbe())
+	return NewWithEngine(configPath, engine, "openwrt")
+}
+
+// chooseEngine picks the tunnel engine from what the device can actually do.
+//
+// The kernel engine is the one worth having: the tunnel shows up as a real
+// interface (awg0) that the host's nftables forwards through transparently,
+// which is what makes VeilBridge a router-wide gateway rather than a proxy for
+// its own traffic. It needs /dev/net/tun, and on a board without kmod-tun that
+// device node simply is not there.
+//
+// Not detecting means being wrong in one of two ways: assume kernel, and the
+// daemon brings up no tunnel at all on a board without kmod-tun; assume
+// userspace, and every router that could forward in the kernel pays for a
+// userspace stack instead. Probing costs one stat and one open, once, at
+// start up.
+//
+// The probe that answers here is the same one behind the kernel-tun
+// capability, so the panel's "why" and the daemon's choice cannot drift
+// apart: they are one measurement.
+func chooseEngine(p sysProbe) (vpn.Engine, string) {
+	if p.kernelTUN().Available {
+		return amneziawg.NewKernelEngine(), core.TunnelEngineKernel
+	}
+	return amneziawg.NewNetstackEngine(), core.TunnelEngineUserspace
 }

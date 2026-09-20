@@ -65,6 +65,10 @@ func (m *systemManager) Info() (core.SystemInfo, error) {
 	info.UptimeSec = m.procUptime()
 	info.MemUsed, info.MemTotal = m.procMem()
 	info.CPUPercent = m.procCPU()
+	// Which engine is actually driving tunnels (M1.7). Derived from the engine
+	// in hand rather than stored: a field could disagree with reality after a
+	// fallback, a type assertion cannot.
+	info.TunnelEngine = tunnelEngineKind(m.vpn.engine)
 	m.enrich(&info)
 
 	// Direct WAN IP (no tunnel) — best effort, short timeout.
@@ -139,6 +143,17 @@ func (m *systemManager) Diagnostics(target string) (string, error) {
 		return string(out), fmt.Errorf("openwrt: ping %q: %w", target, err)
 	}
 	return string(out), nil
+}
+
+// tunnelEngineKind names the engine in use by what it can do, not by what it
+// is called: a kernel engine exposes an OS interface (vpn.InterfaceEngine) for
+// nftables to forward through, a userspace one only a Dialer. That difference
+// is the whole reason the distinction is reported at all.
+func tunnelEngineKind(e vpn.Engine) string {
+	if _, ok := e.(vpn.InterfaceEngine); ok {
+		return core.TunnelEngineKernel
+	}
+	return core.TunnelEngineUserspace
 }
 
 // --- ubus enrichment (M1.4) ---

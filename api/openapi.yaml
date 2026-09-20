@@ -481,6 +481,8 @@ components:
         storageUsed:
           format: int64
           type: integer
+        tunnelEngine:
+          type: string
         tunnelUp:
           type: boolean
         uptimeSec:
