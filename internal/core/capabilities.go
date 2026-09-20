@@ -30,10 +30,21 @@ const (
 // Capability is one answer: can we, and if not, why not.
 type Capability struct {
 	Available bool `json:"available"`
-	// Reason explains a false in words a human can act on ("no radio found on
-	// this device"). It is empty when Available is true — there is nothing to
-	// explain about something that works.
+	// Reason explains a false in words a human can act on, and in the panel's
+	// own vocabulary: no device nodes, no package names, no kernel modules.
+	// It is empty when Available is true — there is nothing to explain about
+	// something that works.
+	//
+	// The split from Detail exists because the two rules pull in opposite
+	// directions: D-17 says the UI must show WHY something is off, and D-3
+	// says the UI must not speak in OS terms. One string cannot honour both,
+	// so there are two, and the interface decides which one it shows first.
 	Reason string `json:"reason,omitempty"`
+	// Detail is the same answer for whoever has to fix it: the device node,
+	// the module, the errno. It belongs behind a "technical details"
+	// disclosure — the same place a diagnostics screen shows raw output —
+	// never in the sentence the user reads first.
+	Detail string `json:"detail,omitempty"`
 }
 
 // Capabilities maps a capability name to its answer.

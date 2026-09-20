@@ -170,8 +170,13 @@ func TestMissingWirelessSubsystemIsNotAnError(t *testing.T) {
 	if !strings.Contains(c.Reason, "no Wi-Fi") {
 		t.Errorf("reason = %q, want it to start from what the user cares about", c.Reason)
 	}
-	if !strings.Contains(c.Reason, "driver") {
-		t.Errorf("reason = %q, want it to admit a driver could be the cause", c.Reason)
+	// The cause a technician needs moved to Detail: Reason speaks the panel's
+	// language (D-3), Detail keeps the diagnosis (D-17). Both must be there.
+	if !strings.Contains(c.Detail, "driver") {
+		t.Errorf("detail = %q, want it to admit a driver could be the cause", c.Detail)
+	}
+	if strings.Contains(c.Reason, "kernel") || strings.Contains(c.Reason, "subsystem") {
+		t.Errorf("reason = %q leaks OS vocabulary into the sentence the user reads", c.Reason)
 	}
 }
 
@@ -201,6 +206,14 @@ func TestEveryUnavailableCapabilityExplainsItself(t *testing.T) {
 		if strings.TrimSpace(c.Reason) == "" {
 			t.Errorf("%s is off with no reason given", name)
 		}
+		// D-3: the sentence the user reads carries no OS vocabulary. The
+		// mockup review caught this — a capability reason was the one place
+		// where "/dev/net/tun: install kmod-tun" reached the interface.
+		for _, banned := range []string{"/dev/", "kmod-", "opkg", "uci", "ubus", "/sys/", "/proc/"} {
+			if strings.Contains(c.Reason, banned) {
+				t.Errorf("%s: reason %q contains %q, which belongs in Detail", name, c.Reason, banned)
+			}
+		}
 	}
 	if off == 0 {
 		t.Fatal("nothing was off on a bare device, so this test proved nothing")
@@ -219,8 +232,22 @@ func TestKernelTUNRequiresACharacterDevice(t *testing.T) {
 	if regular.Available(core.CapKernelTUN) {
 		t.Error("a regular file called /dev/net/tun was accepted as the TUN device")
 	}
-	if !strings.Contains(regular[core.CapKernelTUN].Reason, "character device") {
-		t.Errorf("reason = %q, want it to name the real problem", regular[core.CapKernelTUN].Reason)
+	// What the user is told is the consequence — tunnels cannot run in the
+	// kernel — while which of the three technical causes it was lives in
+	// Detail. A person cannot act on "not a character device"; they can act
+	// on "this device works in a fallback mode".
+	reg := regular[core.CapKernelTUN]
+	if !strings.Contains(reg.Detail, "character device") {
+		t.Errorf("detail = %q, want it to name the real problem", reg.Detail)
+	}
+	if !strings.Contains(reg.Reason, "fallback") {
+		t.Errorf("reason = %q, want it to state the consequence for the user", reg.Reason)
+	}
+	if strings.Contains(reg.Reason, "/dev/") {
+		t.Errorf("reason = %q puts a device node in front of the user (D-3)", reg.Reason)
+	}
+	if absent[core.CapKernelTUN].Detail == "" {
+		t.Error("the missing-device case gives no technical detail at all")
 	}
 }
 

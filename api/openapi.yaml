@@ -91,6 +91,8 @@ components:
       properties:
         available:
           type: boolean
+        detail:
+          type: string
         reason:
           type: string
       required:

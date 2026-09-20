@@ -79,9 +79,12 @@ func (p sysProbe) wifi() core.Capability {
 	case err != nil:
 		// No wireless subsystem at all. Usually no radio; it can also be a
 		// driver that never loaded, so the wording does not swear about which.
-		return core.Capability{Reason: "no Wi-Fi available: this kernel has no wireless subsystem (no radio, or its driver did not load)"}
+		return core.Capability{
+			Reason: "this device has no Wi-Fi",
+			Detail: "the kernel exposes no wireless subsystem: no radio, or its driver did not load",
+		}
 	case len(radios) == 0:
-		return core.Capability{Reason: "no Wi-Fi radio on this device"}
+		return core.Capability{Reason: "this device has no Wi-Fi radio"}
 	default:
 		return core.Capability{Available: true}
 	}
@@ -94,7 +97,10 @@ func (p sysProbe) wifi() core.Capability {
 func (p sysProbe) switchPorts() core.Capability {
 	devices, err := listDir(p.sysClassNet)
 	if err != nil {
-		return core.Capability{Reason: fmt.Sprintf("cannot read %s", p.sysClassNet)}
+		return core.Capability{
+			Reason: "cannot tell whether this device has a managed switch",
+			Detail: fmt.Sprintf("cannot read %s", p.sysClassNet),
+		}
 	}
 	for _, dev := range devices {
 		if isDir(filepath.Join(p.sysClassNet, dev, "dsa")) {
@@ -108,7 +114,7 @@ func (p sysProbe) switchPorts() core.Capability {
 	if switches, err := listDir(p.sysClassSwitch); err == nil && len(switches) > 0 {
 		return core.Capability{Available: true}
 	}
-	return core.Capability{Reason: "no managed switch on this device: its ports cannot be controlled separately"}
+	return core.Capability{Reason: "this device has no managed switch, so its ports cannot be controlled separately"}
 }
 
 // usb reports whether the board has a USB controller - not whether anything
@@ -119,9 +125,12 @@ func (p sysProbe) usb() core.Capability {
 	entries, err := listDir(p.sysBusUSB)
 	switch {
 	case err != nil:
-		return core.Capability{Reason: "no USB port on this device (this kernel has no USB support)"}
+		return core.Capability{
+			Reason: "this device has no USB port",
+			Detail: "the kernel has no USB support compiled in",
+		}
 	case len(entries) == 0:
-		return core.Capability{Reason: "no USB controller on this device"}
+		return core.Capability{Reason: "this device has no USB port"}
 	default:
 		return core.Capability{Available: true}
 	}
@@ -133,17 +142,33 @@ func (p sysProbe) usb() core.Capability {
 // behind by an unloaded module is still there but no longer works; and a
 // daemon without permission on it will fail at the first tunnel, not here.
 // Opening it once at start up answers all three for the price of one syscall.
+// kernelTunnelReason is what every kernel-tunnel failure means to the person
+// reading the panel: the gateway still works, but only for itself. Which of
+// the three technical causes it was belongs in Detail — the consequence is
+// identical, and it is the consequence that decides what the user does next.
+const kernelTunnelReason = "this device cannot run tunnels in the kernel, " +
+	"so the gateway works in a fallback mode that does not serve the whole local network"
+
 func (p sysProbe) kernelTUN() core.Capability {
 	info, err := os.Stat(p.devNetTUN)
 	if err != nil {
-		return core.Capability{Reason: "no /dev/net/tun: install kmod-tun to use the kernel engine"}
+		return core.Capability{
+			Reason: kernelTunnelReason,
+			Detail: "/dev/net/tun is missing; installing the kmod-tun package adds it",
+		}
 	}
 	if info.Mode()&os.ModeCharDevice == 0 {
-		return core.Capability{Reason: "/dev/net/tun exists but is not a character device"}
+		return core.Capability{
+			Reason: kernelTunnelReason,
+			Detail: "/dev/net/tun exists but is not a character device",
+		}
 	}
 	f, err := os.OpenFile(p.devNetTUN, os.O_RDWR, 0)
 	if err != nil {
-		return core.Capability{Reason: fmt.Sprintf("/dev/net/tun cannot be opened: %v", err)}
+		return core.Capability{
+			Reason: kernelTunnelReason,
+			Detail: fmt.Sprintf("/dev/net/tun cannot be opened: %v", err),
+		}
 	}
 	_ = f.Close()
 	return core.Capability{Available: true}
@@ -151,7 +176,10 @@ func (p sysProbe) kernelTUN() core.Capability {
 
 func (p sysProbe) ipv6() core.Capability {
 	if _, err := os.Stat(p.procNetIPv6); err != nil {
-		return core.Capability{Reason: "no IPv6 on this device: the kernel was built without it"}
+		return core.Capability{
+			Reason: "this device does not support IPv6",
+			Detail: "the kernel was built without IPv6",
+		}
 	}
 	return core.Capability{Available: true}
 }
