@@ -4,6 +4,22 @@
 # CI regenerates this and fails on drift (git diff --exit-code).
 components:
   schemas:
+    ApplyConfirmInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ApplyConfirmInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        token:
+          description: Token returned by POST /apply
+          type: string
+      required:
+        - token
+      type: object
     ApplyOutputBody:
       additionalProperties: false
       properties:
@@ -20,6 +36,47 @@ components:
           type: boolean
       required:
         - ok
+      type: object
+    ApplyState:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ApplyState.json
+          format: uri
+          readOnly: true
+          type: string
+        deadline:
+          format: date-time
+          type: string
+        error:
+          type: string
+        phase:
+          type: string
+        snapshot_id:
+          type: string
+        token:
+          type: string
+      required:
+        - phase
+      type: object
+    ApplyTxInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/ApplyTxInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        timeout_seconds:
+          description: Confirmation window in seconds; 0 uses the server default
+          format: int64
+          maximum: 600
+          minimum: 0
+          type: integer
       type: object
     DiagnosticsOutputBody:
       additionalProperties: false
@@ -379,6 +436,101 @@ info:
   version: 0.1.0
 openapi: 3.1.0
 paths:
+  /apply:
+    get:
+      operationId: applyState
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyState"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: State of the apply transaction
+      tags:
+        - apply
+    post:
+      operationId: applyConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyTxInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyState"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Apply staged configuration with an automatic revert
+      tags:
+        - apply
+  /apply/confirm:
+    post:
+      operationId: confirmApply
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyConfirmInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyState"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Confirm that the panel survived the change
+      tags:
+        - apply
+  /apply/revert:
+    post:
+      operationId: revertApply
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyState"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Undo the pending change immediately
+      tags:
+        - apply
   /auth/login:
     post:
       operationId: login
