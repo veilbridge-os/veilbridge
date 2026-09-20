@@ -154,9 +154,21 @@ func (System) Diagnostics(target string) (string, error) {
 // Network returns a canned two-interface router: a static LAN and a DHCP WAN
 // with a default route. Addresses are from the documentation ranges (RFC 5737)
 // so a demo screenshot can never leak a real network.
-type Network struct{}
+//
+// FailWAN / FailInterfaces inject the errors the API maps onto 404/501/502 so
+// those status codes can be tested without a real network daemon.
+type Network struct {
+	mu        sync.Mutex
+	wanErr    error
+	ifacesErr error
+}
 
-func (Network) Interfaces() ([]core.NetworkInterface, error) {
+func (m *Network) Interfaces() ([]core.NetworkInterface, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ifacesErr != nil {
+		return nil, m.ifacesErr
+	}
 	return []core.NetworkInterface{
 		{
 			Name: "lan", Device: "br-lan", Up: true, Proto: "static",
@@ -170,13 +182,36 @@ func (Network) Interfaces() ([]core.NetworkInterface, error) {
 	}, nil
 }
 
-func (m Network) WANInfo() (core.WANStatus, error) {
-	ifaces, _ := m.Interfaces()
+func (m *Network) WANInfo() (core.WANStatus, error) {
+	m.mu.Lock()
+	err := m.wanErr
+	m.mu.Unlock()
+	if err != nil {
+		return core.WANStatus{}, err
+	}
+	ifaces, ierr := m.Interfaces()
+	if ierr != nil {
+		return core.WANStatus{}, ierr
+	}
 	return core.WANStatus{
 		Interface:  ifaces[1],
 		SelectedBy: "default-route",
 		Candidates: []string{"wan"},
 	}, nil
+}
+
+// FailWAN makes subsequent WANInfo calls return err. Pass nil to restore the canned WAN.
+func (m *Network) FailWAN(err error) {
+	m.mu.Lock()
+	m.wanErr = err
+	m.mu.Unlock()
+}
+
+// FailInterfaces makes subsequent Interfaces calls return err. Pass nil to restore the canned list.
+func (m *Network) FailInterfaces(err error) {
+	m.mu.Lock()
+	m.ifacesErr = err
+	m.mu.Unlock()
 }
 
 // Device is a roadmap stub: every method returns core.ErrNotImplemented.
@@ -191,15 +226,18 @@ type Adapter struct {
 	vpn     *VPN
 	routing *Routing
 	system  System
-	network Network
+	network *Network
 	device  Device
 	applier *Applier
 }
 
 // NewAdapter returns a fully wired mock adapter.
 func NewAdapter() *Adapter {
-	return &Adapter{vpn: &VPN{}, routing: &Routing{}, applier: &Applier{}}
+	return &Adapter{vpn: &VPN{}, routing: &Routing{}, network: &Network{}, applier: &Applier{}}
 }
+
+// MockNetwork returns the in-memory network manager so tests can inject errors.
+func (a *Adapter) MockNetwork() *Network { return a.network }
 
 // Applier is an in-memory core.ConfigApplier: it counts what it was asked to
 // do, so the API layer and demo mode can exercise the apply transaction with
@@ -298,7 +336,7 @@ var (
 	_ core.VPNManager      = (*VPN)(nil)
 	_ core.RoutingManager  = (*Routing)(nil)
 	_ core.SystemManager   = System{}
-	_ core.NetworkManager  = Network{}
+	_ core.NetworkManager  = (*Network)(nil)
 	_ core.DeviceManager   = Device{}
 	_ core.Adapter         = (*Adapter)(nil)
 	_ core.CapabilityProbe = (*Adapter)(nil)

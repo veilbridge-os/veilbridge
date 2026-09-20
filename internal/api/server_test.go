@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/veilbridge-os/veilbridge/internal/api"
 	"github.com/veilbridge-os/veilbridge/internal/config"
+	"github.com/veilbridge-os/veilbridge/internal/core"
 	"github.com/veilbridge-os/veilbridge/internal/core/mock"
 )
 
@@ -19,6 +21,11 @@ const testPassword = "hunter2"
 // served over httptest, and returns a client + base URL.
 func setup(t *testing.T) (*httptest.Server, string) {
 	t.Helper()
+	return setupAdapter(t, mock.NewAdapter())
+}
+
+func setupAdapter(t *testing.T, a *mock.Adapter) (*httptest.Server, string) {
+	t.Helper()
 	store := config.NewStore(filepath.Join(t.TempDir(), "config.json"))
 	doc := config.Default()
 	if err := doc.SetPassword(testPassword); err != nil {
@@ -27,7 +34,7 @@ func setup(t *testing.T) (*httptest.Server, string) {
 	if err := store.Save(doc); err != nil {
 		t.Fatal(err)
 	}
-	srv, err := api.New(mock.NewAdapter(), store, api.Options{})
+	srv, err := api.New(a, store, api.Options{})
 	if err != nil {
 		t.Fatalf("api.New: %v", err)
 	}
@@ -346,6 +353,71 @@ func TestNetworkEndpoints(t *testing.T) {
 	}
 	if len(wan.Candidates) == 0 {
 		t.Error("candidates missing from the wire")
+	}
+}
+
+func TestNetworkWANNoUplink(t *testing.T) {
+	a := mock.NewAdapter()
+	a.MockNetwork().FailWAN(core.ErrNoWAN)
+	_, base := setupAdapter(t, a)
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/network/wan", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("no-uplink wan status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestNetworkWANNotImplemented(t *testing.T) {
+	a := mock.NewAdapter()
+	a.MockNetwork().FailWAN(core.ErrNotImplemented)
+	_, base := setupAdapter(t, a)
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/network/wan", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("unimplemented wan status = %d, want 501", resp.StatusCode)
+	}
+}
+
+func TestNetworkWANDaemonDown(t *testing.T) {
+	a := mock.NewAdapter()
+	a.MockNetwork().FailWAN(errors.New("netifd: connection refused"))
+	_, base := setupAdapter(t, a)
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/network/wan", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("dead-daemon wan status = %d, want 502", resp.StatusCode)
+	}
+}
+
+func TestNetworkInterfacesDaemonDown(t *testing.T) {
+	a := mock.NewAdapter()
+	a.MockNetwork().FailInterfaces(errors.New("netifd: connection refused"))
+	_, base := setupAdapter(t, a)
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/network/interfaces", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("dead-daemon interfaces status = %d, want 502", resp.StatusCode)
+	}
+}
+
+func TestNetworkInterfacesNotImplemented(t *testing.T) {
+	a := mock.NewAdapter()
+	a.MockNetwork().FailInterfaces(core.ErrNotImplemented)
+	_, base := setupAdapter(t, a)
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/network/interfaces", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("unimplemented interfaces status = %d, want 501", resp.StatusCode)
 	}
 }
 
