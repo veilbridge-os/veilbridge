@@ -11,6 +11,12 @@ import (
 // cannot be taken (no space), a commit that breaks the link, a revert that does
 // not come back.
 type fakeApplier struct {
+	// id is what the next Snapshot() returns. Tests that run two transactions
+	// change it in between: a coordinator that reports a stale snapshot id
+	// would otherwise look correct, because both transactions would be
+	// "snap-1".
+	id string
+
 	snapshots int
 	commits   int
 	reverts   int
@@ -27,7 +33,11 @@ func (f *fakeApplier) Snapshot() (Snapshot, error) {
 	if f.snapErr != nil {
 		return Snapshot{}, f.snapErr
 	}
-	return Snapshot{ID: "snap-1", Taken: time.Unix(0, 0)}, nil
+	id := f.id
+	if id == "" {
+		id = "snap-1"
+	}
+	return Snapshot{ID: id, Taken: time.Unix(0, 0)}, nil
 }
 
 func (f *fakeApplier) Commit() error {
@@ -416,8 +426,15 @@ func TestRecoverPendingReportsAMissingSnapshot(t *testing.T) {
 	if err == nil || recovered {
 		t.Fatal("a missing snapshot was reported as a successful recovery")
 	}
-	if got := c.State().Phase; got != PhaseRevertFailed {
-		t.Fatalf("phase = %q, want %q", got, PhaseRevertFailed)
+	st := c.State()
+	if st.Phase != PhaseRevertFailed {
+		t.Fatalf("phase = %q, want %q", st.Phase, PhaseRevertFailed)
+	}
+	// The worst state the device can be in is also the one where naming the
+	// transaction matters most: somebody has to know which snapshot went
+	// missing.
+	if st.SnapshotID != "snap-gone" {
+		t.Fatalf("snapshot id = %q, want snap-gone", st.SnapshotID)
 	}
 }
 
@@ -438,5 +455,88 @@ func TestApplyReportsAnUnjournalledTransaction(t *testing.T) {
 	}
 	if st.Err == "" {
 		t.Fatal("a transaction that cannot survive a restart was reported as fully safe")
+	}
+}
+
+// A finished transaction must still say which snapshot it was. The client that
+// started it usually never saw the reply — the change cut its own link — so
+// "which change just got undone" can only come from the state endpoint. It is
+// also the only way an operator (or the M1 gate script) can tell this run's
+// transaction from the one before it.
+func TestFinishedTransactionStillNamesItsSnapshot(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		end   func(*ApplyCoordinator, *[]*fakeTimer)
+		phase ApplyPhase
+	}{
+		{"auto-revert", func(c *ApplyCoordinator, tm *[]*fakeTimer) { last(tm).fn() }, PhaseReverted},
+		{"manual revert", func(c *ApplyCoordinator, _ *[]*fakeTimer) { _, _ = c.Revert() }, PhaseReverted},
+		{"confirm", func(c *ApplyCoordinator, _ *[]*fakeTimer) {
+			_, _ = c.Confirm(c.State().Token)
+		}, PhaseConfirmed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeApplier{}
+			c, timers := newTestCoordinator(f)
+			if _, err := c.Apply(time.Minute); err != nil {
+				t.Fatalf("apply: %v", err)
+			}
+			tc.end(c, timers)
+
+			st := c.State()
+			if st.Phase != tc.phase {
+				t.Fatalf("phase = %q, want %q", st.Phase, tc.phase)
+			}
+			if st.SnapshotID != "snap-1" {
+				t.Fatalf("snapshot id = %q after %s, want snap-1", st.SnapshotID, tc.name)
+			}
+		})
+	}
+}
+
+// Recovery after a restart is the case where the coordinator never held the
+// snapshot in memory at all: the id comes from the journal, and it still has
+// to reach the API.
+func TestRecoveredTransactionNamesItsSnapshot(t *testing.T) {
+	f := &fakeApplier{}
+	c, _ := newTestCoordinator(f)
+	j := &fakeJournal{rec: ApplyRecord{SnapshotID: "snap-from-disk", Token: "tok-old"}, present: true}
+	c.WithJournal(j)
+
+	done, err := c.RecoverPending(fakeLoader{snap: Snapshot{Payload: []byte("x")}})
+	if err != nil || !done {
+		t.Fatalf("recover: done=%v err=%v", done, err)
+	}
+	if st := c.State(); st.SnapshotID != "snap-from-disk" {
+		t.Fatalf("snapshot id = %q, want snap-from-disk", st.SnapshotID)
+	}
+}
+
+// The id must follow the transactions, not stick to the first one: an operator
+// looking at the apply-bar after the second change has to see the second
+// change.
+func TestSnapshotIDFollowsTheNewestTransaction(t *testing.T) {
+	f := &fakeApplier{}
+	c, timers := newTestCoordinator(f)
+
+	st, err := c.Apply(time.Minute)
+	if err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+	if _, err := c.Confirm(st.Token); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+
+	f.id = "snap-2"
+	if _, err := c.Apply(time.Minute); err != nil {
+		t.Fatalf("second apply: %v", err)
+	}
+	if got := c.State().SnapshotID; got != "snap-2" {
+		t.Fatalf("snapshot id = %q while the second transaction is live, want snap-2", got)
+	}
+
+	last(timers).fn() // the second transaction auto-reverts
+	if got := c.State().SnapshotID; got != "snap-2" {
+		t.Fatalf("snapshot id = %q after the second revert, want snap-2", got)
 	}
 }

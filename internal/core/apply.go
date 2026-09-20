@@ -107,7 +107,11 @@ type ApplyState struct {
 	// time.Time is a struct, so omitempty would never drop it and the UI would
 	// receive a meaningless "0001-01-01T00:00:00Z" while idle.
 	Deadline time.Time `json:"deadline,omitzero"`
-	// SnapshotID ties the transaction to its snapshot in the logs.
+	// SnapshotID ties the transaction to its snapshot in the logs. It survives
+	// the transaction: after a revert the UI still has to be able to say WHICH
+	// change was undone, and a caller that lost the reply to POST /apply (the
+	// normal outcome when the change cuts its own link) has no other way to
+	// tell this transaction from the previous one.
 	SnapshotID string `json:"snapshot_id,omitempty"`
 	// Err is the last failure, if any (revert failures live here).
 	Err string `json:"error,omitempty"`
@@ -142,8 +146,12 @@ type ApplyCoordinator struct {
 	token    string
 	deadline time.Time
 	snapshot Snapshot
-	watchdog timer
-	lastErr  error
+	// lastSnapshotID outlives snapshot, which is dropped as soon as a
+	// transaction ends so its payload is not held in RAM on a 256 MB router.
+	// The id costs nothing and is the only handle on a finished transaction.
+	lastSnapshotID string
+	watchdog       timer
+	lastErr        error
 }
 
 // WithJournal makes a pending transaction survive a restart of the daemon.
@@ -177,6 +185,9 @@ func (c *ApplyCoordinator) RecoverPending(loader SnapshotLoader) (bool, error) {
 		return false, nil
 	}
 
+	// The recovered transaction has an identity too, even if its snapshot
+	// turns out to be gone - that is exactly the state somebody must be told about.
+	c.lastSnapshotID = rec.SnapshotID
 	snap, err := loader.LoadSnapshot(rec.SnapshotID)
 	if err != nil {
 		c.phase = PhaseRevertFailed
@@ -227,6 +238,8 @@ func (c *ApplyCoordinator) Apply(timeout time.Duration) (ApplyState, error) {
 		c.lastErr = fmt.Errorf("snapshot before apply: %w", err)
 		return c.stateLocked(), c.lastErr
 	}
+	// From here on the transaction has an identity, whatever happens to it.
+	c.lastSnapshotID = snap.ID
 
 	if err := c.applier.Commit(); err != nil {
 		// Commit failed, so the change may be half-applied: put the snapshot
@@ -361,7 +374,7 @@ func (c *ApplyCoordinator) stateLocked() ApplyState {
 		Phase:      c.phase,
 		Token:      c.token,
 		Deadline:   c.deadline,
-		SnapshotID: c.snapshot.ID,
+		SnapshotID: c.lastSnapshotID,
 	}
 	if c.lastErr != nil {
 		st.Err = c.lastErr.Error()
