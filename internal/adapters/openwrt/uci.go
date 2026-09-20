@@ -39,6 +39,8 @@ type uciApplier struct {
 	// snapshotDir persists snapshots, because the watchdog is only as good as
 	// its ability to revert after the daemon itself restarts.
 	snapshotDir string
+	// journal records the transaction that is live but not yet confirmed.
+	journal *applyJournal
 	// keepSnapshots bounds the directory on a device with ~40 MB of overlay.
 	keepSnapshots int
 
@@ -66,9 +68,11 @@ func runCommand(ctx context.Context, name string, args ...string) ([]byte, error
 	if !allowedCommands[name] {
 		return nil, fmt.Errorf("refusing to run %q: not in the adapter's allow-list", name)
 	}
+	// `name` is checked against allowedCommands above, so by this point it is
+	// one of a fixed set of literals; arguments are passed as a slice and never
+	// go through a shell. The value form is what makes this seam injectable in
+	// tests — see commandRunner.
 	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
-	// `name` is checked against allowedCommands above, so it is one of a fixed
-	// set of literals; arguments are passed as a slice, never through a shell.
 	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
 	if err != nil {
 		return out, fmt.Errorf("%s %s: %w: %s",
@@ -77,9 +81,20 @@ func runCommand(ctx context.Context, name string, args ...string) ([]byte, error
 	return out, nil
 }
 
+// Journal exposes the on-disk record of a pending transaction. It is an
+// optional capability: the caller asks for it by type assertion, so an adapter
+// that cannot persist anything simply does not offer one.
+func (u *uciApplier) Journal() core.ApplyJournal {
+	if u.journal == nil {
+		return nil
+	}
+	return u.journal
+}
+
 func newUCIApplier() *uciApplier {
 	return &uciApplier{
 		run:           runCommand,
+		journal:       newApplyJournal("/etc/veilbridge/pending-apply.json"),
 		configRoot:    "/etc",
 		configDir:     "config",
 		snapshotDir:   "/etc/veilbridge/snapshots",

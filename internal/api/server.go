@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -25,7 +26,21 @@ type Server struct {
 	tokens  *tokenIssuer
 	api     huma.API
 	mux     *http.ServeMux
+	// apply owns the snapshot / confirm / auto-revert transaction (M1.3). It
+	// lives on the server rather than inside a manager because a transaction
+	// spans every manager that writes configuration.
+	apply *core.ApplyCoordinator
 }
+
+// defaultApplyTimeout is how long the panel has to be confirmed before the
+// device undoes the change by itself: long enough for a human to reload the
+// page and see that the connection survived, short enough that a lockout is a
+// pause rather than an evening.
+const defaultApplyTimeout = 90 * time.Second
+
+// maxApplyTimeout bounds what a client may ask for. An hour-long window is
+// indistinguishable from having no watchdog at all.
+const maxApplyTimeout = 10 * time.Minute
 
 // Options controls API construction.
 type Options struct {
@@ -57,12 +72,23 @@ func New(adapter core.Adapter, store *config.Store, opts Options) (*Server, erro
 	}
 
 	mux := http.NewServeMux()
+	coordinator := core.NewApplyCoordinator(adapter.Applier())
+	// The journal is an optional capability of the adapter: with it a pending
+	// transaction survives the daemon dying, without it the watchdog is only
+	// as durable as this process. Ask, do not require.
+	if jp, ok := adapter.Applier().(interface{ Journal() core.ApplyJournal }); ok {
+		if j := jp.Journal(); j != nil {
+			coordinator = coordinator.WithJournal(j)
+		}
+	}
+
 	s := &Server{
 		adapter: adapter,
 		store:   store,
 		tokens:  newTokenIssuer(doc.Settings.PasswordHash),
 		api:     humago.NewWithPrefix(mux, "/api/v1", cfg),
 		mux:     mux,
+		apply:   coordinator,
 	}
 	s.register()
 	s.mountUI()
@@ -178,6 +204,28 @@ func (s *Server) register() {
 		OperationID: "applyRoutes", Method: http.MethodPost, Path: "/routes/apply",
 		Summary: "Apply the rule set to the OS", Tags: []string{"routes"}, Middlewares: authed, Security: authSec,
 	}, s.applyRoutes)
+
+	// --- apply transaction (M1.3) ---
+	huma.Register(s.api, huma.Operation{
+		OperationID: "applyConfig", Method: http.MethodPost, Path: "/apply",
+		Summary: "Apply staged configuration with an automatic revert", Tags: []string{"apply"},
+		Middlewares: authed, Security: authSec,
+	}, s.applyConfig)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "confirmApply", Method: http.MethodPost, Path: "/apply/confirm",
+		Summary: "Confirm that the panel survived the change", Tags: []string{"apply"},
+		Middlewares: authed, Security: authSec,
+	}, s.confirmApply)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "revertApply", Method: http.MethodPost, Path: "/apply/revert",
+		Summary: "Undo the pending change immediately", Tags: []string{"apply"},
+		Middlewares: authed, Security: authSec,
+	}, s.revertApply)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "applyState", Method: http.MethodGet, Path: "/apply",
+		Summary: "State of the apply transaction", Tags: []string{"apply"},
+		Middlewares: authed, Security: authSec,
+	}, s.applyState)
 
 	// --- system ---
 	huma.Register(s.api, huma.Operation{
@@ -351,6 +399,74 @@ func (s *Server) deleteRoute(ctx context.Context, in *NodeIDInput) (*struct{}, e
 		return nil, huma.Error500InternalServerError("delete route", err)
 	}
 	return nil, nil
+}
+
+// applyConfig starts a transaction: snapshot, commit, watchdog. The response
+// carries the token and the deadline, so the UI can show a countdown and the
+// operator knows how long they have to confirm.
+func (s *Server) applyConfig(_ context.Context, in *ApplyTxInput) (*ApplyStateOutput, error) {
+	timeout := defaultApplyTimeout
+	if in.Body.TimeoutSeconds > 0 {
+		timeout = time.Duration(in.Body.TimeoutSeconds) * time.Second
+	}
+	timeout = min(timeout, maxApplyTimeout)
+
+	st, err := s.apply.Apply(timeout)
+	out := &ApplyStateOutput{Body: st}
+	switch {
+	case err == nil:
+		return out, nil
+	case errors.Is(err, core.ErrApplyInFlight):
+		// 409: the fix is to confirm or revert the pending one, not to retry.
+		return nil, huma.Error409Conflict(err.Error())
+	default:
+		// The change did not take effect, and the state says whether the
+		// device was restored — pass both on instead of a bare 500.
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+}
+
+func (s *Server) confirmApply(_ context.Context, in *ApplyConfirmInput) (*ApplyStateOutput, error) {
+	st, err := s.apply.Confirm(in.Body.Token)
+	switch {
+	case err == nil:
+		return &ApplyStateOutput{Body: st}, nil
+	case errors.Is(err, core.ErrNoApplyInFlight):
+		// 409 and not 404: a confirm that arrives after the automatic revert
+		// is a timing conflict, and the state in the body says what happened.
+		return nil, huma.Error409Conflict(err.Error())
+	case errors.Is(err, core.ErrWrongToken):
+		return nil, huma.Error409Conflict(err.Error())
+	default:
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+}
+
+func (s *Server) revertApply(_ context.Context, _ *struct{}) (*ApplyStateOutput, error) {
+	st, err := s.apply.Revert()
+	switch {
+	case err == nil:
+		return &ApplyStateOutput{Body: st}, nil
+	case errors.Is(err, core.ErrNoApplyInFlight):
+		return nil, huma.Error409Conflict(err.Error())
+	default:
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+}
+
+func (s *Server) applyState(_ context.Context, _ *struct{}) (*ApplyStateOutput, error) {
+	return &ApplyStateOutput{Body: s.apply.State()}, nil
+}
+
+// RecoverPendingApply undoes a transaction left unconfirmed by a previous run
+// of the daemon. cmd/veilbridged calls it at startup, before serving: a change
+// nobody confirmed must not survive just because the process died.
+func (s *Server) RecoverPendingApply() (bool, error) {
+	loader, ok := s.adapter.Applier().(core.SnapshotLoader)
+	if !ok {
+		return false, nil
+	}
+	return s.apply.RecoverPending(loader)
 }
 
 func (s *Server) applyRoutes(ctx context.Context, _ *struct{}) (*ApplyOutput, error) {

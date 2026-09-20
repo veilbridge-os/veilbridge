@@ -91,6 +91,32 @@ type ApplyOutput struct {
 	}
 }
 
+// --- apply transaction (M1.3) ---
+
+// ApplyTxInput asks for a confirmation window. Zero means "server default";
+// anything above the server's maximum is clamped, because a window too long to
+// notice is the same as having no watchdog.
+type ApplyTxInput struct {
+	Body struct {
+		TimeoutSeconds int `json:"timeout_seconds,omitempty" minimum:"0" maximum:"600" doc:"Confirmation window in seconds; 0 uses the server default"`
+	}
+}
+
+// ApplyConfirmInput carries the token handed out by the pending apply. It is
+// required on purpose: confirming "whatever is pending" would let a stale
+// browser tab confirm a change it never saw.
+type ApplyConfirmInput struct {
+	Body struct {
+		Token string `json:"token" required:"true" doc:"Token returned by POST /apply"`
+	}
+}
+
+// ApplyStateOutput is what the apply-bar renders: which phase, until when, and
+// what went wrong if anything did.
+type ApplyStateOutput struct {
+	Body core.ApplyState
+}
+
 // --- system ---
 
 type ProbeInput struct {

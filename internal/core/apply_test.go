@@ -296,3 +296,147 @@ func TestManualRevertUndoesAPendingApply(t *testing.T) {
 		t.Fatalf("phase = %q, reverts = %d", st.Phase, f.reverts)
 	}
 }
+
+// fakeJournal is an in-memory ApplyJournal; errors are injectable because the
+// interesting question is what the coordinator does when persistence fails.
+type fakeJournal struct {
+	rec     ApplyRecord
+	present bool
+	saves   int
+	clears  int
+
+	saveErr error
+	loadErr error
+}
+
+func (j *fakeJournal) Save(r ApplyRecord) error {
+	j.saves++
+	if j.saveErr != nil {
+		return j.saveErr
+	}
+	j.rec, j.present = r, true
+	return nil
+}
+
+func (j *fakeJournal) Load() (ApplyRecord, bool, error) {
+	if j.loadErr != nil {
+		return ApplyRecord{}, false, j.loadErr
+	}
+	return j.rec, j.present, nil
+}
+
+func (j *fakeJournal) Clear() error {
+	j.clears++
+	j.present = false
+	return nil
+}
+
+// fakeLoader returns the snapshot a previous process took.
+type fakeLoader struct {
+	snap Snapshot
+	err  error
+}
+
+func (l fakeLoader) LoadSnapshot(id string) (Snapshot, error) {
+	if l.err != nil {
+		return Snapshot{}, l.err
+	}
+	return Snapshot{ID: id, Payload: l.snap.Payload}, nil
+}
+
+func TestPendingApplyIsJournalledAndClearedOnConfirm(t *testing.T) {
+	f := &fakeApplier{}
+	j := &fakeJournal{}
+	c, _ := newTestCoordinator(f)
+	c.WithJournal(j)
+
+	st, err := c.Apply(time.Minute)
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if j.saves != 1 || !j.present || j.rec.SnapshotID != "snap-1" {
+		t.Fatalf("pending apply not journalled: %+v", j)
+	}
+	if _, err := c.Confirm(st.Token); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	if j.present {
+		t.Fatal("journal still holds a confirmed transaction — the next start would revert it")
+	}
+}
+
+// The daemon died inside the confirmation window. Nobody confirmed, so the
+// change must not survive the restart just because the watchdog died with it.
+func TestRecoverPendingRevertsAfterARestart(t *testing.T) {
+	f := &fakeApplier{}
+	j := &fakeJournal{rec: ApplyRecord{SnapshotID: "snap-1", Token: "tok-1"}, present: true}
+	c, _ := newTestCoordinator(f)
+	c.WithJournal(j)
+
+	recovered, err := c.RecoverPending(fakeLoader{snap: Snapshot{Payload: []byte("x")}})
+	if err != nil {
+		t.Fatalf("recover: %v", err)
+	}
+	if !recovered || f.reverts != 1 || f.revertedID != "snap-1" {
+		t.Fatalf("recovery did not restore snap-1: recovered=%v reverts=%d id=%q",
+			recovered, f.reverts, f.revertedID)
+	}
+	if j.present {
+		t.Fatal("journal not cleared after a successful recovery")
+	}
+	if got := c.State().Phase; got != PhaseReverted {
+		t.Fatalf("phase = %q, want %q", got, PhaseReverted)
+	}
+}
+
+func TestRecoverPendingDoesNothingWhenNothingWasPending(t *testing.T) {
+	f := &fakeApplier{}
+	c, _ := newTestCoordinator(f)
+	c.WithJournal(&fakeJournal{})
+
+	recovered, err := c.RecoverPending(fakeLoader{})
+	if err != nil || recovered {
+		t.Fatalf("recovered=%v err=%v, want a quiet no-op", recovered, err)
+	}
+	if f.reverts != 0 {
+		t.Fatalf("a clean start reverted something (%d reverts)", f.reverts)
+	}
+}
+
+// A snapshot that cannot be read is the one case where the daemon must not
+// pretend: the device is running an unconfirmed configuration and nothing here
+// can undo it.
+func TestRecoverPendingReportsAMissingSnapshot(t *testing.T) {
+	f := &fakeApplier{}
+	j := &fakeJournal{rec: ApplyRecord{SnapshotID: "snap-gone"}, present: true}
+	c, _ := newTestCoordinator(f)
+	c.WithJournal(j)
+
+	recovered, err := c.RecoverPending(fakeLoader{err: errors.New("no such file")})
+	if err == nil || recovered {
+		t.Fatal("a missing snapshot was reported as a successful recovery")
+	}
+	if got := c.State().Phase; got != PhaseRevertFailed {
+		t.Fatalf("phase = %q, want %q", got, PhaseRevertFailed)
+	}
+}
+
+// If the journal cannot be written the change is already live, so the honest
+// answer is "applied, but the safety net is thinner than advertised".
+func TestApplyReportsAnUnjournalledTransaction(t *testing.T) {
+	f := &fakeApplier{}
+	j := &fakeJournal{saveErr: errors.New("read-only filesystem")}
+	c, _ := newTestCoordinator(f)
+	c.WithJournal(j)
+
+	st, err := c.Apply(time.Minute)
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if st.Phase != PhaseAwaitingConfirm {
+		t.Fatalf("phase = %q, want the change to be live", st.Phase)
+	}
+	if st.Err == "" {
+		t.Fatal("a transaction that cannot survive a restart was reported as fully safe")
+	}
+}

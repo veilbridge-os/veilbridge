@@ -92,6 +92,20 @@ func main() {
 		log.Fatalf("init api: %v", err)
 	}
 
+	// Before serving anything: undo a configuration change that was applied but
+	// never confirmed by a previous run. The daemon disappearing inside the
+	// confirmation window is exactly the case the watchdog exists for — a
+	// reboot or a crash caused by the change being tested. Not fatal: a router
+	// that cannot undo still has to come up and say so, because a panel that
+	// refuses to start is a panel nobody can fix the router from.
+	if reverted, err := srv.RecoverPendingApply(); err != nil {
+		log.Printf("WARNING: a configuration change was applied but never confirmed, "+
+			"and it could not be undone: %v", err)
+	} else if reverted {
+		log.Println("undid a configuration change that was never confirmed " +
+			"(the daemon stopped inside the confirmation window)")
+	}
+
 	addr := *listen
 	if addr == "" {
 		addr = doc.Settings.ListenAddr

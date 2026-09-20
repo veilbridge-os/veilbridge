@@ -43,6 +43,31 @@ type ConfigApplier interface {
 	Revert(Snapshot) error
 }
 
+// ApplyRecord is what must outlive the daemon: enough to undo a change nobody
+// confirmed. The payload is not here — it belongs to the adapter, which stores
+// snapshots where they survive a restart.
+type ApplyRecord struct {
+	SnapshotID string    `json:"snapshot_id"`
+	Token      string    `json:"token"`
+	Deadline   time.Time `json:"deadline"`
+}
+
+// ApplyJournal persists the pending transaction. Without it the watchdog only
+// holds while this process lives — and a config change that kills the network
+// often takes the daemon with it (a restart, an OOM, a reboot caused by the
+// very change being tested).
+type ApplyJournal interface {
+	Save(ApplyRecord) error
+	Load() (ApplyRecord, bool, error)
+	Clear() error
+}
+
+// SnapshotLoader fetches a snapshot the coordinator did not take itself — the
+// one from before a restart.
+type SnapshotLoader interface {
+	LoadSnapshot(id string) (Snapshot, error)
+}
+
 // ApplyPhase is the observable state of a transaction. It is what the UI shows
 // in the apply-bar and what the API returns.
 type ApplyPhase string
@@ -108,6 +133,10 @@ type ApplyCoordinator struct {
 	// newToken produces the confirm token; tests replace it.
 	newToken func() string
 
+	// journal is optional: without one the coordinator still works, it just
+	// cannot survive its own process dying.
+	journal ApplyJournal
+
 	mu       sync.Mutex
 	phase    ApplyPhase
 	token    string
@@ -115,6 +144,55 @@ type ApplyCoordinator struct {
 	snapshot Snapshot
 	watchdog timer
 	lastErr  error
+}
+
+// WithJournal makes a pending transaction survive a restart of the daemon.
+func (c *ApplyCoordinator) WithJournal(j ApplyJournal) *ApplyCoordinator {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.journal = j
+	return c
+}
+
+// RecoverPending undoes a transaction that was still awaiting confirmation when
+// the daemon stopped, and reports whether anything was rolled back.
+//
+// The rule is deliberately one-sided: an unconfirmed change is reverted even if
+// its deadline had not expired. The daemon disappearing inside the confirmation
+// window is itself evidence that something went wrong, and the operator can
+// always apply again — while the opposite mistake leaves a router running a
+// configuration nobody ever confirmed.
+func (c *ApplyCoordinator) RecoverPending(loader SnapshotLoader) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.journal == nil {
+		return false, nil
+	}
+	rec, found, err := c.journal.Load()
+	if err != nil {
+		return false, fmt.Errorf("read pending apply: %w", err)
+	}
+	if !found {
+		return false, nil
+	}
+
+	snap, err := loader.LoadSnapshot(rec.SnapshotID)
+	if err != nil {
+		c.phase = PhaseRevertFailed
+		c.lastErr = fmt.Errorf("pending apply %s cannot be undone, its snapshot is gone: %w", rec.SnapshotID, err)
+		return false, c.lastErr
+	}
+	if err := c.applier.Revert(snap); err != nil {
+		c.phase = PhaseRevertFailed
+		c.lastErr = fmt.Errorf("undo pending apply %s after restart: %w", rec.SnapshotID, err)
+		return false, c.lastErr
+	}
+	if err := c.journal.Clear(); err != nil {
+		return true, fmt.Errorf("pending apply undone but the journal was not cleared: %w", err)
+	}
+	c.phase = PhaseReverted
+	return true, nil
 }
 
 // NewApplyCoordinator builds a coordinator around an adapter's applier.
@@ -171,6 +249,15 @@ func (c *ApplyCoordinator) Apply(timeout time.Duration) (ApplyState, error) {
 	c.deadline = c.now().Add(timeout)
 	c.lastErr = nil
 	token := c.token
+
+	if c.journal != nil {
+		rec := ApplyRecord{SnapshotID: snap.ID, Token: token, Deadline: c.deadline}
+		if err := c.journal.Save(rec); err != nil {
+			// The change is already live, so refusing now would be a lie.
+			// Report that the safety net is thinner than advertised instead.
+			c.lastErr = fmt.Errorf("apply is live but not journalled, a restart will not undo it: %w", err)
+		}
+	}
 	c.watchdog = c.afterFunc(timeout, func() { c.autoRevert(token) })
 
 	return c.stateLocked(), nil
@@ -197,6 +284,7 @@ func (c *ApplyCoordinator) Confirm(token string) (ApplyState, error) {
 	c.token = ""
 	c.deadline = time.Time{}
 	c.snapshot = Snapshot{}
+	c.clearJournalLocked()
 	return c.stateLocked(), nil
 }
 
@@ -253,6 +341,19 @@ func (c *ApplyCoordinator) revertLocked() {
 	c.phase = PhaseReverted
 	c.lastErr = nil
 	c.snapshot = Snapshot{}
+	c.clearJournalLocked()
+}
+
+// clearJournalLocked drops the pending record once a transaction has an
+// outcome. A stale record would make the next startup revert a change that was
+// already confirmed.
+func (c *ApplyCoordinator) clearJournalLocked() {
+	if c.journal == nil {
+		return
+	}
+	if err := c.journal.Clear(); err != nil && c.lastErr == nil {
+		c.lastErr = fmt.Errorf("clear pending-apply journal: %w", err)
+	}
 }
 
 func (c *ApplyCoordinator) stateLocked() ApplyState {
