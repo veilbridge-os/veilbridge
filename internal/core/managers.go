@@ -69,4 +69,8 @@ type Adapter interface {
 	System() SystemManager
 	Network() NetworkManager
 	Device() DeviceManager
+	// Applier backs the apply transaction (snapshot, commit, revert). It is
+	// part of the adapter and not of a manager because a transaction spans
+	// every manager that writes configuration — network, firewall, wireless.
+	Applier() ConfigApplier
 }

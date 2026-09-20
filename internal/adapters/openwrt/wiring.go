@@ -23,6 +23,7 @@ type Adapter struct {
 	system   *systemManager
 	network  networkManager
 	device   deviceManager
+	applier  *uciApplier
 	platform string
 }
 
@@ -39,6 +40,7 @@ func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapt
 		vpn:      v,
 		routing:  newRoutingManager(store),
 		system:   s,
+		applier:  newUCIApplier(),
 		platform: platform,
 	}
 }
@@ -49,6 +51,10 @@ func (a *Adapter) Routing() core.RoutingManager { return a.routing }
 func (a *Adapter) System() core.SystemManager   { return a.system }
 func (a *Adapter) Network() core.NetworkManager { return a.network }
 func (a *Adapter) Device() core.DeviceManager   { return a.device }
+
+// Applier exposes the uci-backed transaction. See uci.go for why a snapshot is
+// a tarball of /etc/config and not a `uci export`.
+func (a *Adapter) Applier() core.ConfigApplier { return a.applier }
 
 // networkManager / deviceManager are roadmap stubs (M1/M3 and M4).
 type networkManager struct{}

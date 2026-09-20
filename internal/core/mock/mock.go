@@ -6,6 +6,7 @@ package mock
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/veilbridge-os/veilbridge/internal/core"
 )
@@ -165,11 +166,56 @@ type Adapter struct {
 	system  System
 	network Network
 	device  Device
+	applier *Applier
 }
 
 // NewAdapter returns a fully wired mock adapter.
 func NewAdapter() *Adapter {
-	return &Adapter{vpn: &VPN{}, routing: &Routing{}}
+	return &Adapter{vpn: &VPN{}, routing: &Routing{}, applier: &Applier{}}
+}
+
+// Applier is an in-memory core.ConfigApplier: it counts what it was asked to
+// do, so the API layer and demo mode can exercise the apply transaction with
+// no OS underneath. Failures are injectable, because the paths worth testing
+// are the ones where snapshot, commit or revert goes wrong.
+type Applier struct {
+	mu sync.Mutex
+
+	Snapshots int
+	Commits   int
+	Reverts   int
+
+	SnapshotErr error
+	CommitErr   error
+	RevertErr   error
+}
+
+func (a *Applier) Snapshot() (core.Snapshot, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Snapshots++
+	if a.SnapshotErr != nil {
+		return core.Snapshot{}, a.SnapshotErr
+	}
+	return core.Snapshot{
+		ID:      fmt.Sprintf("mock-snap-%d", a.Snapshots),
+		Taken:   time.Now(),
+		Payload: []byte("mock-config"),
+	}, nil
+}
+
+func (a *Applier) Commit() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Commits++
+	return a.CommitErr
+}
+
+func (a *Applier) Revert(core.Snapshot) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Reverts++
+	return a.RevertErr
 }
 
 // Seed pre-populates the manager with nodes and marks activeID as the current
@@ -204,6 +250,7 @@ func (a *Adapter) Routing() core.RoutingManager { return a.routing }
 func (a *Adapter) System() core.SystemManager   { return a.system }
 func (a *Adapter) Network() core.NetworkManager { return a.network }
 func (a *Adapter) Device() core.DeviceManager   { return a.device }
+func (a *Adapter) Applier() core.ConfigApplier  { return a.applier }
 
 // Compile-time guarantees that the mocks satisfy the core interfaces.
 var (
