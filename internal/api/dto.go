@@ -119,6 +119,12 @@ type ApplyStateOutput struct {
 
 // --- system ---
 
+// CapabilitiesOutput is what the UI asks for before it renders anything: the
+// front end never branches on the platform, it branches on this (D-3, D-17).
+type CapabilitiesOutput struct {
+	Body core.Capabilities
+}
+
 type ProbeInput struct {
 	Body struct {
 		Target      string      `json:"target" doc:"Domain or IP to test"`

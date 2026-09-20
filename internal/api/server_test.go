@@ -235,3 +235,55 @@ func TestDevSpecEnabled(t *testing.T) {
 		t.Errorf("OpenAPI spec should be served when Dev=true, got %d", resp.StatusCode)
 	}
 }
+
+// The capabilities endpoint is what the UI consults before rendering anything
+// (D-17), so its shape matters as much as its content: every entry answers
+// available, and every false answers why.
+func TestCapabilitiesEndpoint(t *testing.T) {
+	ts, base := setup(t)
+	defer ts.Close()
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/capabilities", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var caps map[string]struct {
+		Available bool   `json:"available"`
+		Reason    string `json:"reason"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&caps); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(caps) == 0 {
+		t.Fatal("no capabilities reported at all")
+	}
+
+	usb, ok := caps["usb"]
+	if !ok {
+		t.Fatal("the mock device reports no usb capability")
+	}
+	// The mock deliberately keeps one capability off, so the disabled path is
+	// exercised by every run of the demo and of this test.
+	if usb.Available {
+		t.Error("the mock's usb capability is on; the disabled path is now untested")
+	}
+	if usb.Reason == "" {
+		t.Error("usb is off with no reason a human could read")
+	}
+	if wifi := caps["wifi"]; !wifi.Available || wifi.Reason != "" {
+		t.Errorf("wifi = %+v, want available with no excuse", wifi)
+	}
+}
+
+func TestCapabilitiesRequireAuth(t *testing.T) {
+	ts, base := setup(t)
+	defer ts.Close()
+
+	resp := do(t, http.MethodGet, base+"/capabilities", "", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401: capabilities describe the hardware to anyone who asks", resp.StatusCode)
+	}
+}

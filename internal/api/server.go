@@ -227,6 +227,13 @@ func (s *Server) register() {
 		Middlewares: authed, Security: authSec,
 	}, s.applyState)
 
+	// --- capabilities (M1.6, D-17) ---
+	huma.Register(s.api, huma.Operation{
+		OperationID: "getCapabilities", Method: http.MethodGet, Path: "/capabilities",
+		Summary: "What this device can do, and why not when it cannot",
+		Tags:    []string{"system"}, Middlewares: authed, Security: authSec,
+	}, s.getCapabilities)
+
 	// --- system ---
 	huma.Register(s.api, huma.Operation{
 		OperationID: "getSystem", Method: http.MethodGet, Path: "/system",
@@ -314,6 +321,21 @@ func (s *Server) removeNode(ctx context.Context, in *NodeIDInput) (*struct{}, er
 		return nil, huma.Error404NotFound("remove node", err)
 	}
 	return nil, nil
+}
+
+// getCapabilities reports the detected hardware capabilities. An adapter that
+// cannot probe (the mock in a unit test) yields an empty set rather than an
+// error: the honest answer to "what can this device do" is then "nothing I can
+// vouch for", and the UI degrades to its safe subset instead of showing a
+// failure the operator cannot fix.
+func (s *Server) getCapabilities(_ context.Context, _ *struct{}) (*CapabilitiesOutput, error) {
+	caps := core.Capabilities{}
+	if probe, ok := s.adapter.(core.CapabilityProbe); ok {
+		if detected := probe.Capabilities(); detected != nil {
+			caps = detected
+		}
+	}
+	return &CapabilitiesOutput{Body: caps}, nil
 }
 
 func (s *Server) activateNode(ctx context.Context, in *NodeIDInput) (*SystemOutput, error) {

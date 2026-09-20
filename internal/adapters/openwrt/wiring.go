@@ -25,6 +25,9 @@ type Adapter struct {
 	device   deviceManager
 	applier  *uciApplier
 	platform string
+	// caps is detected once, when the adapter is built: the probes walk /sys,
+	// and the dashboard polls too often for that to happen per request.
+	caps core.Capabilities
 }
 
 // NewWithEngine builds the adapter with an explicit engine and platform label.
@@ -42,6 +45,7 @@ func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapt
 		system:   s,
 		applier:  newUCIApplier(),
 		platform: platform,
+		caps:     newSysProbe().Capabilities(),
 	}
 }
 
@@ -51,6 +55,12 @@ func (a *Adapter) Routing() core.RoutingManager { return a.routing }
 func (a *Adapter) System() core.SystemManager   { return a.system }
 func (a *Adapter) Network() core.NetworkManager { return a.network }
 func (a *Adapter) Device() core.DeviceManager   { return a.device }
+
+// Capabilities reports what this particular device can do (D-17). The answer
+// is fixed at start up; a radio does not appear in a router while it runs, and
+// the one case that can change - a kernel module loaded by hand - is worth a
+// restart of the daemon rather than a filesystem walk on every poll.
+func (a *Adapter) Capabilities() core.Capabilities { return a.caps }
 
 // Applier exposes the uci-backed transaction. See uci.go for why a snapshot is
 // a tarball of /etc/config and not a `uci export`.
@@ -92,7 +102,8 @@ func defaultName(raw []byte) string {
 
 // Compile-time guarantees.
 var (
-	_ core.Adapter        = (*Adapter)(nil)
-	_ core.NetworkManager = networkManager{}
-	_ core.DeviceManager  = deviceManager{}
+	_ core.Adapter         = (*Adapter)(nil)
+	_ core.CapabilityProbe = (*Adapter)(nil)
+	_ core.NetworkManager  = networkManager{}
+	_ core.DeviceManager   = deviceManager{}
 )

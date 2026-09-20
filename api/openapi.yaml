@@ -78,6 +78,16 @@ components:
           minimum: 0
           type: integer
       type: object
+    Capability:
+      additionalProperties: false
+      properties:
+        available:
+          type: boolean
+        reason:
+          type: string
+      required:
+        - available
+      type: object
     DiagnosticsOutputBody:
       additionalProperties: false
       properties:
@@ -557,6 +567,29 @@ paths:
       summary: Exchange admin password for a JWT
       tags:
         - auth
+  /capabilities:
+    get:
+      operationId: getCapabilities
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  $ref: "#/components/schemas/Capability"
+                type: object
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: What this device can do, and why not when it cannot
+      tags:
+        - system
   /config/export:
     get:
       operationId: exportConfig

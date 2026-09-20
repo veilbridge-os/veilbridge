@@ -244,7 +244,21 @@ func NewDemoAdapter() *Adapter {
 	return a
 }
 
-func (*Adapter) Platform() string               { return "mock" }
+func (*Adapter) Platform() string { return "mock" }
+
+// Capabilities describes a plausible device: a router with radios and a
+// switch but no USB port. The demo screenshots are taken from this, so it has
+// to look like hardware somebody owns - including one capability that is off,
+// because a UI that never renders a disabled section is a UI nobody tested.
+func (*Adapter) Capabilities() core.Capabilities {
+	return core.Capabilities{
+		core.CapWiFi:        {Available: true},
+		core.CapSwitchPorts: {Available: true},
+		core.CapKernelTUN:   {Available: true},
+		core.CapIPv6:        {Available: true},
+		core.CapUSB:         {Reason: "no USB controller on this device"},
+	}
+}
 func (a *Adapter) VPN() core.VPNManager         { return a.vpn }
 func (a *Adapter) Routing() core.RoutingManager { return a.routing }
 func (a *Adapter) System() core.SystemManager   { return a.system }
@@ -254,10 +268,11 @@ func (a *Adapter) Applier() core.ConfigApplier  { return a.applier }
 
 // Compile-time guarantees that the mocks satisfy the core interfaces.
 var (
-	_ core.VPNManager     = (*VPN)(nil)
-	_ core.RoutingManager = (*Routing)(nil)
-	_ core.SystemManager  = System{}
-	_ core.NetworkManager = Network{}
-	_ core.DeviceManager  = Device{}
-	_ core.Adapter        = (*Adapter)(nil)
+	_ core.VPNManager      = (*VPN)(nil)
+	_ core.RoutingManager  = (*Routing)(nil)
+	_ core.SystemManager   = System{}
+	_ core.NetworkManager  = Network{}
+	_ core.DeviceManager   = Device{}
+	_ core.Adapter         = (*Adapter)(nil)
+	_ core.CapabilityProbe = (*Adapter)(nil)
 )
