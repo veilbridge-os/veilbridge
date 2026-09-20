@@ -45,6 +45,13 @@ type systemManager struct {
 	procCPU    func() float64
 	procUptime func() int64
 	procMem    func() (used, total int64)
+	// wanIP caches "what is our public address", because the only way to
+	// learn it is to ask somebody outside this device. See cachedEgress.
+	wanMu   sync.Mutex
+	wanIP   string
+	wanAt   time.Time
+	wanTTL  time.Duration
+	nowFunc func() time.Time
 	// board is cached after the first successful read. A router does not
 	// change its model or firmware while running, and the dashboard polls.
 	boardOnce sync.Once
@@ -56,6 +63,7 @@ func newSystemManager(v *vpnManager, bus *ubus.Client) *systemManager {
 	return &systemManager{
 		vpn: v, platform: "openwrt", egress: egressIP, bus: bus,
 		procCPU: readLoadAsCPU, procUptime: readUptime, procMem: readMem,
+		wanTTL: time.Minute, nowFunc: time.Now,
 	}
 }
 
@@ -71,8 +79,10 @@ func (m *systemManager) Info() (core.SystemInfo, error) {
 	info.TunnelEngine = tunnelEngineKind(m.vpn.engine)
 	m.enrich(&info)
 
-	// Direct WAN IP (no tunnel) — best effort, short timeout.
-	info.WANIP = m.egress(http.DefaultClient.Do)
+	// Direct WAN IP (no tunnel) — best effort, short timeout, and cached. See
+	// cachedEgress: this is the one part of the snapshot that leaves the
+	// device, and the snapshot is read on a timer.
+	info.WANIP = m.cachedEgress()
 
 	// If a tunnel is active, report its egress + that traffic flows through it.
 	// Userspace engines expose a Dialer; kernel engines (OpenWrt) a TUN interface.
@@ -154,6 +164,65 @@ func tunnelEngineKind(e vpn.Engine) string {
 		return core.TunnelEngineKernel
 	}
 	return core.TunnelEngineUserspace
+}
+
+// Vitals reads only what the device knows about itself: nothing here opens a
+// socket to the outside. This is the call anything on a timer must use
+// (core.Vitals explains why), and it is the same reading Info() starts from —
+// the difference is everything Info() adds by asking the world.
+func (m *systemManager) Vitals() (core.Vitals, error) {
+	v := core.Vitals{CPUPercent: m.procCPU()}
+	v.MemUsed, v.MemTotal = m.procMem()
+	if m.bus == nil {
+		return v, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	si, err := m.bus.SystemInfo(ctx)
+	if err != nil {
+		// The /proc reading still stands. A sampler gets fewer fields rather
+		// than an error it would have to decide about on every tick.
+		return v, nil
+	}
+	if si.Memory.Total > 0 {
+		v.MemTotal = si.Memory.Total
+		v.MemUsed = si.Memory.Total - si.Memory.Available
+	}
+	if si.Root.Total > 0 {
+		v.StorageUsed = si.Root.Used * 1024
+	}
+	if si.Load[0] > 0 {
+		v.CPUPercent = loadToPercent(si.LoadAverage()[0])
+	}
+	return v, nil
+}
+
+// cachedEgress returns our public address, asking the outside world at most
+// once per TTL.
+//
+// Measured on the router, without this: the dashboard snapshot was being
+// sampled every 3 seconds, and conntrack showed a connection to the same
+// public-IP service every 3 seconds, forever. A VPN gateway that continuously
+// announces itself to a third party is the opposite of what it is for. One
+// probe a minute is enough for a field that only changes when the ISP
+// reconnects — and the live check a human asks for (ProbePath) deliberately
+// does NOT use this cache.
+func (m *systemManager) cachedEgress() string {
+	m.wanMu.Lock()
+	defer m.wanMu.Unlock()
+	now := m.nowFunc()
+	if m.wanIP != "" && now.Sub(m.wanAt) < m.wanTTL {
+		return m.wanIP
+	}
+	ip := m.egress(http.DefaultClient.Do)
+	if ip == "" {
+		// Keep the last known answer rather than blanking the field because
+		// one probe failed; but do not reset the clock, so the next call
+		// tries again.
+		return m.wanIP
+	}
+	m.wanIP, m.wanAt = ip, now
+	return ip
 }
 
 // --- ubus enrichment (M1.4) ---

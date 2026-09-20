@@ -128,6 +128,30 @@ type SystemInfo struct {
 	TunnelEngine string `json:"tunnelEngine,omitempty"`
 }
 
+// Vitals is the cheap half of SystemInfo: the numbers a device can read about
+// itself without asking anything outside it.
+//
+// It exists because SystemInfo does NOT have that property. Filling WANIP and
+// EgressIP means an HTTP request to a third party that reports your public
+// address back to you, and anything sampled on a timer must never do that: at
+// a 3-second cadence it becomes a permanent outbound stream from a VPN
+// gateway to a stranger — traffic the user did not ask for, revealing the
+// address they may be paying to hide. Whatever polls, polls this.
+type Vitals struct {
+	CPUPercent  float64 `json:"cpuPercent"`
+	MemUsed     int64   `json:"memUsed"`
+	MemTotal    int64   `json:"memTotal"`
+	StorageUsed int64   `json:"storageUsed"`
+}
+
+// VitalsReader is implemented by system managers that can answer that cheap
+// read. It is a separate, optional interface rather than another method on
+// SystemManager so that implementing it stays a deliberate claim: this call
+// touches nothing but the local machine.
+type VitalsReader interface {
+	Vitals() (Vitals, error)
+}
+
 // PathProbe is the result of checking whether traffic to a target goes through
 // the tunnel or directly. It compares egress IPs; it does NOT trust HTTP status.
 // This encodes the "curl 200 ≠ tunnel" lesson. See DESIGN §6, D-5.

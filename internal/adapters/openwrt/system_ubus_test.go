@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/veilbridge-os/veilbridge/internal/adapters/openwrt/ubus"
 )
@@ -285,5 +286,115 @@ func TestSystemInfoWithoutABus(t *testing.T) {
 	}
 	if info.Model != "" || info.Firmware != "" {
 		t.Errorf("hardware described without anything to ask: %+v", info)
+	}
+}
+
+// --- the polling path must not leave the device (M2.2) ---
+
+// Vitals is what the metrics sampler calls every few seconds. If it ever
+// resolves the public address, the router starts a permanent outbound stream
+// to a third party — measured on the real device before this was split out:
+// conntrack showed a connection to the same public-IP service every 3s.
+func TestVitalsNeverAsksTheOutsideWorld(t *testing.T) {
+	v, _ := newTestVPN(t, &fakeEngine{})
+	sys := newSystemManager(v, busReplay(t, "25.12", nil))
+	sys.egress = func(func(*http.Request) (*http.Response, error)) string {
+		t.Fatal("Vitals resolved the public IP: the polling path must not leave the device")
+		return ""
+	}
+	sys.procCPU = func() float64 { return 3 }
+	sys.procMem = func() (int64, int64) { return 1, 2 }
+
+	got, err := sys.Vitals()
+	if err != nil {
+		t.Fatalf("vitals: %v", err)
+	}
+	// It still carries the numbers a dashboard graph needs.
+	if got.MemTotal <= 0 || got.StorageUsed <= 0 {
+		t.Errorf("vitals are empty: %+v", got)
+	}
+}
+
+// Without a bus, Vitals degrades to /proc rather than dereferencing nil.
+func TestVitalsWithoutABus(t *testing.T) {
+	v, _ := newTestVPN(t, &fakeEngine{})
+	sys := newSystemManager(v, nil)
+	sys.egress = func(func(*http.Request) (*http.Response, error)) string {
+		t.Fatal("Vitals must not touch the network")
+		return ""
+	}
+	sys.procCPU = func() float64 { return 9 }
+	sys.procMem = func() (int64, int64) { return 7, 8 }
+
+	got, err := sys.Vitals()
+	if err != nil {
+		t.Fatalf("vitals: %v", err)
+	}
+	if got.CPUPercent != 9 || got.MemUsed != 7 || got.MemTotal != 8 {
+		t.Errorf("vitals = %+v, want the /proc values", got)
+	}
+}
+
+// The dashboard snapshot is read once per tab per few seconds, and resolving
+// the public address is the one part of it that leaves the device. It must be
+// asked for at most once per TTL, no matter how often Info() is called.
+func TestWANAddressIsProbedAtMostOncePerTTL(t *testing.T) {
+	v, _ := newTestVPN(t, &fakeEngine{})
+	sys := newSystemManager(v, nil)
+	calls := 0
+	sys.egress = func(func(*http.Request) (*http.Response, error)) string {
+		calls++
+		return "198.51.100.7"
+	}
+	now := time.Unix(1_700_000_000, 0)
+	sys.nowFunc = func() time.Time { return now }
+	sys.wanTTL = time.Minute
+
+	for i := 0; i < 20; i++ {
+		info, _ := sys.Info()
+		if info.WANIP != "198.51.100.7" {
+			t.Fatalf("wanIP = %q on call %d", info.WANIP, i)
+		}
+	}
+	if calls != 1 {
+		t.Errorf("probed the outside world %d times for 20 snapshots, want 1", calls)
+	}
+
+	// Past the TTL it refreshes: a cache that never expires is a wrong answer
+	// after the ISP reconnects.
+	now = now.Add(2 * time.Minute)
+	sys.Info()
+	if calls != 2 {
+		t.Errorf("probes after the TTL expired = %d, want 2", calls)
+	}
+}
+
+// A failed probe must not blank a known address, and must not start the clock:
+// the next call has to try again.
+func TestFailedWANProbeKeepsTheLastKnownAddress(t *testing.T) {
+	v, _ := newTestVPN(t, &fakeEngine{})
+	sys := newSystemManager(v, nil)
+	answer := "198.51.100.7"
+	calls := 0
+	sys.egress = func(func(*http.Request) (*http.Response, error)) string {
+		calls++
+		return answer
+	}
+	now := time.Unix(1_700_000_000, 0)
+	sys.nowFunc = func() time.Time { return now }
+	sys.wanTTL = time.Minute
+
+	sys.Info() // caches 198.51.100.7
+	now = now.Add(2 * time.Minute)
+	answer = "" // the probe now fails
+	info, _ := sys.Info()
+
+	if info.WANIP != "198.51.100.7" {
+		t.Errorf("wanIP = %q after a failed probe, want the last known address", info.WANIP)
+	}
+	now = now.Add(time.Second)
+	answer = "198.51.100.8"
+	if info, _ := sys.Info(); info.WANIP != "198.51.100.8" {
+		t.Errorf("wanIP = %q, want the retry to have happened immediately", info.WANIP)
 	}
 }

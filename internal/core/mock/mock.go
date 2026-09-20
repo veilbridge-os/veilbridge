@@ -137,6 +137,19 @@ func (System) Info() (core.SystemInfo, error) {
 	}, nil
 }
 
+// Vitals is the cheap read a sampler uses. The demo has nothing expensive to
+// avoid, but it implements the interface anyway: otherwise the demo would
+// exercise the fallback path and the product would exercise the real one,
+// and the two would drift.
+func (System) Vitals() (core.Vitals, error) {
+	return core.Vitals{
+		CPUPercent:  1.5,
+		MemUsed:     100 << 20,
+		MemTotal:    512 << 20,
+		StorageUsed: 12 << 20,
+	}, nil
+}
+
 func (System) ProbePath(target string, expected core.Target) (core.PathProbe, error) {
 	return core.PathProbe{
 		Target:      target,
