@@ -106,6 +106,13 @@ func main() {
 			"(the daemon stopped inside the confirmation window)")
 	}
 
+	// Start recording the device's vitals before serving. Sampling is not tied
+	// to a connected client: a dashboard opened at 09:00 has to show what the
+	// router was doing at 08:00, and a graph that only records while somebody
+	// watches is flat every time anyone looks (D-13, M2.2).
+	stopSampling := srv.StartSampling()
+	defer stopSampling()
+
 	addr := *listen
 	if addr == "" {
 		addr = doc.Settings.ListenAddr
@@ -133,10 +140,14 @@ func main() {
 	<-stop
 	log.Println("shutting down…")
 
+	// Live streams (SSE) are long-lived by design, so a graceful shutdown will
+	// routinely hit this deadline rather than exceptionally: Shutdown waits for
+	// open connections, and an EventSource holds one open for as long as the
+	// tab is. The timeout is what turns "wait for clients" into "leave anyway".
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := httpSrv.Shutdown(ctx); err != nil {
-		log.Printf("shutdown: %v", err)
+		log.Printf("shutdown (live streams may have been cut): %v", err)
 	}
 }
 

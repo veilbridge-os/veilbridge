@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/veilbridge-os/veilbridge/internal/config"
 	"github.com/veilbridge-os/veilbridge/internal/core"
+	"github.com/veilbridge-os/veilbridge/internal/metrics"
 )
 
 // Server wires the core managers (for operations) and the config store (for
@@ -30,6 +32,13 @@ type Server struct {
 	// lives on the server rather than inside a manager because a transaction
 	// spans every manager that writes configuration.
 	apply *core.ApplyCoordinator
+	// history is the in-RAM metrics ring (D-13) and sampler fills it on a
+	// timer, independently of whether any client is connected (M2.2).
+	history *metrics.History
+	sampler *metrics.Sampler
+	// streams counts live SSE connections, so a reloading browser cannot pile
+	// up goroutines on a 256 MB device. See maxStreams in events.go.
+	streams atomic.Int32
 }
 
 // defaultApplyTimeout is how long the panel has to be confirmed before the
@@ -82,6 +91,7 @@ func New(adapter core.Adapter, store *config.Store, opts Options) (*Server, erro
 		}
 	}
 
+	history := metrics.NewHistory()
 	s := &Server{
 		adapter: adapter,
 		store:   store,
@@ -89,6 +99,8 @@ func New(adapter core.Adapter, store *config.Store, opts Options) (*Server, erro
 		api:     humago.NewWithPrefix(mux, "/api/v1", cfg),
 		mux:     mux,
 		apply:   coordinator,
+		history: history,
+		sampler: metrics.NewSampler(adapter.System(), history),
 	}
 	s.register()
 	s.mountUI()
@@ -233,6 +245,14 @@ func (s *Server) register() {
 		Summary: "What this device can do, and why not when it cannot",
 		Tags:    []string{"system"}, Middlewares: authed, Security: authSec,
 	}, s.getCapabilities)
+
+	// --- live layer (M2.2, D-12/D-13) ---
+	s.registerEvents(authed, authSec)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "getMetrics", Method: http.MethodGet, Path: "/system/metrics",
+		Summary: "CPU/memory/storage history kept in RAM",
+		Tags:    []string{"system"}, Middlewares: authed, Security: authSec,
+	}, s.getMetrics)
 
 	// --- network (M1.5) ---
 	huma.Register(s.api, huma.Operation{
