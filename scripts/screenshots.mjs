@@ -16,6 +16,7 @@
 // demo-password), VB_OUT (default docs/img), VB_WIDTH (default 1280).
 
 import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { mkdir, writeFile, rm } from 'node:fs/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -32,8 +33,10 @@ const PORT = 9333
 // Screens to capture: route hash, output file, and the text that proves the
 // screen finished loading (so we never photograph a spinner).
 const SHOTS = [
-  { hash: '#/', file: 'dashboard.png', ready: 'Direct WAN', height: 320 },
-  { hash: '#/nodes', file: 'nodes.png', ready: 'Endpoint', height: 300 },
+  // The ready marker is a string the finished screen contains and a spinner
+  // does not, so a slow load can never be photographed as an empty panel.
+  { hash: '#/', file: 'dashboard.png', ready: 'Coming later', height: 840 },
+  { hash: '#/nodes', file: 'nodes.png', ready: 'Endpoint', height: 420 },
 ]
 
 class CDP {
@@ -167,7 +170,15 @@ async function main() {
     ws.close()
   } finally {
     chrome.kill()
-    await rm(PROFILE, { recursive: true, force: true })
+    // Chrome keeps writing to its profile while it is dying, so a remove
+    // issued in the same millisecond races it and fails with ENOTEMPTY — which
+    // is what happened here, after the images had already been written.
+    // Wait for the exit, retry, and never let a temp-directory cleanup fail a
+    // capture that already succeeded.
+    await once(chrome, 'exit').catch(() => {})
+    await rm(PROFILE, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(
+      (err) => console.error(`could not remove ${PROFILE}: ${err.message}`),
+    )
   }
 }
 
