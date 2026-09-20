@@ -83,4 +83,5 @@ the panel is running again on a restored arm64 binary, with a new PID.
 
 ## Not yet built (roadmap D1+)
 
-Signed opkg feed, firmware images via ImageBuilder, first-run wizard.
+Signed package feed (apk index; opkg index only if 24.10 support stays worth
+it), firmware images via ImageBuilder, first-run wizard.

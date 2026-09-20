@@ -124,8 +124,10 @@ keeping your nodes and settings and restarting the service; removing the package
 `/etc/veilbridge` alone, because it holds your VPN private keys.
 
 **Requirements on the target:** OpenWrt with `kmod-tun` (for `/dev/net/tun`) and
-`nftables` — both pulled in as package dependencies; roughly 25 MiB of RAM for
-the daemon and ~12 MB of storage, so an 8/64 MB device will not fit it.
+`nftables` — both pulled in as package dependencies. Measured on the router
+below, with the panel idle: **10 MB RSS** for the daemon and **~12 MB of
+overlay storage** for the package, so an 8/64 MB device will not fit it, and on
+a 128 MB device the panel alone takes about a quarter of the writable space.
 Standalone binaries are published too, for people who would rather not use a
 package. A signed package feed and ready-made firmware images are on the
 roadmap.
