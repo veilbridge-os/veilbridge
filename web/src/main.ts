@@ -1,6 +1,8 @@
-import ElementPlus from 'element-plus'
 import { createApp } from 'vue'
-import 'element-plus/dist/index.css'
+// Element Plus dark variables. They cost ~2 kB gzipped and are inert until
+// <html class="dark"> appears, so there is no reason to load them lazily.
+import 'element-plus/theme-chalk/dark/css-vars.css'
+import '@/stores/theme'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { isAuthed } from '@/api/client'
 import { i18n } from '@/i18n'
@@ -27,4 +29,4 @@ router.beforeEach((to) => {
   return true
 })
 
-createApp(App).use(router).use(i18n).use(ElementPlus).mount('#app')
+createApp(App).use(router).use(i18n).mount('#app')

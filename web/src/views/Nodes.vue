@@ -82,7 +82,7 @@ onMounted(refresh)
       </template>
     </el-table-column>
     <el-table-column :label="t('nodes.handshake')" width="120">
-      <template #default="{ row }">{{ handshake(row) }}</template>
+      <template #default="{ row }">{{ handshake(row as NodeWithStatus) }}</template>
     </el-table-column>
     <el-table-column :label="t('nodes.actions')" width="200">
       <template #default="{ row }">

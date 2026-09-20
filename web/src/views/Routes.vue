@@ -104,7 +104,7 @@ onMounted(refresh)
     <el-table-column :label="t('routes.note')" prop="note" />
     <el-table-column :label="t('routes.actions')" width="200">
       <template #default="{ row }">
-        <el-button size="small" @click="probe(row)">{{ t('routes.probe') }}</el-button>
+        <el-button size="small" @click="probe(row as RouteRule)">{{ t('routes.probe') }}</el-button>
         <el-button size="small" type="danger" @click="del(row.id)">{{ t('routes.delete') }}</el-button>
       </template>
     </el-table-column>

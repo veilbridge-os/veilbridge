@@ -1,7 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
   "files": {
-    "includes": ["src/**/*.ts", "src/**/*.vue", "*.ts", "!src/api/schema.ts"]
+    "includes": [
+      "src/**/*.ts",
+      "src/**/*.vue",
+      "*.ts",
+      "!src/api/schema.ts",
+      "!src/auto-imports.d.ts",
+      "!src/components.d.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

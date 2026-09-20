@@ -81,3 +81,43 @@ So the pin stays at the newest version that actually checks the code. The test
 for lifting it: `vue-tsc` builds against TS 7, and a deliberate type error
 inside a `.vue` file still fails the build — which is how the current pin was
 verified.
+
+## Performance budget (M2.6)
+
+Measured on the reference device (Cudy WR3000S v1, OpenWrt 25.12.5, aarch64 — 245 MB
+RAM, 46 MB writable overlay). Numbers, not adjectives: this panel is stored on the
+device's flash and parsed by whatever phone the operator happens to hold.
+
+| What | Before on-demand imports | Now |
+| --- | --- | --- |
+| JS bundle | 1 156 kB (366 kB gzip) | **609 kB (198 kB gzip)** |
+| CSS bundle | 368 kB (49 kB gzip) | **135 kB (19 kB gzip)** |
+| UI's contribution to the binary | ~1.5 MB | **873 kB** |
+
+Element Plus is registered per component (`unplugin-vue-components`) rather than
+globally: the global registration shipped every component the panel never renders.
+
+Daemon RSS on the router:
+
+| State | RSS |
+| --- | --- |
+| idle, no clients | 7.3 MB |
+| three panels open, live streams running | 14.1 MB |
+| after nine tab sessions, idle | 16.2 MB |
+
+The retained 16 MB is Go heap the runtime has not returned, not a leak: growth decays
+(+6.8 → +1.5 → +0.4 → +0.13 MB per cycle), and the thread count (9) and open file
+descriptors (6) stay flat across all nine sessions. A fresh stream is still accepted
+afterwards, so the connection counter unwinds correctly.
+
+### Known cost, accepted deliberately
+
+The daemon binary grew 14.4 → 16.9 MB at M1.7. Cause, found by diffing linker symbols
+between the two commits: making the engine choice automatic (D-34) made the userspace
+netstack reachable from the product, so the linker stopped pruning it (+628 kB of
+gVisor symbols, ~2.4 MB of binary). `go list -deps` does not show this — it lists
+imports, not what survives dead-code elimination.
+
+That cost buys the fallback that lets a device without `kmod-tun` work at all. Every
+device pays it, including the majority that never uses it; splitting the fallback into
+a separately installed package belongs to the image work (D3/D4), not here.
