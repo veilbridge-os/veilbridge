@@ -15,8 +15,10 @@ import (
 // documentation range (RFC 5737); 192.168.1.1 is left alone, because that is
 // OpenWrt's factory LAN address and not anybody's. Both branches are replayed in
 // every test that parses a reply, because the point of having two is that they
-// disagree: 25.12 carries release fields 23.05 does not, and its load average
-// is nonzero where 23.05 reports zeros.
+// disagree: 25.12 carries release fields 23.05 does not. The zeros in the
+// 23.05 load average are not a branch difference — that stand was simply idle
+// when the fixture was captured (re-measured under load 20.09.2026: both
+// branches report the same value as /proc/loadavg).
 var branches = []string{"23.05", "25.12"}
 
 func fixture(t *testing.T, name string) []byte {

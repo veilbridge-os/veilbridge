@@ -11,9 +11,13 @@
 // The types here follow what real devices actually return. The fixtures in
 // testdata/ were captured from two live stands — OpenWrt 23.05.5 (x86) and
 // 25.12.5 (aarch64) — because the two branches do not agree: 25.12 adds
-// release.firmware_url and release.builddate, and its ubus reports a nonzero
-// load average where 23.05 reports zeros. Anything parsed here must survive
-// both.
+// release.firmware_url and release.builddate. Anything parsed here must
+// survive both.
+//
+// The load average is NOT one of those differences, though an earlier note
+// here said it was: the 23.05 fixture shows zeros only because that stand was
+// idle when it was captured. Measured under load on 20.09.2026, both branches
+// report the same fixed-point value /proc/loadavg does.
 package ubus
 
 import (

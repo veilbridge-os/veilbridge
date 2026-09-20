@@ -200,9 +200,15 @@ func (m *systemManager) enrich(info *core.SystemInfo) {
 		info.StorageUsed = si.Root.Used * 1024
 	}
 	info.LoadAvg = si.LoadAverage()
-	// 23.05 reports a load of exactly zero through ubus (measured on the x86
-	// stand) where /proc/loadavg does not. Taking that at face value would
-	// replace a real reading with a flat line, so only a nonzero answer wins.
+	// A zero load is not news: it is what an idle device reports, and /proc
+	// says the same. Only a nonzero answer overwrites the fallback, so a
+	// reply that parsed but carries nothing cannot flatten a real reading.
+	//
+	// An earlier version of this comment claimed 23.05 always reports zeros
+	// here where /proc does not. That was wrong, and wrong in the way
+	// measurements usually are: both stands were idle. Re-measured under load
+	// on 20.09.2026, ubus on 23.05 returned 180832 (= 2.76) at the same
+	// moment /proc/loadavg said 2.76. The two branches agree.
 	if si.Load[0] > 0 {
 		info.CPUPercent = loadToPercent(si.LoadAverage()[0])
 	}

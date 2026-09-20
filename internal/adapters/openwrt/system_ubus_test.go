@@ -156,9 +156,9 @@ func TestBoardIsReadOncePerProcess(t *testing.T) {
 	}
 }
 
-// 23.05 reports a load of exactly zero over ubus where /proc/loadavg does not
-// (measured on the x86 stand). Taking that at face value would replace a real
-// reading with a flat line on half the supported fleet.
+// A reply carrying a zero load must not flatten the /proc reading. This is a
+// defensive property, not a branch quirk: measured under load, both branches
+// agree with /proc. It matters when a reply parses but carries nothing.
 func TestZeroUbusLoadDoesNotOverwriteProcReading(t *testing.T) {
 	v, _ := newTestVPN(t, &fakeEngine{})
 	bus := ubus.NewWithRunner(func(_ context.Context, _ string, args ...string) ([]byte, error) {

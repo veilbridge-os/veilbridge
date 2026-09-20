@@ -6,6 +6,11 @@ name: CI
 # that label moves to the next LTS on a schedule GitHub picks, and a release
 # train should change its build environment when we decide to, not on a date
 # announced in a changelog. Bumping it is a one-line, reviewable commit.
+#
+# Actions are pinned to commit SHAs, like release.yml: a tag is a moving
+# pointer its owner can repoint, so `@v7` is a promise, not a fact. The
+# version each SHA stands for is in the comment above it - update both
+# together, or the comment becomes the lie the pin was supposed to prevent.
 on:
   push:
     branches: [main]
@@ -20,9 +25,11 @@ jobs:
     name: Backend (Go)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: actions/setup-go@v7
+      # actions/setup-go v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: '1.26.4'
           # go.mod pins go 1.26.3 + a specific gVisor revision; let
@@ -65,9 +72,11 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: actions/setup-node@v7
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '22'
           cache: npm
@@ -86,15 +95,18 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [backend, frontend]
     steps:
-      - uses: actions/checkout@v7
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: actions/setup-go@v7
+      # actions/setup-go v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: '1.26.4'
           check-latest: true
           cache: true
 
-      - uses: actions/setup-node@v7
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '22'
           cache: npm
