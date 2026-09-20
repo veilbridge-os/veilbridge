@@ -239,11 +239,17 @@ func (s *Server) register() {
 		OperationID: "listInterfaces", Method: http.MethodGet, Path: "/network/interfaces",
 		Summary: "L3 interfaces as the router's network daemon sees them",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+		// 501: this platform has no network daemon. 502: the daemon did not answer.
+		Errors: []int{http.StatusBadGateway, http.StatusNotImplemented},
 	}, s.listInterfaces)
 	huma.Register(s.api, huma.Operation{
 		OperationID: "getWAN", Method: http.MethodGet, Path: "/network/wan",
 		Summary: "The uplink, and which rule identified it",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+		// 404: the device has no uplink (ErrNoWAN). 501: platform cannot answer.
+		// 502: the network daemon did not answer. Without these, Huma only emits
+		// a generic default error and generated clients treat 404 as "no such endpoint".
+		Errors: []int{http.StatusNotFound, http.StatusBadGateway, http.StatusNotImplemented},
 	}, s.getWAN)
 
 	// --- system ---

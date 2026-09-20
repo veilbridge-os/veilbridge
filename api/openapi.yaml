@@ -742,12 +742,24 @@ paths:
                   - array
                   - "null"
           description: OK
-        default:
+        "500":
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
-          description: Error
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Gateway
       security:
         - bearerAuth: []
       summary: L3 interfaces as the router's network daemon sees them
@@ -763,12 +775,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/WANStatus"
           description: OK
-        default:
+        "404":
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
-          description: Error
+          description: Not Found
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Gateway
       security:
         - bearerAuth: []
       summary: The uplink, and which rule identified it
