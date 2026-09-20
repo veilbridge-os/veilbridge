@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"strings"
 
+	"github.com/veilbridge-os/veilbridge/internal/adapters/openwrt/ubus"
 	"github.com/veilbridge-os/veilbridge/internal/config"
 	"github.com/veilbridge-os/veilbridge/internal/core"
 	"github.com/veilbridge-os/veilbridge/internal/vpn"
@@ -37,12 +38,17 @@ type Adapter struct {
 func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapter {
 	store := config.NewStore(configPath)
 	v := newVPNManager(store, engine)
-	s := newSystemManager(v)
+	// One ubus client is shared by every manager that needs the device's own
+	// account of itself: the client is stateless and each call forks once, so
+	// sharing costs nothing and keeps "who talks to ubus" a short list.
+	bus := ubus.New()
+	s := newSystemManager(v, bus)
 	s.platform = platform
 	return &Adapter{
 		vpn:      v,
 		routing:  newRoutingManager(store),
 		system:   s,
+		network:  newNetworkManager(bus),
 		applier:  newUCIApplier(),
 		platform: platform,
 		caps:     newSysProbe().Capabilities(),
@@ -66,13 +72,7 @@ func (a *Adapter) Capabilities() core.Capabilities { return a.caps }
 // a tarball of /etc/config and not a `uci export`.
 func (a *Adapter) Applier() core.ConfigApplier { return a.applier }
 
-// networkManager / deviceManager are roadmap stubs (M1/M3 and M4).
-type networkManager struct{}
-
-func (networkManager) WANInfo() (core.SystemInfo, error) {
-	return core.SystemInfo{}, core.ErrNotImplemented
-}
-
+// deviceManager is a roadmap stub (M4).
 type deviceManager struct{}
 
 func (deviceManager) ListDevices() ([]core.Device, error) {

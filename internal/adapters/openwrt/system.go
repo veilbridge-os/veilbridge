@@ -12,14 +12,21 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/veilbridge-os/veilbridge/internal/adapters/openwrt/ubus"
 	"github.com/veilbridge-os/veilbridge/internal/core"
 	"github.com/veilbridge-os/veilbridge/internal/vpn"
 )
 
-// systemManager reads /proc for the dashboard and runs egress-comparing path
-// probes. It borrows the VPN manager to know the active node and its dialer.
+// systemManager answers the dashboard and runs egress-comparing path probes.
+// It borrows the VPN manager to know the active node and its dialer.
+//
+// Two sources, deliberately: ubus is asked first because it is the device's
+// own account of itself (model, firmware, overlay space — none of which /proc
+// knows), and /proc is kept as the answer of last resort. A dashboard that
+// goes blank because one fork failed is worse than one showing slightly less.
 type systemManager struct {
 	vpn *vpnManager
 	// platform labels SystemInfo (e.g. "openwrt"); set by the adapter ctor.
@@ -27,18 +34,38 @@ type systemManager struct {
 	// egress resolves the public IP reached via the given HTTP-do function.
 	// Overridable in tests so probes don't hit the real network.
 	egress func(do func(*http.Request) (*http.Response, error)) string
+	// bus is the ubus client, nil on a host that has no ubus (tests, dev
+	// machines). Nil is a supported state, not a bug: see enrich.
+	bus *ubus.Client
+	// procCPU and procUptime are the /proc fallback readings, injectable
+	// because otherwise the tests for "a zero from ubus must not overwrite
+	// them" would pass for the wrong reason on any machine without /proc
+	// (every macOS dev box): there the fallback is zero too, and agreeing
+	// with a broken implementation is not a passing test.
+	procCPU    func() float64
+	procUptime func() int64
+	procMem    func() (used, total int64)
+	// board is cached after the first successful read. A router does not
+	// change its model or firmware while running, and the dashboard polls.
+	boardOnce sync.Once
+	board     ubus.Board
+	boardOK   bool
 }
 
-func newSystemManager(v *vpnManager) *systemManager {
-	return &systemManager{vpn: v, platform: "openwrt", egress: egressIP}
+func newSystemManager(v *vpnManager, bus *ubus.Client) *systemManager {
+	return &systemManager{
+		vpn: v, platform: "openwrt", egress: egressIP, bus: bus,
+		procCPU: readLoadAsCPU, procUptime: readUptime, procMem: readMem,
+	}
 }
 
 func (m *systemManager) Info() (core.SystemInfo, error) {
 	info := core.SystemInfo{Platform: m.platform}
 	info.Hostname, _ = os.Hostname()
-	info.UptimeSec = readUptime()
-	info.MemUsed, info.MemTotal = readMem()
-	info.CPUPercent = readLoadAsCPU()
+	info.UptimeSec = m.procUptime()
+	info.MemUsed, info.MemTotal = m.procMem()
+	info.CPUPercent = m.procCPU()
+	m.enrich(&info)
 
 	// Direct WAN IP (no tunnel) — best effort, short timeout.
 	info.WANIP = m.egress(http.DefaultClient.Do)
@@ -114,6 +141,70 @@ func (m *systemManager) Diagnostics(target string) (string, error) {
 	return string(out), nil
 }
 
+// --- ubus enrichment (M1.4) ---
+
+// enrich overlays what the device says about itself onto the /proc reading.
+// Every failure here is silent on purpose: the fields it fills are extra
+// detail, and losing them must not cost the operator the panel. What it does
+// NOT do is invent — a field ubus could not answer stays as /proc left it, or
+// empty.
+func (m *systemManager) enrich(info *core.SystemInfo) {
+	if m.bus == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if b, ok := m.cachedBoard(ctx); ok {
+		info.Model = b.Model
+		info.Kernel = b.Kernel
+		info.Firmware = b.Release.Description
+		if b.Hostname != "" {
+			// os.Hostname() and ubus agree on a healthy device; when they do
+			// not, the device's own answer is the one uci will show.
+			info.Hostname = b.Hostname
+		}
+	}
+
+	si, err := m.bus.SystemInfo(ctx)
+	if err != nil {
+		return
+	}
+	if si.Uptime > 0 {
+		info.UptimeSec = si.Uptime
+	}
+	if si.Memory.Total > 0 {
+		// Used = total - available, matching readMem: "free" alone counts the
+		// page cache as used and would show a healthy router at 95% memory.
+		info.MemTotal = si.Memory.Total
+		info.MemUsed = si.Memory.Total - si.Memory.Available
+	}
+	if si.Root.Total > 0 {
+		// ubus reports the filesystem blocks in kilobytes, unlike memory.
+		info.StorageTotal = si.Root.Total * 1024
+		info.StorageUsed = si.Root.Used * 1024
+	}
+	info.LoadAvg = si.LoadAverage()
+	// 23.05 reports a load of exactly zero through ubus (measured on the x86
+	// stand) where /proc/loadavg does not. Taking that at face value would
+	// replace a real reading with a flat line, so only a nonzero answer wins.
+	if si.Load[0] > 0 {
+		info.CPUPercent = loadToPercent(si.LoadAverage()[0])
+	}
+}
+
+// cachedBoard reads `system board` once per process lifetime.
+func (m *systemManager) cachedBoard(ctx context.Context) (ubus.Board, bool) {
+	m.boardOnce.Do(func() {
+		b, err := m.bus.Board(ctx)
+		if err != nil {
+			return
+		}
+		m.board, m.boardOK = b, true
+	})
+	return m.board, m.boardOK
+}
+
 // --- /proc helpers ---
 
 func readUptime() int64 {
@@ -167,6 +258,12 @@ func readLoadAsCPU() float64 {
 		return 0
 	}
 	load1, _ := strconv.ParseFloat(fields[0], 64)
+	return loadToPercent(load1)
+}
+
+// loadToPercent spreads a 1-minute load average over the CPU count and caps it
+// at 100: a load of 4 on two cores is a saturated router, not 200% of one.
+func loadToPercent(load1 float64) float64 {
 	n := runtime.NumCPU()
 	if n == 0 {
 		n = 1

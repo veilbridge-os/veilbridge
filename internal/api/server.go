@@ -234,6 +234,18 @@ func (s *Server) register() {
 		Tags:    []string{"system"}, Middlewares: authed, Security: authSec,
 	}, s.getCapabilities)
 
+	// --- network (M1.5) ---
+	huma.Register(s.api, huma.Operation{
+		OperationID: "listInterfaces", Method: http.MethodGet, Path: "/network/interfaces",
+		Summary: "L3 interfaces as the router's network daemon sees them",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.listInterfaces)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "getWAN", Method: http.MethodGet, Path: "/network/wan",
+		Summary: "The uplink, and which rule identified it",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.getWAN)
+
 	// --- system ---
 	huma.Register(s.api, huma.Operation{
 		OperationID: "getSystem", Method: http.MethodGet, Path: "/system",
@@ -508,6 +520,38 @@ func (s *Server) getSystem(ctx context.Context, _ *struct{}) (*SystemOutput, err
 		return nil, huma.Error500InternalServerError("system info", err)
 	}
 	return &SystemOutput{Body: info}, nil
+}
+
+func (s *Server) listInterfaces(ctx context.Context, _ *struct{}) (*InterfacesOutput, error) {
+	ifaces, err := s.adapter.Network().Interfaces()
+	if errors.Is(err, core.ErrNotImplemented) {
+		return nil, huma.Error501NotImplemented("interfaces", err)
+	}
+	if err != nil {
+		// 502: the panel is fine, the thing it asked (netifd) is not.
+		return nil, huma.Error502BadGateway("interfaces", err)
+	}
+	// An empty list must serialise as [] and not null, so a UI that iterates
+	// the response renders "nothing here" instead of throwing.
+	if ifaces == nil {
+		ifaces = []core.NetworkInterface{}
+	}
+	return &InterfacesOutput{Body: ifaces}, nil
+}
+
+func (s *Server) getWAN(ctx context.Context, _ *struct{}) (*WANOutput, error) {
+	wan, err := s.adapter.Network().WANInfo()
+	switch {
+	case errors.Is(err, core.ErrNoWAN):
+		// 404, not 500: the device answered, and the answer is "there is no
+		// uplink here". An unconfigured router is legitimately in that state.
+		return nil, huma.Error404NotFound("no wan interface", err)
+	case errors.Is(err, core.ErrNotImplemented):
+		return nil, huma.Error501NotImplemented("wan", err)
+	case err != nil:
+		return nil, huma.Error502BadGateway("wan", err)
+	}
+	return &WANOutput{Body: wan}, nil
 }
 
 func (s *Server) probePath(ctx context.Context, in *ProbeInput) (*ProbeOutput, error) {

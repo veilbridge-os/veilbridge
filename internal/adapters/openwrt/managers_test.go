@@ -167,7 +167,7 @@ func TestRoutingManagerPersistAndValidate(t *testing.T) {
 
 func TestProbePathNoTunnel(t *testing.T) {
 	m, _ := newTestVPN(t, &fakeEngine{})
-	sys := newSystemManager(m)
+	sys := newSystemManager(m, nil)
 	sys.egress = func(func(*http.Request) (*http.Response, error)) string { return "198.51.100.1" }
 	// No active tunnel → everything is direct; expecting direct → OK.
 	probe, err := sys.ProbePath("example.com", core.TargetDirect)
@@ -186,7 +186,7 @@ func TestProbePathThroughTunnel(t *testing.T) {
 	if err := m.Activate(nodes[0].ID); err != nil {
 		t.Fatalf("activate: %v", err)
 	}
-	sys := newSystemManager(m)
+	sys := newSystemManager(m, nil)
 	// Direct egress vs tunnel egress differ → traffic took the tunnel.
 	calls := 0
 	sys.egress = func(func(*http.Request) (*http.Response, error)) string {
@@ -214,7 +214,7 @@ func TestProbePathKernelTunnel(t *testing.T) {
 	if err := m.Activate(nodes[0].ID); err != nil {
 		t.Fatalf("activate: %v", err)
 	}
-	sys := newSystemManager(m)
+	sys := newSystemManager(m, nil)
 	calls := 0
 	sys.egress = func(func(*http.Request) (*http.Response, error)) string {
 		calls++

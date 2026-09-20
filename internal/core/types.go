@@ -82,12 +82,28 @@ type RouteRule struct {
 // actually flows through the tunnel, verified rather than assumed. See DESIGN §2.
 type SystemInfo struct {
 	// Platform is the detected adapter's label, e.g. "openwrt" ("mock" in -demo).
-	Platform   string  `json:"platform"`
-	Hostname   string  `json:"hostname"`
+	Platform string `json:"platform"`
+	Hostname string `json:"hostname"`
+	// Model is what the board calls itself, e.g. "Cudy WR3000S v1". Empty when
+	// the platform cannot name its hardware — a PC, or a container.
+	Model string `json:"model,omitempty"`
+	// Firmware is the running release, e.g. "OpenWrt 24.10.8 r28568-…".
+	Firmware string `json:"firmware,omitempty"`
+	// Kernel is the running kernel version.
+	Kernel     string  `json:"kernel,omitempty"`
 	UptimeSec  int64   `json:"uptimeSec"`
 	CPUPercent float64 `json:"cpuPercent"`
-	MemUsed    int64   `json:"memUsed"`
-	MemTotal   int64   `json:"memTotal"`
+	// LoadAvg is the 1/5/15-minute load average. CPUPercent is derived from it
+	// and is what a dashboard shows; the raw triple is kept because on a
+	// two-core router the difference between 1.0 and 4.0 is the whole story.
+	LoadAvg  [3]float64 `json:"loadAvg"`
+	MemUsed  int64      `json:"memUsed"`
+	MemTotal int64      `json:"memTotal"`
+	// StorageUsed/StorageTotal describe the writable root (the overlay on a
+	// flash router), in bytes. It is reported because on a device with ~45 MB
+	// of overlay a full filesystem is a likelier outage than a busy CPU.
+	StorageUsed  int64 `json:"storageUsed,omitempty"`
+	StorageTotal int64 `json:"storageTotal,omitempty"`
 	// WANIP is the direct egress (e.g. the RU ISP IP).
 	WANIP string `json:"wanIP,omitempty"`
 	// EgressIP is the actual egress through the active node.
@@ -111,6 +127,55 @@ type PathProbe struct {
 	OK bool `json:"ok"`
 	// Detail carries the egress IP, timing, and method used.
 	Detail string `json:"detail,omitempty"`
+}
+
+// NetworkInterface is one L3 interface as the platform's network daemon sees
+// it (on OpenWrt: one entry of `ubus call network.interface dump`). It is a
+// read model — M3 owns changing any of it.
+type NetworkInterface struct {
+	// Name is the logical name ("wan", "lan"), not the kernel device.
+	Name string `json:"name"`
+	// Device is the kernel device traffic actually leaves through ("br-lan",
+	// "eth1"). For a bridge or a tunnel it differs from the logical name, and
+	// this is the one to bind a socket or read counters on.
+	Device string `json:"device,omitempty"`
+	// Up is true when the interface is configured and carrying an address.
+	Up bool `json:"up"`
+	// Proto is how it gets its address: "dhcp", "static", "pppoe", …
+	Proto string `json:"proto,omitempty"`
+	// UptimeSec is how long this interface has been up, not the system uptime.
+	UptimeSec int64 `json:"uptimeSec,omitempty"`
+	// IPv4 and IPv6 are assigned addresses in CIDR form.
+	IPv4 []string `json:"ipv4,omitempty"`
+	IPv6 []string `json:"ipv6,omitempty"`
+	// Gateway/Gateway6 are the default-route nexthops, empty when this
+	// interface has no default route.
+	Gateway  string `json:"gateway,omitempty"`
+	Gateway6 string `json:"gateway6,omitempty"`
+	// DNS are the resolvers this interface learned or was given.
+	DNS []string `json:"dns,omitempty"`
+}
+
+// HasDefaultRoute reports whether this interface carries a default route, i.e.
+// whether traffic for the rest of the world can leave through it.
+func (i NetworkInterface) HasDefaultRoute() bool {
+	return i.Gateway != "" || i.Gateway6 != ""
+}
+
+// WANStatus is the uplink, plus how it was identified. The "how" is part of
+// the answer on purpose: a router can have several default routes (a VM stand
+// here has two), and a panel that silently picks one of them teaches the
+// operator to trust a guess. See D-5 — report what was measured, not what was
+// assumed.
+type WANStatus struct {
+	Interface NetworkInterface `json:"interface"`
+	// SelectedBy names the rule that picked it: "default-route" (it was the
+	// only candidate), "name" (several candidates, one is called wan), or
+	// "first-candidate" (several, none named wan — an honest coin toss).
+	SelectedBy string `json:"selectedBy"`
+	// Candidates lists every interface with a default route, including the
+	// selected one, so the UI can show the ambiguity instead of hiding it.
+	Candidates []string `json:"candidates,omitempty"`
 }
 
 // Device is a LAN client. v0.1 only ever returns these from a stub; full device

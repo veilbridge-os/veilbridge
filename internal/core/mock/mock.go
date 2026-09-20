@@ -118,16 +118,22 @@ type System struct{}
 
 func (System) Info() (core.SystemInfo, error) {
 	return core.SystemInfo{
-		Platform:   "mock",
-		Hostname:   "veilbridge-mock",
-		UptimeSec:  3600,
-		CPUPercent: 1.5,
-		MemUsed:    100 << 20,
-		MemTotal:   512 << 20,
-		WANIP:      "198.51.100.1",
-		EgressIP:   "203.0.113.1",
-		EgressGeo:  "NL / Amsterdam",
-		TunnelUp:   true,
+		Platform:     "mock",
+		Hostname:     "veilbridge-mock",
+		Model:        "VeilBridge Demo Router",
+		Firmware:     "OpenWrt 24.10.8",
+		Kernel:       "6.6.144",
+		UptimeSec:    3600,
+		CPUPercent:   1.5,
+		LoadAvg:      [3]float64{0.03, 0.05, 0.01},
+		MemUsed:      100 << 20,
+		MemTotal:     512 << 20,
+		StorageUsed:  12 << 20,
+		StorageTotal: 45 << 20,
+		WANIP:        "198.51.100.1",
+		EgressIP:     "203.0.113.1",
+		EgressGeo:    "NL / Amsterdam",
+		TunnelUp:     true,
 	}, nil
 }
 
@@ -145,11 +151,32 @@ func (System) Diagnostics(target string) (string, error) {
 	return fmt.Sprintf("mock diagnostics for %s\n", target), nil
 }
 
-// Network is a roadmap stub: every method returns core.ErrNotImplemented.
+// Network returns a canned two-interface router: a static LAN and a DHCP WAN
+// with a default route. Addresses are from the documentation ranges (RFC 5737)
+// so a demo screenshot can never leak a real network.
 type Network struct{}
 
-func (Network) WANInfo() (core.SystemInfo, error) {
-	return core.SystemInfo{}, core.ErrNotImplemented
+func (Network) Interfaces() ([]core.NetworkInterface, error) {
+	return []core.NetworkInterface{
+		{
+			Name: "lan", Device: "br-lan", Up: true, Proto: "static",
+			UptimeSec: 3600, IPv4: []string{"192.168.1.1/24"},
+		},
+		{
+			Name: "wan", Device: "eth1", Up: true, Proto: "dhcp",
+			UptimeSec: 3540, IPv4: []string{"198.51.100.42/24"},
+			Gateway: "198.51.100.1", DNS: []string{"198.51.100.1"},
+		},
+	}, nil
+}
+
+func (m Network) WANInfo() (core.WANStatus, error) {
+	ifaces, _ := m.Interfaces()
+	return core.WANStatus{
+		Interface:  ifaces[1],
+		SelectedBy: "default-route",
+		Candidates: []string{"wan"},
+	}, nil
 }
 
 // Device is a roadmap stub: every method returns core.ErrNotImplemented.

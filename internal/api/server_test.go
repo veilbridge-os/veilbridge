@@ -287,3 +287,77 @@ func TestCapabilitiesRequireAuth(t *testing.T) {
 		t.Fatalf("status = %d, want 401: capabilities describe the hardware to anyone who asks", resp.StatusCode)
 	}
 }
+
+// --- network (M1.5) ---
+
+// The dashboard reads the uplink from here, so the wire shape is part of the
+// contract: a renamed field is a blank panel, not a compile error.
+func TestNetworkEndpoints(t *testing.T) {
+	ts, base := setup(t)
+	defer ts.Close()
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/network/interfaces", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("interfaces status = %d", resp.StatusCode)
+	}
+	var ifaces []struct {
+		Name    string   `json:"name"`
+		Device  string   `json:"device"`
+		Up      bool     `json:"up"`
+		Proto   string   `json:"proto"`
+		IPv4    []string `json:"ipv4"`
+		Gateway string   `json:"gateway"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&ifaces); err != nil {
+		t.Fatalf("decode interfaces: %v", err)
+	}
+	if len(ifaces) == 0 {
+		t.Fatal("no interfaces returned")
+	}
+	if ifaces[0].Name == "" || ifaces[0].Device == "" {
+		t.Errorf("interface fields empty — check the json tags: %+v", ifaces[0])
+	}
+
+	wanResp := do(t, http.MethodGet, base+"/network/wan", token, nil)
+	defer wanResp.Body.Close()
+	if wanResp.StatusCode != 200 {
+		t.Fatalf("wan status = %d", wanResp.StatusCode)
+	}
+	var wan struct {
+		Interface struct {
+			Name    string `json:"name"`
+			Gateway string `json:"gateway"`
+		} `json:"interface"`
+		SelectedBy string   `json:"selectedBy"`
+		Candidates []string `json:"candidates"`
+	}
+	if err := json.NewDecoder(wanResp.Body).Decode(&wan); err != nil {
+		t.Fatalf("decode wan: %v", err)
+	}
+	if wan.Interface.Name == "" || wan.Interface.Gateway == "" {
+		t.Errorf("wan interface incomplete: %+v", wan)
+	}
+	// How the uplink was chosen travels with it on the wire, or the UI cannot
+	// show the operator that a guess was involved.
+	if wan.SelectedBy == "" {
+		t.Error("selectedBy missing from the wire")
+	}
+	if len(wan.Candidates) == 0 {
+		t.Error("candidates missing from the wire")
+	}
+}
+
+func TestNetworkEndpointsRequireAuth(t *testing.T) {
+	ts, base := setup(t)
+	defer ts.Close()
+
+	for _, path := range []string{"/network/interfaces", "/network/wan"} {
+		resp := do(t, http.MethodGet, base+path, "", nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s status = %d, want 401: the LAN layout is not public", path, resp.StatusCode)
+		}
+	}
+}

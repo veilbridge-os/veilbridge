@@ -125,6 +125,16 @@ type CapabilitiesOutput struct {
 	Body core.Capabilities
 }
 
+// --- network (M1.5) ---
+
+type InterfacesOutput struct {
+	Body []core.NetworkInterface
+}
+
+type WANOutput struct {
+	Body core.WANStatus
+}
+
 type ProbeInput struct {
 	Body struct {
 		Target      string      `json:"target" doc:"Domain or IP to test"`
