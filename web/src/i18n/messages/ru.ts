@@ -28,6 +28,12 @@ const ru: MessageSchema = {
     deviceError: 'Устройство перестало отвечать: {detail}',
     notAvailable: 'На этом устройстве раздела нет',
     notBuilt: 'Раздел пока не сделан',
+    theme: 'Тема',
+    themeSystem: 'Как в системе',
+    themeLight: 'Светлая',
+    themeDark: 'Тёмная',
+    openMenu: 'Открыть меню',
+    openSearch: 'Открыть поиск по настройкам',
     sessionExpired: 'Сеанс истёк',
   },
   apply: {

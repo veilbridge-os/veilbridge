@@ -15,6 +15,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { clearToken } from '@/api/client'
 import { LOCALES, setLocale } from '@/i18n'
 import { startLive, stopLive, useLive } from '@/stores/live'
+import { setTheme, type ThemeChoice, theme } from '@/stores/theme'
 import ApplyBar from './ApplyBar.vue'
 
 interface NavItem {
@@ -135,7 +136,7 @@ const activePath = computed(() => route.path)
         <strong>VeilBridge</strong>
         <small v-if="system?.hostname">{{ system.hostname }}</small>
       </div>
-      <nav class="vb-side__nav">
+      <nav class="vb-side__nav" :aria-label="t('shell.menu')">
         <template v-for="g in groups" :key="g.group || 'root'">
           <div v-if="g.group" class="vb-side__group">{{ t(`shell.${g.group}`) }}</div>
           <button
@@ -160,23 +161,60 @@ const activePath = computed(() => route.path)
 
     <div class="vb-main">
       <header class="vb-head">
-        <el-button class="vb-head__burger" text @click="drawer = true">☰</el-button>
+        <el-button
+          class="vb-head__burger"
+          text
+          :aria-label="t('shell.openMenu')"
+          @click="drawer = true"
+        >
+          ☰
+        </el-button>
         <div class="vb-head__device">
           <strong>{{ system?.hostname ?? 'VeilBridge' }}</strong>
           <small v-if="deviceLine">{{ deviceLine }}</small>
         </div>
-        <button type="button" class="vb-head__search" @click="searchOpen = true">
+        <button
+          type="button"
+          class="vb-head__search"
+          :aria-label="t('shell.openSearch')"
+          @click="searchOpen = true"
+        >
           <span>{{ t('shell.search') }}</span>
           <kbd>{{ t('shell.searchHint') }}</kbd>
         </button>
-        <span class="vb-head__fresh" :class="{ 'is-stale': stale }">
-          <i class="vb-dot" :class="connected ? 'is-live' : 'is-down'" />
+        <!-- Colour is never the only carrier: the dot has a text label beside
+             it, and the region announces itself when the state changes. -->
+        <span
+          class="vb-head__fresh"
+          :class="{ 'is-stale': stale }"
+          role="status"
+          aria-live="polite"
+        >
+          <i class="vb-dot" :class="connected ? 'is-live' : 'is-down'" aria-hidden="true" />
           {{ freshness }}
         </span>
         <!-- Language and logout live in the drawer on a phone: at 360 the
              header has room for the device, the search and the freshness
              mark, and nothing else fits without overflowing. -->
         <div class="vb-head__wide-only">
+          <el-dropdown trigger="click" @command="(v: ThemeChoice) => setTheme(v)">
+            <span class="vb-head__lang" :title="t('shell.theme')">
+              {{ theme === 'dark' ? '◐' : theme === 'light' ? '○' : '◑' }}
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="system" :disabled="theme === 'system'">
+                  {{ t('shell.themeSystem') }}
+                </el-dropdown-item>
+                <el-dropdown-item command="light" :disabled="theme === 'light'">
+                  {{ t('shell.themeLight') }}
+                </el-dropdown-item>
+                <el-dropdown-item command="dark" :disabled="theme === 'dark'">
+                  {{ t('shell.themeDark') }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-dropdown trigger="click" @command="setLocale">
             <span class="vb-head__lang">
               {{ LOCALES.find((l) => l.code === locale)?.nativeName ?? 'English' }} ▾
@@ -244,6 +282,16 @@ const activePath = computed(() => route.path)
         </template>
       </nav>
       <div class="vb-drawer__foot">
+        <el-select
+          :model-value="theme"
+          size="default"
+          :aria-label="t('shell.theme')"
+          @change="(v: ThemeChoice) => setTheme(v)"
+        >
+          <el-option value="system" :label="t('shell.themeSystem')" />
+          <el-option value="light" :label="t('shell.themeLight')" />
+          <el-option value="dark" :label="t('shell.themeDark')" />
+        </el-select>
         <el-select :model-value="locale" size="default" @change="setLocale">
           <el-option v-for="l in LOCALES" :key="l.code" :value="l.code" :label="l.nativeName" />
         </el-select>
@@ -316,6 +364,12 @@ const activePath = computed(() => route.path)
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+.vb-side__item:focus-visible,
+.vb-head__search:focus-visible,
+.vb-search button:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
 }
 .vb-side__item:hover:not(.is-disabled) {
   background: var(--el-fill-color-light);

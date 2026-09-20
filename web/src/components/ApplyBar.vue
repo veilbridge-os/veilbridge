@@ -95,7 +95,13 @@ function dismiss() {
 </script>
 
 <template>
-  <div v-if="visible" class="vb-applybar" :class="`vb-applybar--${applying ? 'applying' : phase}`">
+  <div
+    v-if="visible"
+    class="vb-applybar"
+    :class="`vb-applybar--${applying ? 'applying' : phase}`"
+    role="region"
+    :aria-label="t('apply.applyNow')"
+  >
     <!-- 1. Applying, and the panel has not heard back. Normal, not an error. -->
     <template v-if="applying">
       <div class="vb-applybar__body">
@@ -116,7 +122,7 @@ function dismiss() {
           class="vb-applybar__progress"
         />
       </div>
-      <div class="vb-applybar__body">
+      <div class="vb-applybar__body" role="status" aria-live="assertive">
         <strong v-if="!confirmFailed">{{ t('apply.waiting') }}</strong>
         <strong v-else>{{ t('apply.confirmFailed') }}</strong>
         <p>{{ confirmFailed ? t('apply.confirmFailedHint') : t('apply.waitingHint') }}</p>
@@ -131,7 +137,7 @@ function dismiss() {
 
     <!-- 3. Nobody confirmed: the device undid the change by itself. -->
     <template v-else-if="phase === 'reverted'">
-      <div class="vb-applybar__body">
+      <div class="vb-applybar__body" role="alert">
         <strong>{{ t('apply.reverted') }}</strong>
         <p>{{ t('apply.revertedHint') }}</p>
         <code v-if="applyState?.snapshot_id" class="vb-applybar__id">
@@ -146,7 +152,7 @@ function dismiss() {
     <!-- 4. The worst state, and the one that must not be hidden: the undo
          itself failed, so the answer is a cable, not a button. -->
     <template v-else-if="phase === 'revert_failed'">
-      <div class="vb-applybar__body">
+      <div class="vb-applybar__body" role="alert">
         <strong>{{ t('apply.revertFailed') }}</strong>
         <p>{{ t('apply.revertFailedHint') }}</p>
         <code v-if="applyState?.error" class="vb-applybar__id">{{ applyState.error }}</code>

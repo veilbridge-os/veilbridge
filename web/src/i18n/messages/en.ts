@@ -25,6 +25,12 @@ const en = {
     deviceError: 'The device stopped answering: {detail}',
     notAvailable: 'This section is not available on this device',
     notBuilt: 'This section is not built yet',
+    theme: 'Theme',
+    themeSystem: 'Follow the system',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    openMenu: 'Open the menu',
+    openSearch: 'Open the settings search',
     sessionExpired: 'Session expired',
   },
   apply: {
