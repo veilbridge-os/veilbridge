@@ -59,3 +59,25 @@ Type-safe: `t()` keys are checked against the English schema (`i18n/types.d.ts`)
 and every locale bundle must `satisfy` `MessageSchema` — a missing or misspelled
 key is a compile error, not a silent runtime fallback. The choice is persisted in
 localStorage and defaults to the browser language when supported.
+
+## Toolchain versions
+
+Dependencies are pinned to exact versions (no `^`): the panel is embedded into
+a release binary, and a transitive bump that changes the bundle should be a
+commit, not a coincidence of when someone ran `npm install`.
+
+### Why TypeScript is 5.9 and not 7.x
+
+TypeScript 7 is the native rewrite, and it cannot type-check this project yet.
+Measured rather than assumed:
+
+- `vue-tsc` resolves `typescript/lib/tsc` to patch the compiler; TS 7 does not
+  export it, and `npm run build` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+- Running `tsc` from TS 7 directly "succeeds" — and that success is empty:
+  `--listFiles` shows it loaded only `.d.ts` files and not one `.vue` source.
+  A type check that silently covers nothing is worse than one that fails.
+
+So the pin stays at the newest version that actually checks the code. The test
+for lifting it: `vue-tsc` builds against TS 7, and a deliberate type error
+inside a `.vue` file still fails the build — which is how the current pin was
+verified.

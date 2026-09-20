@@ -13,19 +13,19 @@
     "format": "biome format --write src"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
-    "element-plus": "^2.14.2",
-    "vue": "^3.5.38",
-    "vue-i18n": "^11.4.6",
-    "vue-router": "^5.1.0"
+    "@element-plus/icons-vue": "2.3.2",
+    "element-plus": "2.14.6",
+    "vue": "3.5.43",
+    "vue-i18n": "11.4.12",
+    "vue-router": "5.3.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.1",
-    "@types/node": "^26.1.1",
-    "@vitejs/plugin-vue": "^6.0.7",
-    "openapi-typescript": "^7.13.0",
-    "typescript": "~5.9.3",
-    "vite": "^8.0.16",
-    "vue-tsc": "^3.3.5"
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "26.6.2",
+    "@vitejs/plugin-vue": "6.0.9",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.3.11"
   }
 }
