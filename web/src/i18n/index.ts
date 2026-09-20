@@ -66,12 +66,36 @@ function initialLocale(): string {
 
 // Explicit generics select the non-legacy (Composition API) overload, so
 // i18n.global.locale is a WritableComputedRef and t() is key-checked.
+/**
+ * slavicPlural picks the form for languages with three plural categories
+ * (Russian, Ukrainian, Polish): one / few / many.
+ *
+ * vue-i18n's built-in rule is the English one — "1 → first form, everything
+ * else → second" — which on a three-form message produces «1 часа» and
+ * «0 минута». That is visible on the dashboard, in the uptime line, on every
+ * page load: the kind of wrongness a native speaker reads as "machine
+ * translated" before reading anything else.
+ */
+function slavicPlural(count: number, choicesLength: number): number {
+  if (choicesLength < 3) return count === 1 ? 0 : 1
+  const mod10 = count % 10
+  const mod100 = count % 100
+  if (mod10 === 1 && mod100 !== 11) return 0
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 1
+  return 2
+}
+
 export const i18n = createI18n<[MessageSchema], string, false>({
   legacy: false,
   locale: initialLocale(),
   fallbackLocale: 'en',
   // Only en/ru are translated so far; others resolve via fallbackLocale.
   messages: { en, ru },
+  pluralRules: {
+    ru: slavicPlural,
+    uk: slavicPlural,
+    pl: slavicPlural,
+  },
 })
 
 // elementLocale returns the Element Plus locale object for the active language,

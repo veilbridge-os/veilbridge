@@ -4,6 +4,58 @@
  */
 
 export interface paths {
+    "/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** State of the apply transaction */
+        get: operations["applyState"];
+        put?: never;
+        /** Apply staged configuration with an automatic revert */
+        post: operations["applyConfig"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/apply/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm that the panel survived the change */
+        post: operations["confirmApply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/apply/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo the pending change immediately */
+        post: operations["revertApply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -15,6 +67,23 @@ export interface paths {
         put?: never;
         /** Exchange admin password for a JWT */
         post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What this device can do, and why not when it cannot */
+        get: operations["getCapabilities"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -49,6 +118,57 @@ export interface paths {
         put?: never;
         /** Import and apply a backup */
         post: operations["importConfig"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live updates: one stream, topics system/apply/error */
+        get: operations["events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/network/interfaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** L3 interfaces as the router's network daemon sees them */
+        get: operations["listInterfaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/network/wan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The uplink, and which rule identified it */
+        get: operations["getWAN"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -227,6 +347,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** CPU/memory/storage history kept in RAM */
+        get: operations["getMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/probe": {
         parameters: {
             query?: never;
@@ -248,6 +385,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ApplyConfirmInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/ApplyConfirmInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Token returned by POST /apply */
+            token: string;
+        };
+        ApplyEvent: {
+            state: components["schemas"]["ApplyState"];
+        };
         ApplyOutputBody: {
             /**
              * Format: uri
@@ -257,6 +407,38 @@ export interface components {
             readonly $schema?: string;
             detail?: string;
             ok: boolean;
+        };
+        ApplyState: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/ApplyState.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            deadline?: string;
+            error?: string;
+            phase: string;
+            snapshot_id?: string;
+            token?: string;
+        };
+        ApplyTxInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/ApplyTxInputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Confirmation window in seconds; 0 uses the server default
+             */
+            timeout_seconds?: number;
+        };
+        Capability: {
+            available: boolean;
+            detail?: string;
+            reason?: string;
         };
         DiagnosticsOutputBody: {
             /**
@@ -275,6 +457,10 @@ export interface components {
             message?: string;
             /** @description The value at the given location */
             value?: unknown;
+        };
+        ErrorEvent: {
+            detail: string;
+            topic: string;
         };
         ErrorModel: {
             /**
@@ -353,6 +539,31 @@ export interface components {
             expiresAt: string;
             /** @description JWT bearer token */
             token: string;
+        };
+        MetricsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/MetricsOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            bufferBytes: number;
+            day: components["schemas"]["Sample"][] | null;
+            live: components["schemas"]["Sample"][] | null;
+        };
+        NetworkInterface: {
+            device?: string;
+            dns?: string[] | null;
+            gateway?: string;
+            gateway6?: string;
+            ipv4?: string[] | null;
+            ipv6?: string[] | null;
+            name: string;
+            proto?: string;
+            up: boolean;
+            /** Format: int64 */
+            uptimeSec?: number;
         };
         Node: {
             endpoint: string;
@@ -444,6 +655,22 @@ export interface components {
             /** @description Domain or CIDR */
             value: string;
         };
+        Sample: {
+            /** Format: int64 */
+            at: number;
+            /** Format: double */
+            cpuPercent: number;
+            /** Format: int64 */
+            memTotal: number;
+            /** Format: int64 */
+            memUsed: number;
+            /** Format: int64 */
+            storageUsed: number;
+        };
+        SystemEvent: {
+            sample: components["schemas"]["Sample"];
+            system: components["schemas"]["SystemInfo"];
+        };
         SystemInfo: {
             /**
              * Format: uri
@@ -455,16 +682,36 @@ export interface components {
             cpuPercent: number;
             egressGeo?: string;
             egressIP?: string;
+            firmware?: string;
             hostname: string;
+            kernel?: string;
+            loadAvg: number[] | null;
             /** Format: int64 */
             memTotal: number;
             /** Format: int64 */
             memUsed: number;
+            model?: string;
             platform: string;
+            /** Format: int64 */
+            storageTotal?: number;
+            /** Format: int64 */
+            storageUsed?: number;
+            tunnelEngine?: string;
             tunnelUp: boolean;
             /** Format: int64 */
             uptimeSec: number;
             wanIP?: string;
+        };
+        WANStatus: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/WANStatus.json
+             */
+            readonly $schema?: string;
+            candidates?: string[] | null;
+            interface: components["schemas"]["NetworkInterface"];
+            selectedBy: string;
         };
     };
     responses: never;
@@ -475,6 +722,130 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    applyState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyState"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    applyConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyTxInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyState"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    confirmApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyConfirmInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyState"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    revertApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyState"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -495,6 +866,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: components["schemas"]["Capability"];
+                    };
                 };
             };
             /** @description Error */
@@ -557,6 +959,126 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApplyOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": ({
+                        data: components["schemas"]["ApplyEvent"];
+                        /**
+                         * @description The event name.
+                         * @constant
+                         */
+                        event: "apply";
+                        /** @description The event ID. */
+                        id?: number;
+                        /** @description The retry time in milliseconds. */
+                        retry?: number;
+                    } | {
+                        data: components["schemas"]["ErrorEvent"];
+                        /**
+                         * @description The event name.
+                         * @constant
+                         */
+                        event: "error";
+                        /** @description The event ID. */
+                        id?: number;
+                        /** @description The retry time in milliseconds. */
+                        retry?: number;
+                    } | {
+                        data: components["schemas"]["SystemEvent"];
+                        /**
+                         * @description The event name.
+                         * @constant
+                         */
+                        event: "system";
+                        /** @description The event ID. */
+                        id?: number;
+                        /** @description The retry time in milliseconds. */
+                        retry?: number;
+                    })[];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listInterfaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkInterface"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getWAN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WANStatus"];
                 };
             };
             /** @description Error */
@@ -931,6 +1453,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiagnosticsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricsOutputBody"];
                 };
             };
             /** @description Error */
