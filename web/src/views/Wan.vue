@@ -343,36 +343,48 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
         :title="t('wan.probeFailed', { detail: probeError })"
       />
 
-      <el-descriptions :column="3" direction="vertical" size="small" border>
-        <el-descriptions-item :label="t('wan.proto')">
-          {{
-            iface?.proto === 'dhcp'
-              ? t('wan.protoDhcp')
-              : iface?.proto === 'static'
-                ? t('wan.protoStatic')
-                : iface?.proto === 'pppoe'
-                  ? t('wan.protoPppoe')
-                  : (iface?.proto ?? '—')
-          }}
-        </el-descriptions-item>
-        <el-descriptions-item :label="t('wan.address')">
-          {{ iface?.ipv4?.join(', ') || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item :label="t('wan.gateway')">
-          <span :class="{ 'vb-wan__missing': !hasRoute }">
+      <!-- Сетка фактов, как в принятых артбордах: подпись сверху, значение
+           снизу, без обрамлённой таблицы. Обрамление у Element Plus здесь
+           было и лишним визуально, и неуправляемым по типографике — его
+           правила специфичнее наших. -->
+      <dl class="vb-facts">
+        <div class="vb-facts__i">
+          <dt>{{ t('wan.proto') }}</dt>
+          <dd>
+            {{
+              iface?.proto === 'dhcp'
+                ? t('wan.protoDhcp')
+                : iface?.proto === 'static'
+                  ? t('wan.protoStatic')
+                  : iface?.proto === 'pppoe'
+                    ? t('wan.protoPppoe')
+                    : (iface?.proto ?? '—')
+            }}
+          </dd>
+        </div>
+        <div class="vb-facts__i">
+          <dt>{{ t('wan.address') }}</dt>
+          <dd class="vb-mono">{{ iface?.ipv4?.join(', ') || '—' }}</dd>
+        </div>
+        <div class="vb-facts__i">
+          <dt>{{ t('wan.gateway') }}</dt>
+          <dd class="vb-mono" :class="{ 'vb-wan__missing': !hasRoute }">
             {{ iface?.gateway || t('wan.linkDown') }}
-          </span>
-        </el-descriptions-item>
-        <el-descriptions-item :label="t('wan.resolvers')">
-          {{ resolvers.join(' ') || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item :label="t('wan.uptime')">
-          {{ fmtDuration(iface?.uptimeSec) }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="switchPorts" :label="t('wan.port')">
-          {{ iface?.device || '—' }}
-        </el-descriptions-item>
-      </el-descriptions>
+          </dd>
+        </div>
+        <div class="vb-facts__i">
+          <dt>{{ t('wan.resolvers') }}</dt>
+          <dd class="vb-mono">{{ resolvers.join(' ') || '—' }}</dd>
+        </div>
+        <div class="vb-facts__i">
+          <dt>{{ t('wan.uptime') }}</dt>
+          <dd>{{ fmtDuration(iface?.uptimeSec) }}</dd>
+        </div>
+        <div v-if="switchPorts" class="vb-facts__i">
+          <dt>{{ t('wan.port') }}</dt>
+          <dd class="vb-mono">{{ iface?.device || '—' }}</dd>
+        </div>
+      </dl>
       <p v-if="draftCount" class="vb-wan__hint">{{ t('wan.currentWhileDraft') }}</p>
     </el-card>
 
@@ -546,7 +558,8 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
 .vb-wan {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  /* 14, как между карточками в принятых артбордах. */
+  gap: 14px;
 }
 .vb-wan__head {
   display: flex;
@@ -584,15 +597,36 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
 .vb-wan__btnico {
   margin-right: 6px;
 }
+.vb-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  margin: 0;
+}
+.vb-facts__i {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vb-facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vb-muted);
+}
+.vb-facts dd {
+  margin: 0;
+  font-size: 14px;
+}
 .vb-wan__missing {
   color: var(--el-color-warning);
 }
-/* The field block keeps the height of the tallest connection type, so the
-   save button does not move out from under the cursor when the type changes
-   (an explicit requirement of the accepted mockup). */
-.vb-wan__fields {
-  min-height: 420px;
-}
+/* No reserved height here. It was added citing the mockup, and the mockup
+   says otherwise: measured on the current artboards, the form card is 375px
+   tall on an automatic connection and 603px on a static one, with
+   `min-height: auto`. The fixed 420px left a hole under the shortest form. */
 .vb-wan__dns {
   display: flex;
   flex-direction: column;
@@ -614,9 +648,6 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
   text-align: right;
 }
 @media (width <= 600px) {
-  .vb-wan__fields {
-    min-height: 0;
-  }
   .vb-wan__actions .el-button {
     width: 100%;
     margin: 0 0 8px;
