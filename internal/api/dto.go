@@ -135,6 +135,12 @@ type WANOutput struct {
 	Body core.WANStatus
 }
 
+// LANOutput is the local network, its address handout and its clients in one
+// answer \u2014 see core.LANStatus for why they are not three endpoints.
+type LANOutput struct {
+	Body core.LANStatus
+}
+
 // StageWANInput is a requested uplink configuration. Staging is deliberately
 // a separate call from applying: the operator sees the diff first, and the
 // change only reaches the device through the watchdogged transaction.

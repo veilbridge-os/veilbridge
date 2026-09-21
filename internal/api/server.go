@@ -281,6 +281,11 @@ func (s *Server) register() {
 		Summary: "The uplink, and which rule identified it",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
 	}, s.getWAN)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "getLAN", Method: http.MethodGet, Path: "/network/lan",
+		Summary: "The local network, its address handout and its clients",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.getLAN)
 
 	// --- system ---
 	huma.Register(s.api, huma.Operation{
@@ -594,6 +599,30 @@ func (s *Server) getWAN(ctx context.Context, _ *struct{}) (*WANOutput, error) {
 // Writing is an optional capability of the adapter, asked for rather than
 // required: an adapter that cannot change configuration must be able to say
 // so instead of panicking at the first PUT.
+// getLAN answers the local-network screen. Reading the local network is an
+// optional capability of an adapter: a platform that cannot answer says so
+// with 501 rather than pretending the device has no LAN, because "no local
+// network here" is a fact about hardware and must not be faked by software
+// that simply has not been written (D-20).
+func (s *Server) getLAN(_ context.Context, _ *struct{}) (*LANOutput, error) {
+	reader, ok := s.adapter.Network().(core.LANReader)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot read the local network")
+	}
+	lan, err := reader.LANInfo()
+	switch {
+	case errors.Is(err, core.ErrNoLAN):
+		// 404, not 500: the device answered, and the answer is "there is no
+		// local network on this box".
+		return nil, huma.Error404NotFound("no lan interface", err)
+	case errors.Is(err, core.ErrNotImplemented):
+		return nil, huma.Error501NotImplemented("lan", err)
+	case err != nil:
+		return nil, huma.Error502BadGateway("lan", err)
+	}
+	return &LANOutput{Body: lan}, nil
+}
+
 func (s *Server) writer() (core.NetworkWriter, bool) {
 	w, ok := s.adapter.Network().(core.NetworkWriter)
 	return w, ok

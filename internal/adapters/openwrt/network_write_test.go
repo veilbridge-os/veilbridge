@@ -28,6 +28,10 @@ type recordingRunner struct {
 	// committed answers `uci -c <dir> show`: the values on disk, without the
 	// draft. Keys are given as full uci keys of the real configuration.
 	committed map[string]string
+	// sectionType is what `uci show` prints for a section's own line. It is
+	// "interface" for network and "host" for a reservation in dhcp; getting
+	// it wrong here would let a parser that ignores section types pass.
+	sectionType string
 }
 
 func (r *recordingRunner) run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -54,11 +58,11 @@ func (r *recordingRunner) run(_ context.Context, name string, args ...string) ([
 	case len(args) >= 5 && args[1] == "-c" && args[3] == "show":
 		// The committed read: values as they are on disk, answered under the
 		// package name the caller linked the file to.
-		return []byte(showLines(r.committed, args[4])), nil
+		return []byte(showLines(r.committed, args[4], r.sectionType)), nil
 	case len(args) >= 3 && args[0] == "-q" && args[1] == "show":
 		// The ordinary read: values with the draft applied. `values` is the
 		// device's current view, which is what a draft produces.
-		return []byte(showLines(r.values, args[2])), nil
+		return []byte(showLines(r.values, args[2], r.sectionType)), nil
 	}
 	return nil, nil
 }
@@ -71,7 +75,10 @@ func (r *recordingRunner) run(_ context.Context, name string, args ...string) ([
 //	\u2022 every section prints a type line of its own, `network.wan=interface`,
 //	  which carries no value and must not be mistaken for one;
 //	\u2022 a package that does not exist prints nothing at all.
-func showLines(values map[string]string, requested string) string {
+func showLines(values map[string]string, requested, sectionType string) string {
+	if sectionType == "" {
+		sectionType = "interface"
+	}
 	// The real uci answers about the package it was asked for, and knows
 	// nothing about any other. `requested` is either a configuration name or
 	// the alias the committed read links a file under; both name one config.
@@ -82,7 +89,7 @@ func showLines(values map[string]string, requested string) string {
 		parts := strings.Split(k, ".")
 		if len(parts) >= 3 && parts[0] == config && !sections[parts[1]] {
 			sections[parts[1]] = true
-			b.WriteString(requested + "." + parts[1] + "=interface\n")
+			b.WriteString(requested + "." + parts[1] + "=" + sectionType + "\n")
 		}
 	}
 	for k, v := range values {

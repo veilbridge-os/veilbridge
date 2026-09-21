@@ -13,6 +13,12 @@ var ErrNotImplemented = errors.New("veilbridge: not implemented in this version"
 // sentinel and not a zero value.
 var ErrNoWAN = errors.New("veilbridge: no interface carries a default route")
 
+// ErrNoLAN means the device has no local network to manage \u2014 a box with one
+// network card, which is a shape of hardware and not a fault (D-20). Same
+// reasoning as ErrNoWAN: the caller has to tell "nothing here" apart from
+// "could not read".
+var ErrNoLAN = errors.New("veilbridge: this device has no local network")
+
 // VPNManager owns VPN nodes and the active tunnel. The adapter implements it on
 // top of a tunnel engine — kernel-TUN by default, userspace netstack on devices
 // without kmod-tun. See DESIGN §4.
@@ -60,6 +66,16 @@ type NetworkManager interface {
 	// WANInfo returns the uplink and how it was identified. It returns
 	// ErrNoWAN when nothing carries a default route.
 	WANInfo() (WANStatus, error)
+}
+
+// LANReader reads the local network: the interface, its address handout and
+// the clients holding an address (M3.2). It is a separate interface from
+// NetworkManager because not every adapter can answer it \u2014 the caller asks
+// for it by type assertion and degrades when it is absent, the same way the
+// apply journal is offered.
+type LANReader interface {
+	// LANInfo returns ErrNoLAN when the device has no local network.
+	LANInfo() (LANStatus, error)
 }
 
 // DeviceManager is a roadmap stub (clients/Wi-Fi/PBR binding — M4). Its v0.1

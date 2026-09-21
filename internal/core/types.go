@@ -281,6 +281,63 @@ type NetworkWriter interface {
 	DiscardStaged() error
 }
 
+// LANStatus is the local network as the panel talks about it: one interface,
+// one address handout, and who currently holds an address (M3.2).
+//
+// It is deliberately one answer and not three endpoints. The three are read
+// together on every visit to the screen, they come from three different places
+// on the device (netifd, uci, the lease file), and a panel that fetched them
+// separately would show a pool that does not match the address it sits in
+// while one of the three was still loading.
+type LANStatus struct {
+	// Interface is the local network interface itself ("lan").
+	Interface NetworkInterface `json:"interface"`
+	// Handout describes the address handout for it.
+	Handout AddressHandout `json:"handout"`
+	// Leases are the addresses currently held by clients.
+	Leases []AddressLease `json:"leases,omitempty"`
+	// Reserved are the addresses tied to a client by its hardware address.
+	Reserved []ReservedAddress `json:"reserved,omitempty"`
+}
+
+// AddressHandout is the DHCP server for one interface, described in addresses
+// rather than in the offsets the device stores. uci keeps `start=100` and
+// `limit=150`, which are counted from the network address and mean nothing to
+// the person reading the screen; the panel shows the first and last address
+// it will hand out (D-3).
+type AddressHandout struct {
+	// Enabled is false when the device hands out no addresses here.
+	Enabled bool `json:"enabled"`
+	// First and Last are the ends of the pool, already computed.
+	First string `json:"first,omitempty"`
+	Last  string `json:"last,omitempty"`
+	// LeaseSeconds is how long an address is given for.
+	LeaseSeconds int64 `json:"leaseSeconds,omitempty"`
+}
+
+// AddressLease is one address currently held by a client.
+type AddressLease struct {
+	MAC string `json:"mac"`
+	IP  string `json:"ip"`
+	// Hostname is what the client called itself; often nothing.
+	Hostname string `json:"hostname,omitempty"`
+	// ExpiresSec is time left on the lease. It is a duration and not a clock
+	// reading on purpose: routers routinely have no correct time after a
+	// reboot, and "expires at 03:00" would then be a lie.
+	ExpiresSec int64 `json:"expiresSec,omitempty"`
+}
+
+// ReservedAddress ties an address to a client's hardware address, so it always
+// gets the same one.
+type ReservedAddress struct {
+	MAC  string `json:"mac"`
+	IP   string `json:"ip"`
+	Name string `json:"name,omitempty"`
+	// ID is the section this reservation lives in, so it can be removed
+	// without guessing which one was meant.
+	ID string `json:"id,omitempty"`
+}
+
 // Device is a LAN client. v0.1 only ever returns these from a stub; full device
 // management (Wi-Fi, PBR binding) is roadmap M4. See DESIGN §4, D-1.
 type Device struct {
