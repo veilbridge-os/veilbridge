@@ -18,7 +18,16 @@ export type Capabilities = Record<string, Capability>
 export type ApplyState = components['schemas']['ApplyState']
 export type NetworkInterface = components['schemas']['NetworkInterface']
 export type WANStatus = components['schemas']['WANStatus']
+export type WANConfig = components['schemas']['WANConfig']
+export type ConfigChange = components['schemas']['ConfigChange']
 export type MetricSample = components['schemas']['Sample']
+
+/** What the device will change if the draft is applied, described in the
+ * panel's own words rather than in configuration keys (M3.1a). */
+export interface StagedChanges {
+  changes: ConfigChange[]
+  dangerous: boolean
+}
 
 const TOKEN_KEY = 'veilbridge.token'
 const BASE = '/api/v1'
@@ -120,6 +129,14 @@ export const api = {
     request<ApplyState>('POST', '/apply', { timeout_seconds: timeoutSeconds ?? 0 }),
   confirmApply: (token: string) => request<ApplyState>('POST', '/apply/confirm', { token }),
   revertApply: () => request<ApplyState>('POST', '/apply/revert'),
+
+  // Staging is not applying. PUT writes a draft the device itself keeps; only
+  // POST /apply commits it, under the watchdog. The two verbs stay apart all
+  // the way down to uci (internal/adapters/openwrt/network_write.go), which is
+  // what makes editing the uplink survivable.
+  stageWAN: (cfg: WANConfig) => request<StagedChanges>('PUT', '/network/wan', cfg),
+  stagedChanges: () => request<StagedChanges>('GET', '/apply/changes'),
+  discardStaged: () => request<void>('DELETE', '/apply/changes'),
 
   interfaces: () => request<NetworkInterface[]>('GET', '/network/interfaces'),
   // 404 here means "this device has no uplink", which is a state and not a

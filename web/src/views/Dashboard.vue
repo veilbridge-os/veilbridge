@@ -9,11 +9,16 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api, type NodeWithStatus, type PathProbe, type WANStatus } from '@/api/client'
+import { useDuration } from '@/lib/duration'
 import { useLive } from '@/stores/live'
 
 const { t, n } = useI18n()
 const router = useRouter()
 const { system, samples, stale, capability } = useLive()
+// Durations are formatted in one place for the whole panel: the internet
+// screen shows "how long has this been up" as well, and a second copy of the
+// pluralisation rules would drift where nobody reads.
+const { fmtDuration } = useDuration()
 
 const wan = ref<WANStatus | null>(null)
 const wanLoaded = ref(false)
@@ -72,20 +77,6 @@ function fmtBytes(bytes?: number): string {
   const mb = bytes / 1024 / 1024
   if (mb >= 1024) return `${n(Math.round((mb / 1024) * 10) / 10)} GB`
   return `${n(Math.round(mb))} MB`
-}
-
-// Uptime is assembled from separately pluralised parts. Interpolating a bare
-// number into "{h} hours" reads as "1 hours" in English and is simply wrong in
-// Russian, where the noun changes with the count — and this string is on the
-// dashboard of a product that ships in 13 languages.
-function fmtDuration(sec?: number): string {
-  if (!sec) return '—'
-  const d = Math.floor(sec / 86400)
-  const h = Math.floor((sec % 86400) / 3600)
-  const m = Math.floor((sec % 3600) / 60)
-  if (d > 0) return `${t('time.days', { n: d }, d)} ${t('time.hours', { n: h }, h)}`
-  if (h > 0) return `${t('time.hours', { n: h }, h)} ${t('time.minutes', { n: m }, m)}`
-  return t('time.minutes', { n: m }, m)
 }
 
 function fmtAgo(seconds?: number): string {

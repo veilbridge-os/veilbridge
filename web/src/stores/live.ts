@@ -13,6 +13,7 @@ import {
   type ApplyState,
   api,
   type Capabilities,
+  type ConfigChange,
   isAuthed,
   type MetricSample,
   openEvents,
@@ -21,6 +22,10 @@ import {
 
 const system = ref<SystemInfo | null>(null)
 const applyState = ref<ApplyState | null>(null)
+// staged is the draft the DEVICE holds, never anything this tab remembers: a
+// draft outlives the page and the daemon, so a reload, a second tab and a
+// second operator all have to see the same pending change.
+const staged = ref<ConfigChange[]>([])
 const capabilities = ref<Capabilities>({})
 const liveSamples = ref<MetricSample[]>([])
 const connected = ref(false)
@@ -51,6 +56,7 @@ export function startLive() {
   // indistinguishable from one that failed to connect, and capabilities are
   // needed before the menu can render at all.
   void (async () => {
+    await refreshStaged()
     try {
       capabilities.value = await api.capabilities()
     } catch {
@@ -98,6 +104,7 @@ export function stopLive() {
   connected.value = false
   system.value = null
   applyState.value = null
+  staged.value = []
   liveSamples.value = []
   lastUpdate.value = null
   deviceError.value = null
@@ -111,12 +118,29 @@ export async function refreshApply() {
   } catch {
     // Unreachable devices are reported by the stream, not by this helper.
   }
+  await refreshStaged()
+}
+
+/** refreshStaged re-reads the draft from the device: after staging, after
+ * discarding, after applying, and on mount. Both paths that can answer this
+ * question describe the draft in the same words (M3.1a), so it does not
+ * matter which one the operator's reload happened to take. */
+export async function refreshStaged() {
+  try {
+    const out = await api.stagedChanges()
+    staged.value = out.changes ?? []
+  } catch {
+    // Keep the last known list. An unreachable device is announced by the
+    // stream; blanking the draft here would suggest it went away, and it did
+    // not — it is on the device.
+  }
 }
 
 export function useLive() {
   return {
     system: readonly(system),
     applyState: readonly(applyState),
+    staged: readonly(staged),
     capabilities: readonly(capabilities),
     samples: readonly(liveSamples),
     connected: readonly(connected),

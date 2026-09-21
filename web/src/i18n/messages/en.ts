@@ -11,7 +11,8 @@ const en = {
     groupRouting: 'Routing',
     groupDevice: 'Device',
     dashboard: 'Dashboard',
-    nodes: 'Internet and nodes',
+    internet: 'Internet',
+    nodes: 'Nodes',
     policies: 'Policies',
     network: 'Network',
     wifi: 'Wi-Fi',
@@ -61,6 +62,16 @@ const en = {
     retryConfirm: 'Retry confirmation',
     change: 'change {id}',
     confirmed: 'Change confirmed',
+    willChange: 'What will change on this device',
+    mayCutAccess: 'may cut access to the panel',
+    flagOn: 'yes',
+    flagOff: 'no',
+    wasUnset: 'was not set',
+    nowNothing: 'removed',
+    showTechnical: 'Technical details — for the log and for support',
+    hideTechnical: 'Hide technical details',
+    autoRevertHint:
+      'If the panel stops answering after this is applied, the device brings the previous settings back by itself.',
   },
   tiles: {
     egress: 'Egress',
@@ -170,6 +181,109 @@ const en = {
     activateFailed: 'Activate failed',
     confirmRemove: 'Remove this node?',
     confirm: 'Confirm',
+  },
+  // The words the apply bar shows for a staged change, looked up by the
+  // stable part of the configuration key. They exist here because the device
+  // answers in English and the panel does not: see ApplyBar.labelOf.
+  // Nested per configuration, not keyed by a dotted string: vue-i18n resolves
+  // `diff.network.proto` by walking the object, so a literal key with a dot in
+  // it is unreachable \u2014 measured on the device, where every label came back in
+  // English because the lookup silently missed. `section` is the row for a
+  // whole added or removed section.
+  diff: {
+    network: {
+      section: 'Network connection',
+      proto: 'Connection type',
+      ipaddr: 'Address on the internet side',
+      netmask: 'Network mask',
+      gateway: 'Gateway',
+      dns: 'Resolvers',
+      peerdns: 'Use the provider\u2019s resolvers',
+      username: 'Provider login',
+      password: 'Provider password',
+    },
+    firewall: { section: 'Firewall rule' },
+    dhcp: { section: 'Address handout' },
+    wireless: { section: 'Wi-Fi network' },
+  },
+  wan: {
+    title: 'Internet',
+    linkUp: 'connection is up',
+    linkDown: 'no connection',
+    draftPending: 'draft: {n} change | draft: {n} change | draft: {n} changes',
+    probe: 'Check the path',
+    probing: 'Checking…',
+    // Facts, never a green tick: the proof is the address traffic came back
+    // from (D-5, NFR-5).
+    probeVia:
+      'Path checked just now: the request left through “{iface}” and came back from {addr} — the address of the connection itself.',
+    probeMismatch:
+      'Path checked just now: the request was expected to leave directly, and came back from {addr} instead. Expected {expected}, got {actual}.',
+    probeFailed: 'The path check did not complete: {detail}',
+    haveInternet: 'The internet works — through connection “{iface}”',
+    noGateway: 'The connection is up, but there is no way out',
+    noGatewayHint:
+      'The device did get an address, but no gateway was assigned, so there is nowhere for traffic to go. This is usually the provider rather than your settings.',
+    none: 'No connection leads to the internet',
+    noneHint:
+      'This is how a first start looks, and so does an unplugged cable. Choose a connection type below and save a draft.',
+    setUp: 'Set up the connection',
+    ambiguous: 'Showing connection “{iface}”',
+    ambiguousHint:
+      'Two connections lead to the internet: {list}. The panel shows the one called “{iface}”. Everything below is about that one; the other may have a different address and statistics.',
+    ambiguousCoinToss:
+      'Several connections lead to the internet: {list}. None of them is called “wan”, so the panel shows the first one — {iface}. Everything below is about that one.',
+    proto: 'Connection type',
+    protoDhcp: 'Automatic',
+    protoStatic: 'Static address',
+    protoPppoe: 'PPPoE',
+    protoHint:
+      'As in the contract with your provider. “Automatic” suits almost every home connection.',
+    address: 'Address on the internet side',
+    addressHint: 'From the contract with your provider',
+    netmask: 'Network mask',
+    netmaskHint: 'From the same place, usually 255.255.255.0',
+    gateway: 'Gateway',
+    gatewayHint: 'The address of the provider’s equipment',
+    resolvers: 'Resolvers',
+    resolversFromProvider: 'From the provider',
+    resolversOwn: 'My own',
+    resolversHint:
+      'Choosing “my own” adds a separate line to the list of changes — “Use the provider’s resolvers: yes → no”. Without it the setting would apply and change nothing.',
+    addResolver: 'Add a resolver',
+    removeResolver: 'Remove this resolver',
+    username: 'Provider login',
+    password: 'Provider password',
+    passwordHint:
+      'Leave it empty to keep the current one. The device does not hand the password back, so the panel does not know it.',
+    uptime: 'Connection has been up',
+    port: 'Port',
+    settings: 'Connection settings',
+    current: 'On the device right now',
+    currentWhileDraft:
+      'While the draft is unapplied, this block shows the previous settings unchanged: you need to see what you are leaving.',
+    draftEmpty: 'draft is empty',
+    save: 'Save draft',
+    cancel: 'Cancel',
+    onlyWayIn:
+      'This connection is the only way to the panel. If the link goes away after applying, the settings come back by themselves in {sec} seconds.',
+    ipv6: 'IPv6',
+    readOnly: 'read-only',
+    ipv6Hint: 'There are no IPv6 settings here yet — the panel only reads the addresses.',
+    fieldsBad: '{n} field is filled in incorrectly | {n} fields are filled in incorrectly',
+    deviceSaid: 'the device answered: {detail}',
+    // The device refuses in its own words; these are ours for the same thing.
+    badAddress: 'The address is not an IPv4 address',
+    badNetmask: 'The network mask is wrong: it is an address, not a mask',
+    badGateway: 'The gateway is not an address',
+    badResolver: 'A resolver is not an address',
+    needUsername: 'A login is required: PPPoE will not come up without one',
+    refused: 'The device refused the draft',
+    busyTitle: 'A previous change is still waiting for confirmation',
+    busyHint:
+      'A new draft cannot be saved until you confirm the link is up, or until the settings come back by themselves. The form is locked and your values are kept.',
+    saved: 'Draft saved — nothing has changed on the device yet',
+    dnsPlaceholder: '203.0.113.1',
   },
   routes: {
     addRule: 'Add rule',

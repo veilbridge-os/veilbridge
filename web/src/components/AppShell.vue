@@ -30,6 +30,10 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: 'dashboard', path: '/', group: '', ready: true },
+  // The uplink and the VPN nodes are two sections, not one: the internet
+  // screen edits the connection the panel itself rides on, and the accepted
+  // mockup for it explicitly excludes nodes and policies.
+  { key: 'internet', path: '/internet', group: 'groupEgress', ready: true },
   { key: 'nodes', path: '/nodes', group: 'groupEgress', ready: true },
   { key: 'policies', path: '/policies', group: 'groupEgress', ready: false },
   { key: 'network', path: '/network', group: 'groupLan', ready: false },

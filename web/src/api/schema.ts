@@ -22,6 +22,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/apply/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Configuration edits staged but not yet applied */
+        get: operations["stagedChanges"];
+        put?: never;
+        post?: never;
+        /** Throw away the staged draft without touching the device */
+        delete: operations["discardStaged"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/apply/confirm": {
         parameters: {
             query?: never;
@@ -167,7 +185,8 @@ export interface paths {
         };
         /** The uplink, and which rule identified it */
         get: operations["getWAN"];
-        put?: never;
+        /** Stage a new uplink configuration (does not apply it) */
+        put: operations["stageWAN"];
         post?: never;
         delete?: never;
         options?: never;
@@ -440,6 +459,23 @@ export interface components {
             detail?: string;
             reason?: string;
         };
+        ChangesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/ChangesOutputBody.json
+             */
+            readonly $schema?: string;
+            changes: components["schemas"]["ConfigChange"][] | null;
+            dangerous: boolean;
+        };
+        ConfigChange: {
+            dangerous: boolean;
+            detail?: string;
+            from: string;
+            label: string;
+            to: string;
+        };
         DiagnosticsOutputBody: {
             /**
              * Format: uri
@@ -702,6 +738,22 @@ export interface components {
             uptimeSec: number;
             wanIP?: string;
         };
+        WANConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/WANConfig.json
+             */
+            readonly $schema?: string;
+            address?: string;
+            dns?: string[] | null;
+            gateway?: string;
+            interface?: string;
+            netmask?: string;
+            password?: string;
+            proto: string;
+            username?: string;
+        };
         WANStatus: {
             /**
              * Format: uri
@@ -772,6 +824,62 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApplyState"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stagedChanges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    discardStaged: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -1079,6 +1187,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WANStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageWAN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WANConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
                 };
             };
             /** @description Error */

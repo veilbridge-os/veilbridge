@@ -10,6 +10,7 @@ import Dashboard from '@/views/Dashboard.vue'
 import Login from '@/views/Login.vue'
 import Nodes from '@/views/Nodes.vue'
 import Routes from '@/views/Routes.vue'
+import Wan from '@/views/Wan.vue'
 import App from './App.vue'
 
 const router = createRouter({
@@ -17,6 +18,7 @@ const router = createRouter({
   routes: [
     { path: '/login', component: Login },
     { path: '/', component: Dashboard, meta: { auth: true } },
+    { path: '/internet', component: Wan, meta: { auth: true } },
     { path: '/nodes', component: Nodes, meta: { auth: true } },
     { path: '/routes', component: Routes, meta: { auth: true } },
   ],
