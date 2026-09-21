@@ -39,10 +39,14 @@ type networkManager struct {
 	// write" (tests, a dev machine) and every write method says so rather
 	// than pretending to have staged something.
 	run commandRunner
+	// configDir is where the committed configuration lives. It is a field and
+	// not a constant because reading a value as it is *without* the staged
+	// draft needs a second view of that directory — see committedValues.
+	configDir string
 }
 
 func newNetworkManager(bus *ubus.Client) networkManager {
-	return networkManager{bus: bus, run: runCommand}
+	return networkManager{bus: bus, run: runCommand, configDir: "/etc/config"}
 }
 
 // ifaceTimeout bounds a dump. netifd normally answers in milliseconds; when it
