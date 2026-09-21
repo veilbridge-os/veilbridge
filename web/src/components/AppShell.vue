@@ -328,7 +328,10 @@ const activePath = computed(() => route.path)
 .vb-shell {
   display: flex;
   min-height: 100vh;
-  background: var(--el-fill-color-light);
+  /* The page tone, not the "light fill" one: the fill is for surfaces sitting
+     ON the page, and using it here made the whole panel a shade brighter than
+     the accepted mockup (measured: #FAFAF8 against #F4F4F1). */
+  background: var(--el-bg-color-page);
 }
 .vb-side {
   width: 264px;

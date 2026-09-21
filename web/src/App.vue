@@ -35,7 +35,10 @@ body,
   margin: 0;
 }
 body {
-  background: var(--el-fill-color-light);
+  /* The page tone lives in one place now (styles/tokens.css); this rule used
+     to paint the page with the surface fill, which is why the panel sat a
+     shade brighter than its own mockup. */
+  background: var(--el-bg-color-page);
 }
 .vb-bare {
   display: flex;

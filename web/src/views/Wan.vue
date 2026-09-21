@@ -268,7 +268,9 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
         {{ hasRoute ? t('wan.linkUp') : t('wan.linkDown') }}
       </el-tag>
       <span class="vb-wan__spacer" />
-      <el-button v-if="hasUplink" :loading="probing" @click="runProbe">
+      <!-- Primary, as in the accepted mockup: this is the one action on the
+           screen that proves something instead of showing it. -->
+      <el-button v-if="hasUplink" type="primary" :loading="probing" @click="runProbe">
         {{ probing ? t('wan.probing') : t('wan.probe') }}
       </el-button>
     </header>

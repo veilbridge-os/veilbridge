@@ -2,6 +2,9 @@ import { createApp } from 'vue'
 // Element Plus dark variables. They cost ~2 kB gzipped and are inert until
 // <html class="dark"> appears, so there is no reason to load them lazily.
 import 'element-plus/theme-chalk/dark/css-vars.css'
+// Our own tokens come AFTER Element Plus's, or its defaults win: the panel
+// rendered in Times with stock blue buttons until this file existed (M2.7).
+import '@/styles/tokens.css'
 import '@/stores/theme'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { isAuthed } from '@/api/client'
