@@ -142,14 +142,25 @@ func (m networkManager) StageWAN(cfg core.WANConfig) ([]core.ConfigChange, error
 	for _, s := range sets {
 		key := fmt.Sprintf("network.%s.%s", iface, s.key)
 		before := m.uciGet(ctx, key)
-		if before == s.value {
+		// Removing a key that is not there changes nothing, and asking uci to
+		// do it fails; nor does removing one that already holds the value the
+		// device assumes when it is absent. Setting a value it already holds
+		// is not an edit either.
+		removeIsNoop := s.remove && (before == "" || (s.sameAsAbsent != "" && before == s.sameAsAbsent))
+		if removeIsNoop || (!s.remove && before == s.value) {
 			continue
 		}
-		if err := m.uciSet(ctx, key, s.value); err != nil {
+		var stageErr error
+		if s.remove {
+			stageErr = m.uciDelete(ctx, key)
+		} else {
+			stageErr = m.uciSet(ctx, key, s.value)
+		}
+		if stageErr != nil {
 			// A half-staged batch is not left behind: the draft is dropped so
 			// the operator never confirms a change they did not see in full.
 			_ = m.DiscardStaged()
-			return nil, err
+			return nil, stageErr
 		}
 		changes = append(changes, core.ConfigChange{
 			Label:     s.label,
@@ -168,6 +179,16 @@ type wanSetting struct {
 	value  string
 	label  string
 	secret bool
+	// remove drops the key instead of writing it. A setting that can only be
+	// turned on is a trap: it was measured on a live device that asking for
+	// the provider's resolvers again produced no edits at all, so `peerdns=0`
+	// and a hand-typed resolver stayed on the uplink forever (M3.4a).
+	remove bool
+	// sameAsAbsent is the written value that already behaves like no key at
+	// all. Removing it would be a row in the apply bar that changes nothing
+	// on the device \u2014 and this is the screen where pressing the button is the
+	// dangerous part, so the list must hold only real edits.
+	sameAsAbsent string
 }
 
 // wanSettings turns a requested configuration into the keys to write, and
@@ -177,7 +198,24 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 	case core.WANProtoDHCP:
 		out := []wanSetting{{key: "proto", value: "dhcp", label: labelFor("network", "proto")}}
 		if len(cfg.DNS) == 0 {
-			return out, nil
+			// Back to the provider's resolvers: the other direction of the pair
+			// below, or the panel can set this and never unset it.
+			//
+			// Both keys are REMOVED rather than set to their defaults. Absent is
+			// what "use the provider's resolvers" looks like on a device that was
+			// never touched, so writing `peerdns=1` instead would put a row in
+			// the apply bar on every fresh uplink \u2014 asking somebody to confirm a
+			// change to nothing, on the one screen where confirming is the
+			// dangerous act.
+			return append(out,
+				wanSetting{
+					key:          "peerdns",
+					remove:       true,
+					sameAsAbsent: "1",
+					label:        labelFor("network", "peerdns"),
+				},
+				wanSetting{key: "dns", remove: true, label: labelFor("network", "dns")},
+			), nil
 		}
 		// Resolvers given alongside DHCP are not a contradiction — wanting the
 		// address from the provider and the resolvers from somewhere else is
@@ -545,6 +583,15 @@ func (m networkManager) uciGet(ctx context.Context, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// uciDelete stages the removal of a key. Like uciSet it only writes to the
+// staging area; the apply transaction is still the only thing that commits.
+func (m networkManager) uciDelete(ctx context.Context, key string) error {
+	if _, err := m.run(ctx, "uci", "delete", key); err != nil {
+		return fmt.Errorf("openwrt: stage removal of %s: %w", key, err)
+	}
+	return nil
 }
 
 func (m networkManager) uciSet(ctx context.Context, key, value string) error {

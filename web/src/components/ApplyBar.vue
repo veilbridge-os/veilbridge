@@ -103,10 +103,29 @@ const progress = computed(() => {
   return Math.min(100, Math.max(0, (secondsLeft.value / total) * 100))
 })
 
+/** expired is the gap between the deadline passing and the daemon reporting
+ * the revert. The device is already restoring the snapshot; nothing the
+ * operator presses now can stop that, so nothing is offered. */
+const expired = computed(() => phase.value === 'awaiting_confirm' && secondsLeft.value === 0)
+
 // The draft is the bar's sixth state and the only one nobody is waiting on:
 // the device holds edits that are not live yet. It is read from the device,
 // so it survives a reload and shows up in a second tab as well.
-const draft = computed(() => (phase.value === 'idle' ? staged.value : []))
+// A finished transaction leaves its phase behind: after an automatic revert
+// the daemon still reports `reverted` until the next apply. Keying the draft
+// off `idle` alone therefore stranded the operator \u2014 measured on the stand:
+// the draft was on the device, the bar showed "your changes were undone", and
+// there was no button to apply anything ever again. The notice stays until
+// the operator closes it, and then the draft is offered again.
+const dismissed = ref('')
+const finished = computed(
+  () =>
+    (phase.value === 'reverted' || phase.value === 'revert_failed') &&
+    (applyState.value?.snapshot_id ?? '') !== dismissed.value,
+)
+const draft = computed(() =>
+  !applying.value && phase.value !== 'awaiting_confirm' && !finished.value ? staged.value : [],
+)
 const dangerous = computed(() => draft.value.some((c) => c.dangerous))
 const showTech = ref(false)
 const applyError = ref('')
@@ -115,7 +134,8 @@ const visible = computed(
   () =>
     applying.value ||
     draft.value.length > 0 ||
-    ['awaiting_confirm', 'reverted', 'revert_failed'].includes(phase.value),
+    finished.value ||
+    phase.value === 'awaiting_confirm',
 )
 
 /** applyDraft commits the draft. A failure here means "unknown", not "it did
@@ -174,6 +194,10 @@ async function revertNow() {
 }
 
 function dismiss() {
+  // Closing the notice is remembered per transaction, so it does not come
+  // straight back on the next poll \u2014 and so a later revert is never hidden by
+  // an earlier dismissal.
+  dismissed.value = applyState.value?.snapshot_id ?? ''
   void refreshApply()
 }
 </script>
@@ -189,7 +213,7 @@ function dismiss() {
     <!-- 0. A draft sits on the device and nothing is live yet. This is where
          the operator reads what they are about to do, so it speaks the
          panel's words and keeps configuration keys under a disclosure. -->
-    <template v-if="!applying && phase === 'idle' && draft.length">
+    <template v-if="draft.length">
       <div class="vb-applybar__body">
         <div class="vb-applybar__head">
           <strong>{{ t('apply.willChange') }}</strong>
@@ -246,11 +270,24 @@ function dismiss() {
         />
       </div>
       <div class="vb-applybar__body" role="status" aria-live="assertive">
-        <strong v-if="!confirmFailed">{{ t('apply.waiting') }}</strong>
+        <!-- At 00:00 the watchdog has fired and the device is restoring the
+             snapshot; the daemon just has not said so yet. Still offering
+             "confirm" there is a lie measured on the stand: the countdown sat
+             at zero for some fifteen seconds with the button live. -->
+        <strong v-if="expired">{{ t('apply.expired') }}</strong>
+        <strong v-else-if="!confirmFailed">{{ t('apply.waiting') }}</strong>
         <strong v-else>{{ t('apply.confirmFailed') }}</strong>
-        <p>{{ confirmFailed ? t('apply.confirmFailedHint') : t('apply.waitingHint') }}</p>
+        <p>
+          {{
+            expired
+              ? t('apply.expiredHint')
+              : confirmFailed
+                ? t('apply.confirmFailedHint')
+                : t('apply.waitingHint')
+          }}
+        </p>
       </div>
-      <div class="vb-applybar__actions">
+      <div v-if="!expired" class="vb-applybar__actions">
         <el-button type="primary" :loading="confirming" @click="confirm">
           {{ confirmFailed ? t('apply.retryConfirm') : t('apply.confirm') }}
         </el-button>
@@ -259,7 +296,7 @@ function dismiss() {
     </template>
 
     <!-- 3. Nobody confirmed: the device undid the change by itself. -->
-    <template v-else-if="phase === 'reverted'">
+    <template v-else-if="phase === 'reverted' && finished">
       <div class="vb-applybar__body" role="alert">
         <strong>{{ t('apply.reverted') }}</strong>
         <p>{{ t('apply.revertedHint') }}</p>
@@ -274,7 +311,7 @@ function dismiss() {
 
     <!-- 4. The worst state, and the one that must not be hidden: the undo
          itself failed, so the answer is a cable, not a button. -->
-    <template v-else-if="phase === 'revert_failed'">
+    <template v-else-if="phase === 'revert_failed' && finished">
       <div class="vb-applybar__body" role="alert">
         <strong>{{ t('apply.revertFailed') }}</strong>
         <p>{{ t('apply.revertFailedHint') }}</p>

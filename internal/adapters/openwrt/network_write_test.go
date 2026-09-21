@@ -553,6 +553,68 @@ func TestADraftSurvivesAnUnreadableConfigurationDirectory(t *testing.T) {
 	}
 }
 
+// M3.4a. Asking for the provider's resolvers again must undo what asking for
+// your own did. Measured on a live device: it produced no edits at all, so
+// peerdns=0 and a hand-typed resolver stayed on the uplink forever — the panel
+// could turn the setting on and never off.
+func TestReturningToTheProvidersResolversUndoesBothKeys(t *testing.T) {
+	m, r := writerWith(map[string]string{
+		"network.wan.proto":   "dhcp",
+		"network.wan.peerdns": "0",
+		"network.wan.dns":     "203.0.113.53",
+	})
+
+	changes, err := m.StageWAN(core.WANConfig{Interface: "wan", Proto: core.WANProtoDHCP})
+	if err != nil {
+		t.Fatalf("stage: %v", err)
+	}
+
+	byKey := map[string]core.ConfigChange{}
+	for _, c := range changes {
+		byKey[c.Detail] = c
+	}
+	// The flag is dropped, not set to 1: absent is what "use the provider's
+	// resolvers" looks like on a device nobody touched.
+	if got, ok := byKey["network.wan.peerdns"]; !ok || got.From != "0" || got.To != "" {
+		t.Errorf("provider resolvers flag reads as %+v, want 0 → (removed)", got)
+	}
+	if got, ok := byKey["network.wan.dns"]; !ok || got.To != "" {
+		t.Errorf("the typed-in resolvers were not dropped: %+v", got)
+	}
+	var deleted bool
+	for _, c := range r.calls {
+		if len(c) >= 3 && c[1] == "delete" && c[2] == "network.wan.dns" {
+			deleted = true
+		}
+		if len(c) >= 2 && c[1] == "commit" {
+			t.Fatal("staging committed the change: the watchdog would never run")
+		}
+	}
+	if !deleted {
+		t.Error("nothing was staged for removal, so the resolvers survive the apply")
+	}
+}
+
+// Removing a key that is not on the device is not an edit, and uci fails when
+// asked to do it — so a plain DHCP uplink that never had custom resolvers must
+// still stage cleanly, with nothing to show.
+func TestPlainDHCPDoesNotStageRemovalsThatChangeNothing(t *testing.T) {
+	m, r := writerWith(map[string]string{"network.wan.proto": "dhcp", "network.wan.peerdns": "1"})
+
+	changes, err := m.StageWAN(core.WANConfig{Interface: "wan", Proto: core.WANProtoDHCP})
+	if err != nil {
+		t.Fatalf("stage: %v", err)
+	}
+	if len(changes) != 0 {
+		t.Errorf("changes = %+v, want none: nothing differs", changes)
+	}
+	for _, c := range r.calls {
+		if len(c) >= 2 && c[1] == "delete" {
+			t.Errorf("asked uci to delete a key that is not there: %v", c)
+		}
+	}
+}
+
 // A draft can hold an edit that changes nothing: staging a value, then staging
 // the old one back. uci still reports the key as pending, and showing it would
 // ask somebody to confirm "dhcp \u2192 dhcp" on a screen whose whole point is that

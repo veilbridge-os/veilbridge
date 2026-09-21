@@ -43,8 +43,8 @@ const en = {
     applyWithConfirm: 'Apply with confirmation',
     waiting: 'New settings applied. Is the panel still answering?',
     waitingHint: 'If you do not confirm, the device restores the previous settings by itself.',
-    confirm: 'Everything works, confirm',
-    cancelNow: 'Undo now',
+    confirm: 'Yes, the panel is up',
+    cancelNow: 'Restore the previous settings',
     remaining: 'remaining',
     applying: 'Applying… the panel is not answering yet',
     applyingHint:
@@ -59,6 +59,8 @@ const en = {
     confirmFailed: 'The confirmation did not reach the device',
     confirmFailedHint:
       'Repeat it — there is still time. Doing nothing is also safe: the settings will come back by themselves.',
+    expired: 'Time is up — the device is restoring the previous settings',
+    expiredHint: 'Nobody confirmed the panel was reachable, so the change is being undone. Nothing to press.',
     retryConfirm: 'Retry confirmation',
     change: 'change {id}',
     confirmed: 'Change confirmed',
