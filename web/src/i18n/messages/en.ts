@@ -60,7 +60,8 @@ const en = {
     confirmFailedHint:
       'Repeat it — there is still time. Doing nothing is also safe: the settings will come back by themselves.',
     expired: 'Time is up — the device is restoring the previous settings',
-    expiredHint: 'Nobody confirmed the panel was reachable, so the change is being undone. Nothing to press.',
+    expiredHint:
+      'Nobody confirmed the panel was reachable, so the change is being undone. Nothing to press.',
     retryConfirm: 'Retry confirmation',
     change: 'change {id}',
     confirmed: 'Change confirmed',
