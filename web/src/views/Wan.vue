@@ -23,6 +23,7 @@ import {
   type WANConfig,
   type WANStatus,
 } from '@/api/client'
+import VbIcon from '@/components/VbIcon.vue'
 import { useDuration } from '@/lib/duration'
 import { refreshStaged, useLive } from '@/stores/live'
 
@@ -271,6 +272,7 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
       <!-- Primary, as in the accepted mockup: this is the one action on the
            screen that proves something instead of showing it. -->
       <el-button v-if="hasUplink" type="primary" :loading="probing" @click="runProbe">
+        <VbIcon v-if="!probing" name="target" class="vb-wan__btnico" />
         {{ probing ? t('wan.probing') : t('wan.probe') }}
       </el-button>
     </header>
@@ -578,6 +580,9 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
   font-size: 12px;
   line-height: 1.45;
   color: var(--el-text-color-secondary);
+}
+.vb-wan__btnico {
+  margin-right: 6px;
 }
 .vb-wan__missing {
   color: var(--el-color-warning);

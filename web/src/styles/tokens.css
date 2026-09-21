@@ -217,3 +217,32 @@ html.dark .el-radio-button {
 html.dark .el-tag--dark {
   --el-tag-text-color: #0e1f1e;
 }
+
+/* Icons (M2.7). Stroke-drawn and inheriting the surrounding text colour, so
+   one sprite serves both themes — exactly as in the accepted mockups. */
+.vb-ico {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.vb-ico--sm {
+  width: 14px;
+  height: 14px;
+  flex-basis: 14px;
+}
+.vb-ico--lg {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+}
+.vb-ico--xl {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  stroke-width: 1.1;
+}

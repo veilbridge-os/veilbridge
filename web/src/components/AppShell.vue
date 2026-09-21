@@ -17,6 +17,7 @@ import { LOCALES, setLocale } from '@/i18n'
 import { startLive, stopLive, useLive } from '@/stores/live'
 import { setTheme, type ThemeChoice, theme } from '@/stores/theme'
 import ApplyBar from './ApplyBar.vue'
+import VbIcon from './VbIcon.vue'
 
 interface NavItem {
   key: string
@@ -42,6 +43,21 @@ const NAV: NavItem[] = [
   { key: 'rules', path: '/rules', group: 'groupRouting', ready: true },
   { key: 'system', path: '/system', group: 'groupDevice', ready: false },
 ]
+
+// One icon per section, taken from the accepted mockup of the shell rather
+// than chosen again here: the menu is the place people learn the vocabulary
+// of the product, and two different icon sets would teach two vocabularies.
+const NAV_ICON: Record<string, string> = {
+  dashboard: 'dash',
+  internet: 'globe',
+  nodes: 'node',
+  policies: 'policy',
+  network: 'net',
+  wifi: 'wifi',
+  devices: 'dev',
+  rules: 'rule',
+  system: 'sys',
+}
 
 // The routing rules screen still lives at its old path; the menu points at
 // what exists rather than at what it will be called later.
@@ -159,7 +175,10 @@ const activePath = computed(() => route.path)
             :title="item.ready ? undefined : t('shell.notBuilt')"
             @click="go(item)"
           >
-            {{ t(`shell.${item.key}`) }}
+            <span class="vb-side__label">
+              <VbIcon :name="NAV_ICON[item.key] ?? 'dash'" />
+              {{ t(`shell.${item.key}`) }}
+            </span>
             <el-tag v-if="!item.ready" size="small" type="info" round>{{ t('shell.soon') }}</el-tag>
           </button>
         </template>
@@ -283,7 +302,10 @@ const activePath = computed(() => route.path)
             :disabled="!item.ready"
             @click="go(item)"
           >
-            {{ t(`shell.${item.key}`) }}
+            <span class="vb-side__label">
+              <VbIcon :name="NAV_ICON[item.key] ?? 'dash'" />
+              {{ t(`shell.${item.key}`) }}
+            </span>
             <el-tag v-if="!item.ready" size="small" type="info" round>{{ t('shell.soon') }}</el-tag>
           </button>
         </template>
@@ -359,6 +381,12 @@ const activePath = computed(() => route.path)
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--el-text-color-secondary);
+}
+.vb-side__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 .vb-side__item {
   display: flex;
