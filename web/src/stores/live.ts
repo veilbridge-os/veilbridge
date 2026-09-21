@@ -40,6 +40,28 @@ let started = false
 /** liveSamples is capped at the server's own live window (3 min at 3 s). */
 const MAX_SAMPLES = 60
 
+/** STALE_AFTER_MS is how long without a frame means "the device is not
+ * answering".
+ *
+ * Reachability cannot be read off the stream alone, and this was measured on
+ * a live device: when a change moves the uplink to another address, the TCP
+ * connection carrying the event stream does not fail \u2014 nothing sends a reset,
+ * so the browser keeps it "open" for minutes. The panel looked perfectly
+ * healthy while the device was gone. Silence is the signal instead: the
+ * daemon pushes every ~3 s, so three missed frames is an answer. */
+const STALE_AFTER_MS = 10_000
+
+// A clock for the freshness check to depend on. Without it the check would
+// only be recomputed when a frame arrives \u2014 which is exactly what stops
+// happening in the case it exists to catch.
+const nowTs = ref(Date.now())
+let clock = 0
+
+function sinceLastFrame(): number {
+  if (!lastUpdate.value) return Number.POSITIVE_INFINITY
+  return nowTs.value - lastUpdate.value.getTime()
+}
+
 function pushSample(s: MetricSample | undefined) {
   if (!s?.at) return
   const last = liveSamples.value[liveSamples.value.length - 1]
@@ -51,6 +73,9 @@ function pushSample(s: MetricSample | undefined) {
 export function startLive() {
   if (started || !isAuthed()) return
   started = true
+  clock = window.setInterval(() => {
+    nowTs.value = Date.now()
+  }, 1000)
 
   // The first picture comes over REST: a stream that has not spoken yet is
   // indistinguishable from one that failed to connect, and capabilities are
@@ -100,6 +125,8 @@ export function startLive() {
 export function stopLive() {
   stop?.()
   stop = null
+  window.clearInterval(clock)
+  clock = 0
   started = false
   connected.value = false
   system.value = null
@@ -146,8 +173,14 @@ export function useLive() {
     connected: readonly(connected),
     lastUpdate: readonly(lastUpdate),
     deviceError: readonly(deviceError),
-    /** stale is true once the stream is down and we are showing old numbers. */
-    stale: computed(() => !connected.value && system.value !== null),
+    /** reachable is true while frames keep arriving. Deliberately not just
+     * `connected`: a dead link leaves the stream's socket open (see
+     * STALE_AFTER_MS). */
+    reachable: computed(() => connected.value && sinceLastFrame() < STALE_AFTER_MS),
+    /** stale is true once we are showing numbers nobody refreshed. */
+    stale: computed(
+      () => system.value !== null && (!connected.value || sinceLastFrame() >= STALE_AFTER_MS),
+    ),
     /** can reports a capability, defaulting to true for anything the device
      * did not mention: hiding a section because a probe failed would be this
      * code's limitation dressed up as a fact about the hardware (D-20). */

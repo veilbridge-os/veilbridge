@@ -50,7 +50,10 @@ const PATH_OVERRIDE: Record<string, string> = { rules: '/routes' }
 const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
-const { connected, lastUpdate, stale, deviceError, system, can } = useLive()
+// `reachable`, not `connected`: a link that dies under the stream leaves its
+// socket open, so the dot stayed green on a device that was gone (measured on
+// the stand while an uplink change was live).
+const { reachable, lastUpdate, stale, deviceError, system, can } = useLive()
 
 const drawer = ref(false)
 const searchOpen = ref(false)
@@ -194,7 +197,7 @@ const activePath = computed(() => route.path)
           role="status"
           aria-live="polite"
         >
-          <i class="vb-dot" :class="connected ? 'is-live' : 'is-down'" aria-hidden="true" />
+          <i class="vb-dot" :class="reachable ? 'is-live' : 'is-down'" aria-hidden="true" />
           {{ freshness }}
         </span>
         <!-- Language and logout live in the drawer on a phone: at 360 the

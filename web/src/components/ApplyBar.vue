@@ -13,7 +13,7 @@ import { ApiError, api, type ConfigChange } from '@/api/client'
 import { refreshApply, refreshStaged, useLive } from '@/stores/live'
 
 const { t, te } = useI18n()
-const { applyState, connected, staged } = useLive()
+const { applyState, reachable, staged } = useLive()
 
 /** labelOf translates a staged change into the language of the interface.
  *
@@ -65,7 +65,7 @@ const phase = computed(() => applyState.value?.phase ?? 'idle')
 // Once the daemon answers again, the local "applying" flag must give way to
 // whatever actually happened.
 watch(
-  () => [phase.value, connected.value] as const,
+  () => [phase.value, reachable.value] as const,
   ([p, ok]) => {
     if (applying.value && (p !== 'idle' || ok)) applying.value = false
     if (p === 'confirmed' || p === 'idle') confirmFailed.value = false
@@ -107,6 +107,20 @@ const progress = computed(() => {
  * the revert. The device is already restoring the snapshot; nothing the
  * operator presses now can stop that, so nothing is offered. */
 const expired = computed(() => phase.value === 'awaiting_confirm' && secondsLeft.value === 0)
+
+/** unreachable is the state this whole transaction exists for: the change is
+ * live, and it took the link the panel was talking over with it.
+ *
+ * It has to be said out loud. Measured on the stand: the uplink really did
+ * move to another address and the panel really was unreachable, while the bar
+ * went on asking \u201cis the panel still answering?\u201d next to a working-looking
+ * confirm button \u2014 the browser cannot tell a silent page from a live one, and
+ * the operator was being invited to press something that could not arrive.
+ * The countdown keeps running because it is the browser's own clock, and it
+ * is the honest thing to show: doing nothing is what brings the link back. */
+const unreachable = computed(
+  () => phase.value === 'awaiting_confirm' && !expired.value && !reachable.value,
+)
 
 // The draft is the bar's sixth state and the only one nobody is waiting on:
 // the device holds edits that are not live yet. It is read from the device,
@@ -275,15 +289,18 @@ function dismiss() {
              "confirm" there is a lie measured on the stand: the countdown sat
              at zero for some fifteen seconds with the button live. -->
         <strong v-if="expired">{{ t('apply.expired') }}</strong>
+        <strong v-else-if="unreachable">{{ t('apply.unreachable') }}</strong>
         <strong v-else-if="!confirmFailed">{{ t('apply.waiting') }}</strong>
         <strong v-else>{{ t('apply.confirmFailed') }}</strong>
         <p>
           {{
             expired
               ? t('apply.expiredHint')
-              : confirmFailed
-                ? t('apply.confirmFailedHint')
-                : t('apply.waitingHint')
+              : unreachable
+                ? t('apply.unreachableHint', { time: countdown })
+                : confirmFailed
+                  ? t('apply.confirmFailedHint')
+                  : t('apply.waitingHint')
           }}
         </p>
       </div>
@@ -316,6 +333,15 @@ function dismiss() {
         <strong>{{ t('apply.revertFailed') }}</strong>
         <p>{{ t('apply.revertFailedHint') }}</p>
         <code v-if="applyState?.error" class="vb-applybar__id">{{ applyState.error }}</code>
+      </div>
+      <!-- The state may not be hidden, and the operator may not be trapped in
+           it either. Observed on the stand: with the revert broken on purpose,
+           the bar had no buttons at all \u2014 so a panel that was perfectly
+           reachable could never apply anything again until the daemon was
+           restarted. Acknowledging is a deliberate act and is remembered per
+           transaction, so the next failed revert speaks up again. -->
+      <div class="vb-applybar__actions">
+        <el-button @click="dismiss">{{ t('apply.acknowledge') }}</el-button>
       </div>
     </template>
   </div>

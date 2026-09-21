@@ -59,9 +59,13 @@ const en = {
     confirmFailed: 'The confirmation did not reach the device',
     confirmFailedHint:
       'Repeat it — there is still time. Doing nothing is also safe: the settings will come back by themselves.',
+    unreachable: 'The panel is not answering — trying to reach the device',
+    unreachableHint:
+      'If you are reading this at the old address, do nothing: in {time} the settings come back by themselves and the panel opens where it opened before.',
     expired: 'Time is up — the device is restoring the previous settings',
     expiredHint:
       'Nobody confirmed the panel was reachable, so the change is being undone. Nothing to press.',
+    acknowledge: 'Understood — continue configuring',
     retryConfirm: 'Retry confirmation',
     change: 'change {id}',
     confirmed: 'Change confirmed',
