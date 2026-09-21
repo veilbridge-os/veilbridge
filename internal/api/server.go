@@ -286,6 +286,27 @@ func (s *Server) register() {
 		Summary: "The local network, its address handout and its clients",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
 	}, s.getLAN)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stageLAN", Method: http.MethodPut, Path: "/network/lan",
+		Summary: "Stage this router's own address on the local network (does not apply it)",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.stageLAN)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stageHandout", Method: http.MethodPut, Path: "/network/lan/handout",
+		Summary: "Stage the address handout (does not apply it)",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.stageHandout)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stageReservation", Method: http.MethodPut, Path: "/network/lan/reservations",
+		Summary: "Stage an address reserved for one device (does not apply it)",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.stageReservation)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "removeReservation", Method: http.MethodDelete,
+		Path:    "/network/lan/reservations/{id}",
+		Summary: "Stage the removal of a reserved address (does not apply it)",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.removeReservation)
 
 	// --- system ---
 	huma.Register(s.api, huma.Operation{
@@ -621,6 +642,87 @@ func (s *Server) getLAN(_ context.Context, _ *struct{}) (*LANOutput, error) {
 		return nil, huma.Error502BadGateway("lan", err)
 	}
 	return &LANOutput{Body: lan}, nil
+}
+
+// lanWriter is the local-network half of the writer. Like LANReader it is an
+// optional capability of the adapter, asked for by type assertion.
+func (s *Server) lanWriter() (core.LANWriter, bool) {
+	w, ok := s.adapter.Network().(core.LANWriter)
+	return w, ok
+}
+
+// stagedOr maps a staging result onto the answers the panel reacts to. A
+// rejected value is the caller's mistake and its reason has to land where the
+// client reads it (`detail`), or the operator is told "staging failed" and
+// nothing about which field was wrong.
+func stagedOr(what string, changes []core.ConfigChange, err error) (*ChangesOutput, error) {
+	switch {
+	case errors.Is(err, core.ErrNotImplemented):
+		return nil, huma.Error501NotImplemented(what, err)
+	case errors.Is(err, core.ErrNoLAN):
+		return nil, huma.Error404NotFound("no lan interface", err)
+	case err != nil:
+		return nil, huma.Error400BadRequest(reasonFor(err))
+	}
+	return changesOutput(changes), nil
+}
+
+// refuseWhileApplying keeps a second draft off a live transaction: the
+// operator would otherwise confirm two edits having reviewed one, and the
+// snapshot would roll both back.
+func (s *Server) refuseWhileApplying() error {
+	if st := s.apply.State(); st.Phase == core.PhaseAwaitingConfirm {
+		return huma.Error409Conflict("a change is already waiting for confirmation")
+	}
+	return nil
+}
+
+func (s *Server) stageLAN(_ context.Context, in *StageLANInput) (*ChangesOutput, error) {
+	w, ok := s.lanWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the local network")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StageLAN(in.Body)
+	return stagedOr("staging the local network", changes, err)
+}
+
+func (s *Server) stageHandout(_ context.Context, in *StageHandoutInput) (*ChangesOutput, error) {
+	w, ok := s.lanWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the address handout")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StageHandout(in.Body)
+	return stagedOr("staging the address handout", changes, err)
+}
+
+func (s *Server) stageReservation(_ context.Context, in *StageReservationInput) (*ChangesOutput, error) {
+	w, ok := s.lanWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot reserve addresses")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StageReservation(in.Body)
+	return stagedOr("staging a reserved address", changes, err)
+}
+
+func (s *Server) removeReservation(_ context.Context, in *RemoveReservationInput) (*ChangesOutput, error) {
+	w, ok := s.lanWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot reserve addresses")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.RemoveReservation(in.ID)
+	return stagedOr("staging the removal of a reserved address", changes, err)
 }
 
 func (s *Server) writer() (core.NetworkWriter, bool) {

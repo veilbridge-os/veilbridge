@@ -42,7 +42,11 @@ const defaultLeaseFile = "/tmp/dhcp.leases"
 
 // LANInfo reads the local network, its address handout and its clients.
 func (m networkManager) LANInfo() (core.LANStatus, error) {
-	ifaces, err := m.Interfaces()
+	list := m.lookupInterfaces
+	if list == nil {
+		list = m.Interfaces
+	}
+	ifaces, err := list()
 	if err != nil {
 		return core.LANStatus{}, err
 	}

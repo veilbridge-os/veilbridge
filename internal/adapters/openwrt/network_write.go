@@ -40,20 +40,46 @@ var sectionNameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{1,32}$`)
 // the drift is invisible until an operator refreshes the browser — which is
 // exactly how the raw key `network.wan.proto` reached the apply bar (M3.1a).
 //
-// Keyed by `<config>.<option>`, not by section: today only the uplink is
-// editable, so "address" means the address on the internet side. When M3.2
-// makes the local network editable, these words need a section role — the
-// same option name will mean something else there.
+// Keyed by `<config>.<role>.<option>`. The role matters as much as the option
+// name: `ipaddr` on the uplink is the address the provider handed us, and the
+// same key on the local network is this router's own address. Until M3.2 the
+// table was keyed by option alone — fine while only the uplink was editable,
+// and a lie the moment the local network became editable too. The limit was
+// written down at M3.1a and is paid off here rather than discovered by an
+// operator reading "Address on the internet side" above a LAN address.
 var optionLabels = map[string]string{
-	"network.proto":    "Internet connection type",
-	"network.ipaddr":   "Address on the internet side",
-	"network.netmask":  "Network mask",
-	"network.gateway":  "Gateway",
-	"network.dns":      "Resolvers",
-	"network.peerdns":  "Use the provider's resolvers",
-	"network.username": "Provider login",
-	"network.password": "Provider password",
+	"network.uplink.proto":    "Internet connection type",
+	"network.uplink.ipaddr":   "Address on the internet side",
+	"network.uplink.netmask":  "Network mask",
+	"network.uplink.gateway":  "Gateway",
+	"network.uplink.dns":      "Resolvers",
+	"network.uplink.peerdns":  "Use the provider's resolvers",
+	"network.uplink.username": "Provider login",
+	"network.uplink.password": "Provider password",
+
+	"network.lan.proto":   "How the local network address is set",
+	"network.lan.ipaddr":  "Address of this router on the local network",
+	"network.lan.netmask": "Local network mask",
+	"network.lan.dns":     "Resolvers for the local network",
+
+	"dhcp.lan.start":     "First address handed out",
+	"dhcp.lan.limit":     "Last address handed out",
+	"dhcp.lan.leasetime": "How long an address is given for",
+	"dhcp.lan.ignore":    "Hand out addresses on the local network",
+
+	"dhcp.host.mac":  "Device",
+	"dhcp.host.ip":   "Reserved address",
+	"dhcp.host.name": "Device name",
 }
+
+// Section roles: what the panel means by a section, as opposed to what the
+// device happens to call it. The uplink is `wan` on most routers and `lanwan`
+// on one of our own stands, so the name cannot be the role.
+const (
+	roleUplink = "uplink"
+	roleLAN    = "lan"
+	roleHost   = "host"
+)
 
 // configLabels name a whole configuration file in domain words, for a key we
 // have no words for yet. Saying "a network setting" and keeping the key in
@@ -76,15 +102,20 @@ var sectionLabels = map[string]string{
 	"wireless": "Wi-Fi network",
 }
 
-// labelFor turns a configuration key into what the panel calls it.
-func labelFor(config, option string) string {
+// labelFor turns a configuration key into what the panel calls it. An unknown
+// role falls back to naming the configuration file rather than guessing: a
+// wrong word is worse than a general one on a screen people act on.
+func labelFor(config, role, option string) string {
 	if option == "" {
+		if role == roleHost {
+			return "Reserved address"
+		}
 		if l, ok := sectionLabels[config]; ok {
 			return l
 		}
 		return "Configuration section"
 	}
-	if l, ok := optionLabels[config+"."+option]; ok {
+	if l, ok := optionLabels[config+"."+role+"."+option]; ok {
 		return l
 	}
 	if l, ok := configLabels[config]; ok {
@@ -135,12 +166,27 @@ func (m networkManager) StageWAN(cfg core.WANConfig) ([]core.ConfigChange, error
 	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)
 	defer cancel()
 
+	return m.stage(ctx, "network", iface, roleUplink, sets)
+}
+
+// stage writes a batch of settings into the draft of one section and returns
+// them described the way the panel shows them. It is shared by the uplink and
+// the local network on purpose: a second copy of these rules would be a second
+// place for "staging accidentally commits" to creep back in.
+func (m networkManager) stage(
+	ctx context.Context, config, section, role string, sets []wanSetting,
+) ([]core.ConfigChange, error) {
+	_ = role // the words are already resolved by the caller; kept for clarity
+	if !sectionNameRe.MatchString(section) {
+		return nil, fmt.Errorf("openwrt: %q is not a valid section name", section)
+	}
+
 	// The "before" values are read first, so the diff describes this device
 	// and not an assumption about it. A key that does not exist yet reads as
 	// empty, which is exactly how it should appear in the diff.
 	changes := make([]core.ConfigChange, 0, len(sets))
 	for _, s := range sets {
-		key := fmt.Sprintf("network.%s.%s", iface, s.key)
+		key := fmt.Sprintf("%s.%s.%s", config, section, s.key)
 		before := m.uciGet(ctx, key)
 		// Removing a key that is not there changes nothing, and asking uci to
 		// do it fails; nor does removing one that already holds the value the
@@ -159,14 +205,28 @@ func (m networkManager) StageWAN(cfg core.WANConfig) ([]core.ConfigChange, error
 		if stageErr != nil {
 			// A half-staged batch is not left behind: the draft is dropped so
 			// the operator never confirms a change they did not see in full.
-			_ = m.DiscardStaged()
+			_ = m.discardConfig(ctx, config)
 			return nil, stageErr
+		}
+
+		// Some keys are stored as something the panel never says out loud —
+		// the pool is offsets from the network address (D-44). Those settings
+		// carry their own words for both columns.
+		from, to := redact(s.secret, before), redact(s.secret, s.value)
+		if s.shownBefore != "" {
+			from = s.shownBefore
+		}
+		if s.shown != "" {
+			to = s.shown
+		}
+		if s.remove {
+			to = ""
 		}
 		changes = append(changes, core.ConfigChange{
 			Label:     s.label,
-			From:      redact(s.secret, before),
-			To:        redact(s.secret, s.value),
-			Dangerous: true, // every uplink edit can cut our own access
+			From:      from,
+			To:        to,
+			Dangerous: dangerousConfig(config),
 			Detail:    key,
 		})
 	}
@@ -186,9 +246,15 @@ type wanSetting struct {
 	remove bool
 	// sameAsAbsent is the written value that already behaves like no key at
 	// all. Removing it would be a row in the apply bar that changes nothing
-	// on the device \u2014 and this is the screen where pressing the button is the
+	// on the device — and this is the screen where pressing the button is the
 	// dangerous part, so the list must hold only real edits.
 	sameAsAbsent string
+	// shown and shownBefore override the diff's two columns for a key whose
+	// stored form is not what the panel says: the address pool is kept as
+	// offsets from the network address and shown as addresses (D-44), and
+	// "100 → 120" in the apply bar would be the operating system talking.
+	shown       string
+	shownBefore string
 }
 
 // wanSettings turns a requested configuration into the keys to write, and
@@ -196,7 +262,7 @@ type wanSetting struct {
 func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 	switch cfg.Proto {
 	case core.WANProtoDHCP:
-		out := []wanSetting{{key: "proto", value: "dhcp", label: labelFor("network", "proto")}}
+		out := []wanSetting{{key: "proto", value: "dhcp", label: labelFor("network", roleUplink, "proto")}}
 		if len(cfg.DNS) == 0 {
 			// Back to the provider's resolvers: the other direction of the pair
 			// below, or the panel can set this and never unset it.
@@ -212,9 +278,9 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 					key:          "peerdns",
 					remove:       true,
 					sameAsAbsent: "1",
-					label:        labelFor("network", "peerdns"),
+					label:        labelFor("network", roleUplink, "peerdns"),
 				},
-				wanSetting{key: "dns", remove: true, label: labelFor("network", "dns")},
+				wanSetting{key: "dns", remove: true, label: labelFor("network", roleUplink, "dns")},
 			), nil
 		}
 		// Resolvers given alongside DHCP are not a contradiction — wanting the
@@ -223,7 +289,7 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 		// provider's resolvers win unless peerdns is turned off, so asking for
 		// one without the other silently does nothing.
 		out = append(out, wanSetting{
-			key: "peerdns", value: "0", label: labelFor("network", "peerdns"),
+			key: "peerdns", value: "0", label: labelFor("network", roleUplink, "peerdns"),
 		})
 		return appendDNS(out, cfg.DNS)
 
@@ -238,13 +304,13 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 			return nil, fmt.Errorf("openwrt: %q is not a gateway address", cfg.Gateway)
 		}
 		out := []wanSetting{
-			{key: "proto", value: "static", label: labelFor("network", "proto")},
-			{key: "ipaddr", value: cfg.Address, label: labelFor("network", "ipaddr")},
-			{key: "netmask", value: cfg.Netmask, label: labelFor("network", "netmask")},
+			{key: "proto", value: "static", label: labelFor("network", roleUplink, "proto")},
+			{key: "ipaddr", value: cfg.Address, label: labelFor("network", roleUplink, "ipaddr")},
+			{key: "netmask", value: cfg.Netmask, label: labelFor("network", roleUplink, "netmask")},
 		}
 		if cfg.Gateway != "" {
 			out = append(out, wanSetting{
-				key: "gateway", value: cfg.Gateway, label: labelFor("network", "gateway"),
+				key: "gateway", value: cfg.Gateway, label: labelFor("network", roleUplink, "gateway"),
 			})
 		}
 		return appendDNS(out, cfg.DNS)
@@ -254,14 +320,14 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 			return nil, fmt.Errorf("openwrt: PPPoE needs a user name")
 		}
 		out := []wanSetting{
-			{key: "proto", value: "pppoe", label: labelFor("network", "proto")},
-			{key: "username", value: cfg.Username, label: labelFor("network", "username")},
+			{key: "proto", value: "pppoe", label: labelFor("network", roleUplink, "proto")},
+			{key: "username", value: cfg.Username, label: labelFor("network", roleUplink, "username")},
 		}
 		if cfg.Password != "" {
 			out = append(out, wanSetting{
 				key:    "password",
 				value:  cfg.Password,
-				label:  labelFor("network", "password"),
+				label:  labelFor("network", roleUplink, "password"),
 				secret: true,
 			})
 		}
@@ -282,7 +348,7 @@ func appendDNS(out []wanSetting, dns []string) ([]wanSetting, error) {
 		}
 	}
 	return append(out, wanSetting{
-		key: "dns", value: strings.Join(dns, " "), label: labelFor("network", "dns"),
+		key: "dns", value: strings.Join(dns, " "), label: labelFor("network", roleUplink, "dns"),
 	}), nil
 }
 
@@ -361,6 +427,15 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 		}
 	}
 
+	// Which section is which is a question only the device can answer: the
+	// uplink is `wan` on most routers and `lanwan` on one of our own stands,
+	// and a reservation is any `dhcp` section whose type is `host`. Guessing
+	// wrong would print "Address on the internet side" above a LAN address.
+	uplink := ""
+	if wan, err := m.WANInfo(); err == nil {
+		uplink = wan.Interface.Name
+	}
+
 	// One row per key, in the order the device reported them. A key the draft
 	// no longer contains was removed, which reads as "→ nothing".
 	changes := make([]core.ConfigChange, 0, len(edits))
@@ -378,8 +453,9 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 			continue
 		}
 		secret := secretOption(e.option)
+		role := roleOf(e.config, e.section, after[e.config+"."+e.section], uplink)
 		changes = append(changes, core.ConfigChange{
-			Label:     labelFor(e.config, e.option),
+			Label:     labelFor(e.config, role, e.option),
 			From:      redact(secret, from),
 			To:        redact(secret, to),
 			Dangerous: dangerousConfig(e.config),
@@ -393,9 +469,34 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 // draft touches; what the key now holds is asked of uci rather than read off
 // the line, because one key can appear on several lines.
 type stagedEdit struct {
-	key    string // network.wan.proto
-	config string // network
-	option string // proto
+	key     string // network.wan.proto
+	config  string // network
+	section string // wan
+	option  string // proto
+}
+
+// roleOf says what a section is to the panel. sectionType is what `uci show`
+// printed for the section's own line, and uplink is the interface the device
+// currently routes through \u2014 both are read from the device rather than
+// assumed, because neither is derivable from the name.
+func roleOf(config, section, sectionType, uplink string) string {
+	switch {
+	case sectionType == "host":
+		return roleHost
+	case section == lanSection:
+		return roleLAN
+	case config == "network" && uplink != "" && section == uplink:
+		return roleUplink
+	case config == "network" && section == "wan":
+		// The device could not be asked \u2014 it is unreachable, or this build has
+		// no bus \u2014 and a section literally called `wan` is the uplink by the
+		// same OpenWrt convention WANInfo falls back to. Without this the
+		// words degrade to "Network setting" exactly when the operator is
+		// reading a draft on a device that stopped answering.
+		return roleUplink
+	default:
+		return ""
+	}
 }
 
 // parseStagedEdits reads `uci changes`. The shapes below were captured from a
@@ -433,6 +534,7 @@ func parseStagedEdits(out string) []stagedEdit {
 			continue
 		}
 		e.config = parts[0]
+		e.section = parts[1]
 		if len(parts) >= 3 {
 			e.option = parts[len(parts)-1]
 		}
@@ -571,8 +673,27 @@ func (m networkManager) DiscardStaged() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)
 	defer cancel()
-	if _, err := m.run(ctx, "uci", "revert", "network"); err != nil {
-		return fmt.Errorf("openwrt: discard staged network changes: %w", err)
+	// Both files this package writes: since M3.2 a draft can hold the local
+	// network and its address handout as well, and discarding half of it
+	// would leave the operator with a pending change they thought they threw
+	// away \u2014 which the next apply would then commit.
+	for _, config := range []string{"network", "dhcp"} {
+		if err := m.discardConfig(ctx, config); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// discardConfig throws away the draft of one configuration file. It reverts
+// the staging area only: the live configuration is untouched, which is why it
+// is safe to call from a failed stage.
+func (m networkManager) discardConfig(ctx context.Context, config string) error {
+	if !sectionNameRe.MatchString(config) {
+		return fmt.Errorf("openwrt: %q is not a configuration name", config)
+	}
+	if _, err := m.run(ctx, "uci", "revert", config); err != nil {
+		return fmt.Errorf("openwrt: discard staged %s changes: %w", config, err)
 	}
 	return nil
 }

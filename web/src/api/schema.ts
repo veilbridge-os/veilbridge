@@ -176,6 +176,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/network/lan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The local network, its address handout and its clients */
+        get: operations["getLAN"];
+        /** Stage this router's own address on the local network (does not apply it) */
+        put: operations["stageLAN"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/network/lan/handout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Stage the address handout (does not apply it) */
+        put: operations["stageHandout"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/network/lan/reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Stage an address reserved for one device (does not apply it) */
+        put: operations["stageReservation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/network/lan/reservations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stage the removal of a reserved address (does not apply it) */
+        delete: operations["removeReservation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/network/wan": {
         parameters: {
             query?: never;
@@ -404,6 +473,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AddressHandout: {
+            enabled: boolean;
+            first?: string;
+            last?: string;
+            /** Format: int64 */
+            leaseSeconds?: number;
+        };
+        AddressLease: {
+            /** Format: int64 */
+            expiresSec?: number;
+            hostname?: string;
+            ip: string;
+            mac: string;
+        };
         ApplyConfirmInputBody: {
             /**
              * Format: uri
@@ -537,6 +620,19 @@ export interface components {
              */
             type: string;
         };
+        HandoutConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/HandoutConfig.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+            first?: string;
+            last?: string;
+            /** Format: int64 */
+            leaseSeconds?: number;
+        };
         ImportInputBody: {
             /**
              * Format: uri
@@ -553,6 +649,28 @@ export interface components {
             kind: "awg-config" | "subscription";
             /** @description Subscription URL (kind=subscription) */
             url?: string;
+        };
+        LANConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/LANConfig.json
+             */
+            readonly $schema?: string;
+            address: string;
+            netmask: string;
+        };
+        LANStatus: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/LANStatus.json
+             */
+            readonly $schema?: string;
+            handout: components["schemas"]["AddressHandout"];
+            interface: components["schemas"]["NetworkInterface"];
+            leases?: components["schemas"]["AddressLease"][] | null;
+            reserved?: components["schemas"]["ReservedAddress"][] | null;
         };
         LoginInputBody: {
             /**
@@ -655,6 +773,23 @@ export interface components {
             expectedVia: "tunnel" | "direct";
             /** @description Domain or IP to test */
             target: string;
+        };
+        ReservationConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/ReservationConfig.json
+             */
+            readonly $schema?: string;
+            ip: string;
+            mac: string;
+            name?: string;
+        };
+        ReservedAddress: {
+            id?: string;
+            ip: string;
+            mac: string;
+            name?: string;
         };
         RouteRule: {
             /**
@@ -1158,6 +1293,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NetworkInterface"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getLAN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LANStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageLAN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LANConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageHandout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoutConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageReservation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReservationConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removeReservation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reservation entry as reported by GET /network/lan */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
                 };
             };
             /** @description Error */

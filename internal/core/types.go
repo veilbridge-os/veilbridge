@@ -264,6 +264,52 @@ type ConfigChange struct {
 	Detail string `json:"detail,omitempty"`
 }
 
+// LANConfig is a requested local-network address: an intent on its way to the
+// apply transaction, not a reading.
+type LANConfig struct {
+	Address string `json:"address"`
+	Netmask string `json:"netmask"`
+}
+
+// HandoutConfig is a requested address handout, expressed in addresses the
+// same way it is shown (D-44). The device stores offsets from the network
+// address; converting them is this code's job and not the operator's.
+type HandoutConfig struct {
+	// Enabled false stops the handout without forgetting its settings.
+	Enabled bool `json:"enabled"`
+	// First and Last are the ends of the pool. Ignored when Enabled is false.
+	First string `json:"first,omitempty"`
+	Last  string `json:"last,omitempty"`
+	// LeaseSeconds is how long an address is given for; 0 leaves it alone.
+	LeaseSeconds int64 `json:"leaseSeconds,omitempty"`
+}
+
+// ReservationConfig ties an address to one device's hardware address.
+type ReservationConfig struct {
+	MAC  string `json:"mac"`
+	IP   string `json:"ip"`
+	Name string `json:"name,omitempty"`
+}
+
+// LANWriter is the write half of the local network (M3.2). Same split as
+// NetworkWriter and for the same reason: nothing here commits, everything
+// stages, and only the watchdogged transaction makes an edit real.
+//
+// Editing the local network is dangerous differently than editing the uplink.
+// It cannot take the internet away from a remote operator, but it does cut
+// the person standing next to the router \u2014 they are on the very network being
+// renumbered, and their own address stops matching it the moment it applies.
+type LANWriter interface {
+	// StageLAN validates and stages this router's own address.
+	StageLAN(cfg LANConfig) ([]ConfigChange, error)
+	// StageHandout validates and stages the address handout.
+	StageHandout(cfg HandoutConfig) ([]ConfigChange, error)
+	// StageReservation adds or updates the reservation for one device.
+	StageReservation(cfg ReservationConfig) ([]ConfigChange, error)
+	// RemoveReservation stages the removal of the reservation with this id.
+	RemoveReservation(id string) ([]ConfigChange, error)
+}
+
 // NetworkWriter is the write half of the network manager. It is separate from
 // NetworkManager because reading is safe and writing is not: a getter cannot
 // lock anybody out, and every method here stages an edit that the apply

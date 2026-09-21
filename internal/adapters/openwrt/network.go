@@ -43,6 +43,11 @@ type networkManager struct {
 	// not a constant because reading a value as it is *without* the staged
 	// draft needs a second view of that directory — see committedValues.
 	configDir string
+	// lookupInterfaces is the seam the local-network reader takes the
+	// interface list through. It defaults to Interfaces(), which needs the
+	// bus; tests replace it the same way they replace command execution, so
+	// the pool arithmetic can be exercised without a ubus connection.
+	lookupInterfaces func() ([]core.NetworkInterface, error)
 }
 
 func newNetworkManager(bus *ubus.Client) networkManager {

@@ -136,9 +136,33 @@ type WANOutput struct {
 }
 
 // LANOutput is the local network, its address handout and its clients in one
-// answer \u2014 see core.LANStatus for why they are not three endpoints.
+// answer — see core.LANStatus for why they are not three endpoints.
 type LANOutput struct {
 	Body core.LANStatus
+}
+
+// StageLANInput is this router's own address on the local network. As with
+// the uplink, staging is a separate call from applying.
+type StageLANInput struct {
+	Body core.LANConfig
+}
+
+// StageHandoutInput is the address handout, expressed in addresses rather
+// than in the offsets the device stores (D-44).
+type StageHandoutInput struct {
+	Body core.HandoutConfig
+}
+
+// StageReservationInput pins one address to one device.
+type StageReservationInput struct {
+	Body core.ReservationConfig
+}
+
+// RemoveReservationInput names the entry to drop as the device reported it.
+// Addressing it by hardware address instead would race with a draft that
+// already changed that address.
+type RemoveReservationInput struct {
+	ID string `path:"id" doc:"Reservation entry as reported by GET /network/lan"`
 }
 
 // StageWANInput is a requested uplink configuration. Staging is deliberately
