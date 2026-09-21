@@ -7,7 +7,6 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { isAuthed } from '@/api/client'
 import AppShell from '@/components/AppShell.vue'
-import VbIconSprite from '@/components/VbIconSprite.vue'
 import { elementLocale } from '@/i18n'
 
 const route = useRoute()
@@ -21,9 +20,6 @@ const elLocale = computed(() => elementLocale(locale.value))
 
 <template>
   <el-config-provider :locale="elLocale">
-    <!-- The icon sprite is mounted once for the whole panel; every icon is a
-         <use> reference into it. -->
-    <VbIconSprite />
     <AppShell v-if="inShell" />
     <div v-else class="vb-bare">
       <router-view />

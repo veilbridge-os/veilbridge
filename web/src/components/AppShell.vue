@@ -394,7 +394,9 @@ const activePath = computed(() => route.path)
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  padding: 9px 12px;
+  /* Мерки артборда каркаса: высота 44 при отступах 0 10, а не 38 при 9/12. */
+  height: 44px;
+  padding: 0 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -431,7 +433,10 @@ const activePath = computed(() => route.path)
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 20px;
+  /* 64 при отступах 0 20 — в артборде шапка ровно такая; у нас она была 82,
+     потому что поле поиска переносилось в две строки. */
+  height: 64px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--el-border-color-light);
   background: var(--el-bg-color);
 }
@@ -454,14 +459,23 @@ const activePath = computed(() => route.path)
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1;
+  flex: 1 1 420px;
   max-width: 420px;
-  padding: 7px 12px;
+  /* Одна строка, 40 в высоту, на фоне поверхности — как в артборде. Раньше
+     подпись и подсказка переносились, поле вырастало до 57 и тянуло за собой
+     всю шапку. */
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
-  background: var(--el-fill-color-blank);
+  background: var(--el-fill-color-light);
   color: var(--el-text-color-placeholder);
+  white-space: nowrap;
   cursor: text;
+}
+.vb-head__search > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .vb-head__search kbd {
   margin-left: auto;
