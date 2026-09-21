@@ -597,29 +597,8 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
 .vb-wan__btnico {
   margin-right: 6px;
 }
-.vb-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 28px;
-  margin: 0;
-}
-.vb-facts__i {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.vb-facts dt {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--vb-muted);
-}
-.vb-facts dd {
-  margin: 0;
-  font-size: 14px;
-}
+/* `.vb-facts` no longer lives here: it is a shared block of the mockups
+   (`.facts` in vb.css) and belongs to the token layer, styles/tokens.css. */
 .vb-wan__missing {
   color: var(--el-color-warning);
 }

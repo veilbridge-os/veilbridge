@@ -19,6 +19,13 @@ export type ApplyState = components['schemas']['ApplyState']
 export type NetworkInterface = components['schemas']['NetworkInterface']
 export type WANStatus = components['schemas']['WANStatus']
 export type WANConfig = components['schemas']['WANConfig']
+export type LANStatus = components['schemas']['LANStatus']
+export type LANConfig = components['schemas']['LANConfig']
+export type HandoutConfig = components['schemas']['HandoutConfig']
+export type ReservationConfig = components['schemas']['ReservationConfig']
+export type AddressHandout = components['schemas']['AddressHandout']
+export type AddressLease = components['schemas']['AddressLease']
+export type ReservedAddress = components['schemas']['ReservedAddress']
 export type ConfigChange = components['schemas']['ConfigChange']
 export type MetricSample = components['schemas']['Sample']
 
@@ -135,6 +142,17 @@ export const api = {
   // the way down to uci (internal/adapters/openwrt/network_write.go), which is
   // what makes editing the uplink survivable.
   stageWAN: (cfg: WANConfig) => request<StagedChanges>('PUT', '/network/wan', cfg),
+  // The local network, staged the same way and in three pieces, because the
+  // device refuses them for three different reasons: the router's own address
+  // can strand the pool, the pool can fall outside the network, and a
+  // reservation can point anywhere. One endpoint per decision keeps a refusal
+  // attached to the decision that caused it.
+  stageLAN: (cfg: LANConfig) => request<StagedChanges>('PUT', '/network/lan', cfg),
+  stageHandout: (cfg: HandoutConfig) => request<StagedChanges>('PUT', '/network/lan/handout', cfg),
+  stageReservation: (cfg: ReservationConfig) =>
+    request<StagedChanges>('PUT', '/network/lan/reservations', cfg),
+  removeReservation: (id: string) =>
+    request<StagedChanges>('DELETE', `/network/lan/reservations/${encodeURIComponent(id)}`),
   stagedChanges: () => request<StagedChanges>('GET', '/apply/changes'),
   discardStaged: () => request<void>('DELETE', '/apply/changes'),
 
@@ -145,6 +163,19 @@ export const api = {
   async wan(): Promise<WANStatus | null> {
     try {
       return await request<WANStatus>('GET', '/network/wan')
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }
+  },
+
+  // 404 means "this device has no local network", which is a state of the
+  // hardware; 501 means "this platform cannot read one", which is a state of
+  // our own code. They are different sentences to the operator, so only the
+  // first is folded into a value here and the second is left to throw.
+  async lan(): Promise<LANStatus | null> {
+    try {
+      return await request<LANStatus>('GET', '/network/lan')
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) return null
       throw e

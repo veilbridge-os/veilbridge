@@ -210,7 +210,21 @@ const en = {
       password: 'Provider password',
     },
     firewall: { section: 'Firewall rule' },
-    dhcp: { section: 'Address handout' },
+    // The local network keeps two different things in one configuration, so
+    // the handout and a device's reserved address are named apart.
+    dhcp: {
+      section: 'Address handout',
+      start: 'First address handed out',
+      limit: 'Last address handed out',
+      leasetime: 'How long an address is given for',
+      ignore: 'Hand out addresses on the local network',
+      host: {
+        section: 'Reserved address',
+        mac: 'Device',
+        ip: 'Reserved address',
+        name: 'Device name',
+      },
+    },
     wireless: { section: 'Wi-Fi network' },
   },
   wan: {
@@ -291,6 +305,92 @@ const en = {
       'A new draft cannot be saved until you confirm the link is up, or until the settings come back by themselves. The form is locked and your values are kept.',
     saved: 'Draft saved — nothing has changed on the device yet',
     dnsPlaceholder: '203.0.113.1',
+  },
+  lan: {
+    title: 'Local network',
+    handingOut: 'handing out addresses',
+    handoutOff: 'not handing out addresses',
+    draftPending: 'draft: {n} change | draft: {n} change | draft: {n} changes',
+    draftEmpty: 'draft is empty',
+    pinByHand: 'Pin an address by hand',
+    unsupported: 'The panel cannot read the local network on this platform',
+    unsupportedHint:
+      'This is a limit of the panel, not of the device: this part is only written for OpenWrt so far.',
+    none: 'There is no local network on this device',
+    noneHint:
+      'A gateway with a single interface looks like this. Nothing is broken — there is simply nothing to hand addresses out to.',
+    summaryOn:
+      'The router hands out addresses — {n} device in the network | The router hands out addresses — {n} device in the network | The router hands out addresses — {n} devices in the network',
+    summaryOff: 'The router does not hand out addresses here',
+    // Never a green tick on its own: the claim "it works" is backed by an
+    // address that was actually handed out, and when there is no such
+    // evidence the screen says so instead (D-5, NFR-5).
+    proofIssued:
+      'Last address handed out {ago} to {mac} — the handout works, not just switched on.',
+    proofNoClients:
+      'The handout is on, and nothing has asked for an address yet — so there is nothing here to prove it works.',
+    proofUnknown:
+      'The handout is on. How long ago the last address was given cannot be worked out from what the device reports.',
+    proofOff:
+      'Devices here have to be given an address by hand, or they will not reach the network.',
+    routerHere: 'Router address here',
+    pool: 'Hands out addresses',
+    leaseTime: 'Address is given for',
+    onlineNow: 'In the network now',
+    pinnedCount: 'Pinned by hand',
+    nDevices: '{n} device | {n} device | {n} devices',
+    nAddresses: '{n} address | {n} address | {n} addresses',
+    devices: 'Devices in the network',
+    devicesCount: '{online} now · {pinned} with a pinned address',
+    devicesHint:
+      'A device announces its own name and often announces none, so a row has to read without it. A pinned address is a property of the row, not a second list.',
+    noDevices: 'No device has asked for an address yet',
+    noDevicesHint:
+      'This is what an untouched network looks like, and also what one looks like when every device is configured by hand.',
+    device: 'Device',
+    address: 'Address',
+    netmask: 'Network mask',
+    hardware: 'Hardware address',
+    leaseLeftCol: 'Address valid',
+    leaseLeft: '{d} left',
+    forever: 'permanently',
+    noName: 'no name announced',
+    pinned: 'pinned',
+    offline: 'not in the network',
+    pin: 'Pin this address',
+    unpin: 'Unpin',
+    handoutTitle: 'Address handout',
+    handoutSwitch: 'Hand out addresses',
+    handoutOnHint:
+      'Devices get an address by themselves as soon as they connect. This is what almost every home network wants.',
+    handoutOffHint:
+      'Every device will have to be given an address by hand. Pinned addresses stay, and the range below is kept for when you switch this back on.',
+    first: 'First address',
+    last: 'Last address',
+    lease1h: '1 hour',
+    lease12h: '12 hours',
+    lease24h: '24 hours',
+    poolHint:
+      'The range is given as two addresses rather than a start and a count: that is the same language it is shown in above. Pinned addresses may sit outside it.',
+    routerAddress: 'Router address in this network',
+    mayCutAccess: 'may cut access to the panel',
+    warnInside:
+      'You are in this very network. After applying, the panel opens at the new address and your device has to reconnect. If the link does not come back, the settings return by themselves in {sec} seconds.',
+    warnOutside:
+      'You are connected from outside this network, so your own access to the panel is not affected. Devices inside it will have to reconnect, and anything given a fixed address by hand will have to be changed.',
+    nameOptional: 'Name (optional)',
+    nameHint:
+      'The name is published to the whole network, so it is asked for here rather than taken from what the device called itself.',
+    macHint: 'Written on the device itself, or copied from the row above',
+    save: 'Save draft',
+    cancel: 'Cancel',
+    close: 'Close',
+    saved: 'Draft saved — nothing has changed on the device yet',
+    refused: 'The device refused the draft',
+    deviceSaid: 'the device answered: {detail}',
+    busyTitle: 'A previous change is still waiting for confirmation',
+    busyHint:
+      'A new draft cannot be saved until you confirm the link is up, or until the settings come back by themselves. The form is locked and your values are kept.',
   },
   routes: {
     addRule: 'Add rule',

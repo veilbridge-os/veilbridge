@@ -88,16 +88,18 @@ Measured on the reference device (Cudy WR3000S v1, OpenWrt 25.12.5, aarch64 — 
 RAM, 46 MB writable overlay). Numbers, not adjectives: this panel is stored on the
 device's flash and parsed by whatever phone the operator happens to hold.
 
-| What | Before on-demand imports | At M2.6 | + internet screen | Now (+ visual layer, icons) |
-| --- | --- | --- | --- | --- |
-| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | **659 kB (212 gzip)** |
-| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | **149 kB (22 gzip)** |
-| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | **874 kB** |
+| What | Before on-demand imports | At M2.6 | + internet screen | + visual layer, icons | Now (+ local network) |
+| --- | --- | --- | --- | --- | --- |
+| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | 659 kB (212 gzip) | **692 kB (220 gzip)** |
+| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | 149 kB (22 gzip) | **155 kB (23 gzip)** |
+| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | 874 kB | **946 kB** |
 
 The internet screen cost +34 kB of JS and +9 kB of CSS: it is the first screen
 with a form, so it pulls in the form, radio-group and skeleton components. The
 visual layer and the icon set cost another +16 kB of JS and +5 kB of CSS \u2014 the
-icons are Element Plus glyphs, imported per name, plus nine of our own. All of
+icons are Element Plus glyphs, imported per name, plus nine of our own. The local
+network screen cost +33 kB of JS and +6 kB of CSS: it is the first screen with
+a table, a switch and a dialog, so it pays for those components once. All of
 it is recorded rather than rounded away: the next screen that reuses these
 components should cost close to nothing, and if it does not, this table is
 where that shows up.

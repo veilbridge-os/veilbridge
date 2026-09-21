@@ -37,7 +37,7 @@ const NAV: NavItem[] = [
   { key: 'internet', path: '/internet', group: 'groupEgress', ready: true },
   { key: 'nodes', path: '/nodes', group: 'groupEgress', ready: true },
   { key: 'policies', path: '/policies', group: 'groupEgress', ready: false },
-  { key: 'network', path: '/network', group: 'groupLan', ready: false },
+  { key: 'network', path: '/network', group: 'groupLan', ready: true },
   { key: 'wifi', path: '/wifi', group: 'groupLan', needs: 'wifi', ready: false },
   { key: 'devices', path: '/devices', group: 'groupLan', ready: false },
   { key: 'rules', path: '/rules', group: 'groupRouting', ready: true },

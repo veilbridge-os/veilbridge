@@ -415,12 +415,13 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 	// shorter and correct.
 	before, after := map[string]string{}, map[string]string{}
 	for _, config := range configsOf(edits) {
-		if values, err := m.committedValues(ctx, config); err == nil {
+		want := keysOf(edits, config)
+		if values, err := m.committedValues(ctx, config, want); err == nil {
 			for k, v := range values {
 				before[k] = v
 			}
 		} // else: the "before" column is lost, the draft is not — see below.
-		if values, err := m.stagedValues(ctx, config); err == nil {
+		if values, err := m.stagedValues(ctx, config, want); err == nil {
 			for k, v := range values {
 				after[k] = v
 			}
@@ -436,6 +437,17 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 		uplink = wan.Interface.Name
 	}
 
+	// Reservations that the draft adds or removes as a whole. Their fields
+	// are folded into the one row that names the entry — see below.
+	wholeEntries := map[string]bool{}
+	for _, e := range edits {
+		if e.config == "dhcp" && e.option == "" &&
+			roleOf(e.config, e.section, firstNonEmpty(
+				after[e.key], before[e.key]), uplink) == roleHost {
+			wholeEntries[e.key] = true
+		}
+	}
+
 	// One row per key, in the order the device reported them. A key the draft
 	// no longer contains was removed, which reads as "→ nothing".
 	changes := make([]core.ConfigChange, 0, len(edits))
@@ -446,14 +458,41 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 		}
 		seen[e.key] = true
 
+		if wholeEntries[e.config+"."+e.section] && e.option != "" {
+			// A reservation that is appearing or disappearing as a whole is
+			// one thing to the operator — a device and the address kept for
+			// it — so it gets ONE row. Its individual fields would restate
+			// that same entry two more times, in worse words and under a
+			// label that repeats ("Reserved address" twice).
+			continue
+		}
+
 		from, to := before[e.key], after[e.key]
+		if e.option == "" {
+			// The line uci prints for the section ITSELF when a draft adds or
+			// drops a whole one. Its "value" is the section's TYPE, and
+			// printing that told the operator "Reserved address: → host" — a
+			// word out of the configuration file, in the one place the panel
+			// may not speak it (D-3).
+			if words := entryWords(e, after); words != "" && to != "" {
+				to = words
+			}
+			if words := entryWords(e, before); words != "" && from != "" {
+				from = words
+			}
+		}
 		if from == to {
 			// Staged back to what it already was. uci still lists it; showing
 			// it would ask the operator to confirm a change to nothing.
 			continue
 		}
 		secret := secretOption(e.option)
-		role := roleOf(e.config, e.section, after[e.config+"."+e.section], uplink)
+		// The type comes from whichever column still has the section: a
+		// draft that REMOVES one leaves nothing in the "after" view, and
+		// reading the type only from there made a removed reservation
+		// generic ("Address handout") at exactly the moment it matters.
+		role := roleOf(e.config, e.section, firstNonEmpty(
+			after[e.config+"."+e.section], before[e.config+"."+e.section]), uplink)
 		changes = append(changes, core.ConfigChange{
 			Label:     labelFor(e.config, role, e.option),
 			From:      redact(secret, from),
@@ -543,6 +582,79 @@ func parseStagedEdits(out string) []stagedEdit {
 	return edits
 }
 
+// entryWords describes a whole reservation in the panel's words, for the row
+// that says it is appearing or going away. Other configurations get nothing:
+// inventing a description of a section we have no words for would be worse
+// than leaving the column as the device put it.
+func entryWords(e stagedEdit, values map[string]string) string {
+	if e.config != "dhcp" || values[e.key+".mac"] == "" {
+		return ""
+	}
+	return reservationWords(core.ReservedAddress{
+		MAC:  values[e.key+".mac"],
+		IP:   values[e.key+".ip"],
+		Name: values[e.key+".name"],
+	})
+}
+
+// firstNonEmpty returns the first value that is set.
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// keysOf lists what a draft touches in one configuration: every key it edits,
+// plus the key of each section those keys live in (the section's own line,
+// which carries its type).
+//
+// It exists because the two names uci uses for the same section do not match
+// each other, which was measured on the reference router and not assumed:
+//
+//	uci changes → dhcp.cfg05fe63.ip='192.168.1.222'   (internal name)
+//	uci show    → dhcp.@host[0].ip='192.168.1.222'    (positional name)
+//
+// It happens for every ANONYMOUS section — the ones written as `config host`
+// with no name — both when the draft creates one and when it edits one that
+// was already on disk. A lookup by string therefore always missed, both
+// columns came back empty, the row looked like "changed to what it already
+// was" and was dropped: the panel said "draft is empty" while the device held
+// a staged reservation. An invisible draft is the worst kind on this product,
+// because the next apply commits it.
+func keysOf(edits []stagedEdit, config string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(k string) {
+		if k == "" || seen[k] {
+			return
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	for _, e := range edits {
+		if e.config != config {
+			continue
+		}
+		add(e.key)
+		add(e.config + "." + e.section)
+		if e.config == "dhcp" && e.option == "" {
+			// A whole entry appearing or disappearing: `uci changes` names
+			// the section and nothing else, so its fields have to be asked
+			// for by name or the row has nothing to describe the entry with
+			// — it would fall back to printing the section's TYPE. The names
+			// are the ones a reservation has; a section that turns out not to
+			// be one simply has no such keys and nothing is added.
+			for _, option := range []string{"mac", "ip", "name"} {
+				add(e.key + "." + option)
+			}
+		}
+	}
+	return out
+}
+
 // configsOf lists the configuration files a draft touches, once each and in a
 // stable order.
 func configsOf(edits []stagedEdit) []string {
@@ -581,7 +693,9 @@ func unquoteUCI(v string) string {
 // — the "after" column. This is the ordinary uci view, and the reason it is a
 // separate read is that the draft is the thing being described: no arithmetic
 // over `uci changes` lines can beat asking uci what the result is.
-func (m networkManager) stagedValues(ctx context.Context, config string) (map[string]string, error) {
+func (m networkManager) stagedValues(
+	ctx context.Context, config string, want []string,
+) (map[string]string, error) {
 	if !sectionNameRe.MatchString(config) {
 		return nil, fmt.Errorf("openwrt: %q is not a configuration name", config)
 	}
@@ -589,7 +703,44 @@ func (m networkManager) stagedValues(ctx context.Context, config string) (map[st
 	if err != nil {
 		return nil, fmt.Errorf("openwrt: read staged %s: %w", config, err)
 	}
-	return parseUCIShow(config, string(out)), nil
+	values := parseUCIShow(config, string(out))
+	for _, key := range missingKeys(values, want) {
+		if v, ok := m.getOne(ctx, "-q", "get", key); ok {
+			values[key] = v
+		}
+	}
+	return values, nil
+}
+
+// uciKeyRe bounds what may be handed to `uci get` as a key. These names come
+// out of `uci changes`, so they are the device's output and not ours, and the
+// positional form (`@host[0]`) never appears there — it is left out on
+// purpose rather than escaped.
+var uciKeyRe = regexp.MustCompile(`^[a-zA-Z0-9_]{1,32}(\.[a-zA-Z0-9_][a-zA-Z0-9_-]{0,63}){1,2}$`)
+
+// missingKeys lists the wanted keys a bulk read did not answer and that are
+// safe to ask for one at a time.
+func missingKeys(values map[string]string, want []string) []string {
+	var out []string
+	for _, key := range want {
+		if _, ok := values[key]; ok || !uciKeyRe.MatchString(key) {
+			continue
+		}
+		out = append(out, key)
+	}
+	return out
+}
+
+// getOne asks uci for a single key. A key that does not exist is not an
+// error here: a draft that CREATES a section has no committed value for it,
+// and "nothing" is the right answer for the "before" column — which is what
+// the missing map entry already says.
+func (m networkManager) getOne(ctx context.Context, args ...string) (string, bool) {
+	out, err := m.run(ctx, "uci", args...)
+	if err != nil {
+		return "", false
+	}
+	return unquoteUCI(strings.TrimSpace(string(out))), true
 }
 
 // committedPrefix starts the package name a configuration is read under when
@@ -613,7 +764,9 @@ const committedPrefix = "veilbridge_committed_"
 // /etc/config/network would put the PPPoE password in a second place on disk.
 // The link is created here in Go, so the adapter's allow-list of programs
 // stays exactly as short as it was.
-func (m networkManager) committedValues(ctx context.Context, config string) (map[string]string, error) {
+func (m networkManager) committedValues(
+	ctx context.Context, config string, want []string,
+) (map[string]string, error) {
 	if !sectionNameRe.MatchString(config) {
 		return nil, fmt.Errorf("openwrt: %q is not a configuration name", config)
 	}
@@ -637,7 +790,20 @@ func (m networkManager) committedValues(ctx context.Context, config string) (map
 	if err != nil {
 		return nil, fmt.Errorf("openwrt: read committed %s: %w", config, err)
 	}
-	return parseUCIShow(config, string(out)), nil
+	values := parseUCIShow(config, string(out))
+	// Same asymmetry as in stagedValues, and it matters more here: without
+	// this, an edit to an anonymous section that already existed would read
+	// "was nothing → 0" when it was really "1 → 0".
+	for _, key := range missingKeys(values, want) {
+		rest := strings.TrimPrefix(key, config+".")
+		if rest == key {
+			continue
+		}
+		if v, ok := m.getOne(ctx, "-q", "-c", linkDir, "get", alias+"."+rest); ok {
+			values[key] = v
+		}
+	}
+	return values, nil
 }
 
 // parseUCIShow reads `uci show` output and re-addresses it to the real

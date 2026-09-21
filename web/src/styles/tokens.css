@@ -291,3 +291,39 @@ h1 {
 .el-table td.el-table__cell {
   padding: 8px 0;
 }
+
+/* Сетка фактов — общий блок макетов (`.facts` в vb.css), а не приём одного
+   экрана: её используют «Интернет» и «Локальная сеть», и вторая копия в
+   scoped-стилях разошлась бы с первой незаметно. Замер артбордов: колонки
+   auto-fit от 146, промежутки 14/22, подпись 11/600 прописными, значение 16.
+   Значение было 14 в коде экрана 04 — это расхождение с макетом, снято здесь. */
+.vb-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(146px, 1fr));
+  gap: 14px 22px;
+  margin: 0;
+}
+.vb-facts__i {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vb-facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vb-muted);
+}
+.vb-facts dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+/* Адреса в сетке фактов — моноширинные и без насыщенности: их читают
+   посимвольно, а не бегло. */
+.vb-facts dd.vb-mono {
+  font-weight: 400;
+}

@@ -257,6 +257,7 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 			break
 		}
 	}
+	fresh := section == ""
 	if section == "" {
 		out, err := m.run(ctx, "uci", "add", "dhcp", "host")
 		if err != nil {
@@ -278,15 +279,47 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 			key: "name", value: cfg.Name, label: labelFor("dhcp", roleHost, "name"),
 		})
 	}
-	return m.stage(ctx, "dhcp", section, roleHost, sets)
+	changes, err := m.stage(ctx, "dhcp", section, roleHost, sets)
+	if err != nil || !fresh {
+		// An edit to an entry that already exists is described field by
+		// field: what changed is the field.
+		return changes, err
+	}
+	// A new entry is ONE thing to the person confirming it, and the path that
+	// reads the draft back off the device describes it that way too (M3.1a).
+	// Three rows here and one there would mean a reload changed the list
+	// under somebody halfway through reading it.
+	return []core.ConfigChange{{
+		Label: labelFor("dhcp", roleHost, ""),
+		To: reservationWords(core.ReservedAddress{
+			MAC: mac.String(), IP: ip.String(), Name: cfg.Name,
+		}),
+		Dangerous: dangerousConfig("dhcp"),
+		Detail:    "dhcp." + section,
+	}}, nil
 }
+
+// anonSectionRe is the OTHER name uci gives a section: a reservation written
+// as `config host` with no name has no name to give, so `uci show` prints its
+// position instead — `dhcp.@host[0]`. That is the id LANInfo reports, because
+// that is what the device said, and uci accepts it in commands just as
+// readily as a name.
+//
+// It is a separate pattern rather than a loosening of sectionNameRe, which
+// guards every other place a section name is pasted into a command.
+var anonSectionRe = regexp.MustCompile(`^@[a-zA-Z0-9_]{1,32}\[[0-9]{1,6}\]$`)
 
 // RemoveReservation stages the removal of one reservation.
 func (m networkManager) RemoveReservation(id string) ([]core.ConfigChange, error) {
 	if m.run == nil {
 		return nil, core.ErrNotImplemented
 	}
-	if !sectionNameRe.MatchString(id) {
+	// Both forms, because both are handed out: a reservation written by hand
+	// into /etc/config/dhcp usually has a name, and one the panel created has
+	// none. Refusing the nameless form meant a reservation the panel itself
+	// made could never be removed from the panel — measured on the reference
+	// router, which answered 400 to its own id.
+	if !sectionNameRe.MatchString(id) && !anonSectionRe.MatchString(id) {
 		return nil, fmt.Errorf("openwrt: %q is not an entry on this device", id)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)

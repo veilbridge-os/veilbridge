@@ -27,8 +27,22 @@ const { applyState, reachable, staged } = useLive()
 function labelOf(c: ConfigChange): string {
   const parts = (c.detail ?? '').split('.')
   if (parts.length < 2) return c.label
-  const key = parts.length >= 3 ? `diff.${parts[0]}.${parts.at(-1)}` : `diff.${parts[0]}.section`
+  const kind = roleIn(parts)
+  const key =
+    parts.length >= 3
+      ? `diff.${parts[0]}.${kind}${parts.at(-1)}`
+      : `diff.${parts[0]}.${kind}section`
   return te(key) ? t(key) : c.label
+}
+
+/** roleIn says what KIND of thing a section is, for the configuration where
+ * its name alone is not enough. In `dhcp` a section is the address handout
+ * when it is the local network's own, and a device's reserved address
+ * otherwise — the same rule the device applies when it names the row. Without
+ * it a reservation was announced to the operator as "Address handout", which
+ * is a different setting on the same screen. */
+function roleIn(parts: string[]): string {
+  return parts[0] === 'dhcp' && parts[1] !== 'lan' ? 'host.' : ''
 }
 
 /** valueOf does for a value what labelOf does for a name. The device stores a

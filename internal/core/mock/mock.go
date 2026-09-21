@@ -192,6 +192,38 @@ func (m Network) WANInfo() (core.WANStatus, error) {
 	}, nil
 }
 
+// LANInfo describes a plausible home network: a handout that is on, four
+// clients and two addresses pinned by hand. It exists so the local-network
+// screen can be seen and photographed without a router underneath — and so
+// that the states worth looking at are present rather than convenient: one
+// client announces no name, and one pinned device is not connected at all.
+//
+// Hardware addresses are locally administered (the `02:` prefix), which no
+// vendor owns, so a demo screenshot cannot show anybody's real equipment.
+//
+// Writing is NOT implemented here, exactly as it is not for the uplink: the
+// demo adapter reads, and the apply transaction belongs to a real device.
+func (m Network) LANInfo() (core.LANStatus, error) {
+	ifaces, _ := m.Interfaces()
+	return core.LANStatus{
+		Interface: ifaces[0],
+		Handout: core.AddressHandout{
+			Enabled: true, First: "192.168.1.100", Last: "192.168.1.249",
+			LeaseSeconds: 43200,
+		},
+		Leases: []core.AddressLease{
+			{MAC: "02:1a:a6:05:d4:9c", IP: "192.168.1.222", Hostname: "workshop-laptop", ExpiresSec: 42840},
+			{MAC: "02:44:fd:18:0b:71", IP: "192.168.1.50", Hostname: "printer", ExpiresSec: 40100},
+			{MAC: "02:0d:33:7a:55:c2", IP: "192.168.1.187", ExpiresSec: 30600},
+			{MAC: "02:27:eb:4c:90:1e", IP: "192.168.1.60", Hostname: "storage", ExpiresSec: 12000},
+		},
+		Reserved: []core.ReservedAddress{
+			{MAC: "02:44:fd:18:0b:71", IP: "192.168.1.50", Name: "printer", ID: "cfg01host"},
+			{MAC: "02:27:eb:4c:90:1e", IP: "192.168.1.60", Name: "storage", ID: "cfg02host"},
+		},
+	}, nil
+}
+
 // Device is a roadmap stub: every method returns core.ErrNotImplemented.
 type Device struct{}
 
@@ -315,6 +347,7 @@ var (
 	_ core.RoutingManager  = (*Routing)(nil)
 	_ core.SystemManager   = System{}
 	_ core.NetworkManager  = Network{}
+	_ core.LANReader       = Network{}
 	_ core.DeviceManager   = Device{}
 	_ core.Adapter         = (*Adapter)(nil)
 	_ core.CapabilityProbe = (*Adapter)(nil)

@@ -32,6 +32,17 @@ type recordingRunner struct {
 	// "interface" for network and "host" for a reservation in dhcp; getting
 	// it wrong here would let a parser that ignores section types pass.
 	sectionType string
+	// anonymous maps a section's internal name to the positional name `uci
+	// show` prints for it, e.g. "cfg05fe63" → "@host[0]".
+	//
+	// The real uci is NOT consistent here, and a fake that is lets the defect
+	// through: `uci changes` prints the internal name, `uci show` prints the
+	// positional one, and `uci get` answers to either. Measured on the
+	// reference router (25.12.5).
+	anonymous map[string]string
+	// addedName is what `uci add` answers with; empty means a plausible
+	// default. A test that needs the device to misbehave sets it.
+	addedName string
 }
 
 func (r *recordingRunner) run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -55,14 +66,43 @@ func (r *recordingRunner) run(_ context.Context, name string, args ...string) ([
 			b.WriteString(k + "='" + v + "'\n")
 		}
 		return []byte(b.String()), nil
+	case len(args) >= 3 && args[0] == "add":
+		// `uci add <config> <type>` prints the name it gave the new section
+		// — an internal one, because a section added this way has no name of
+		// its own. The fake answers the same way and remembers the section,
+		// so a later `show` reports it by position, exactly as uci does.
+		name := r.addedName
+		if name == "" {
+			name = "cfg05fe63"
+		}
+		if r.values == nil {
+			r.values = map[string]string{}
+		}
+		r.values[args[1]+"."+name] = args[2]
+		if r.anonymous == nil {
+			r.anonymous = map[string]string{}
+		}
+		r.anonymous[name] = "@" + args[2] + "[0]"
+		return []byte(name + "\n"), nil
+	case len(args) >= 5 && args[1] == "-c" && args[3] == "get":
+		// One key of the committed file, asked for by name. Answers from the
+		// on-disk map, and fails for a key that is not there — a section the
+		// draft creates has no committed value, and a fake that returned ""
+		// instead of an error would hide exactly that difference.
+		key := strings.Replace(args[4], committedPrefix, "", 1)
+		v, ok := r.committed[key]
+		if !ok {
+			return nil, errors.New("uci: Entry not found")
+		}
+		return []byte(v + "\n"), nil
 	case len(args) >= 5 && args[1] == "-c" && args[3] == "show":
 		// The committed read: values as they are on disk, answered under the
 		// package name the caller linked the file to.
-		return []byte(showLines(r.committed, args[4], r.sectionType)), nil
+		return []byte(showLinesAs(r.committed, args[4], r.sectionType, r.anonymous)), nil
 	case len(args) >= 3 && args[0] == "-q" && args[1] == "show":
 		// The ordinary read: values with the draft applied. `values` is the
 		// device's current view, which is what a draft produces.
-		return []byte(showLines(r.values, args[2], r.sectionType)), nil
+		return []byte(showLinesAs(r.values, args[2], r.sectionType, r.anonymous)), nil
 	}
 	return nil, nil
 }
@@ -76,6 +116,14 @@ func (r *recordingRunner) run(_ context.Context, name string, args ...string) ([
 //	  which carries no value and must not be mistaken for one;
 //	\u2022 a package that does not exist prints nothing at all.
 func showLines(values map[string]string, requested, sectionType string) string {
+	return showLinesAs(values, requested, sectionType, nil)
+}
+
+// showLinesAs is showLines with the positional renaming a real uci applies to
+// sections that have no name of their own.
+func showLinesAs(
+	values map[string]string, requested, sectionType string, anonymous map[string]string,
+) string {
 	if sectionType == "" {
 		sectionType = "interface"
 	}
@@ -87,14 +135,28 @@ func showLines(values map[string]string, requested, sectionType string) string {
 	sections := map[string]bool{}
 	for k := range values {
 		parts := strings.Split(k, ".")
-		if len(parts) >= 3 && parts[0] == config && !sections[parts[1]] {
-			sections[parts[1]] = true
-			b.WriteString(requested + "." + parts[1] + "=" + sectionType + "\n")
+		if len(parts) < 2 || parts[0] != config || sections[parts[1]] {
+			continue
 		}
+		sections[parts[1]] = true
+		// A section's type comes from the map when it is given there, so a
+		// fixture can hold sections of two types in one configuration.
+		kind := sectionType
+		if t, ok := values[config+"."+parts[1]]; ok {
+			kind = t
+		}
+		b.WriteString(requested + "." + shownName(anonymous, parts[1]) + "=" + kind + "\n")
 	}
 	for k, v := range values {
 		pkg, rest, ok := strings.Cut(k, ".")
 		if !ok || pkg != config {
+			continue
+		}
+		// A section's own line was printed above, once, in the name the
+		// device uses. Printing it again from the value map is how this fake
+		// used to hand the code the internal name for free — which the real
+		// uci never does, and which let the defect under test pass.
+		if !strings.Contains(rest, ".") {
 			continue
 		}
 		quoted := make([]string, 0, 2)
@@ -104,9 +166,21 @@ func showLines(values map[string]string, requested, sectionType string) string {
 		if len(quoted) == 0 {
 			quoted = append(quoted, "''")
 		}
+		section, option, hasOption := strings.Cut(rest, ".")
+		if hasOption {
+			rest = shownName(anonymous, section) + "." + option
+		}
 		b.WriteString(requested + "." + rest + "=" + strings.Join(quoted, " ") + "\n")
 	}
 	return b.String()
+}
+
+// shownName is the name `uci show` prints for a section.
+func shownName(anonymous map[string]string, section string) string {
+	if shown, ok := anonymous[section]; ok {
+		return shown
+	}
+	return section
 }
 
 // sets returns the key=value pairs the runner was asked to stage.
@@ -732,4 +806,237 @@ func configDirWith(t *testing.T, configs ...string) string {
 		}
 	}
 	return dir
+}
+
+// A draft that touches a section with no name of its own must still be
+// visible. uci calls such a section by its internal name in `uci changes`
+// (`dhcp.cfg05fe63`) and by its position in `uci show` (`dhcp.@host[0]`), so
+// matching the two by string always failed and the row was dropped as
+// "changed to what it already was".
+//
+// What that looked like on the reference router: the panel staged a
+// reservation, `uci changes` held three lines, and the panel said "draft is
+// empty". An unseen draft is worse than a wrong one — the next apply commits
+// it, under a watchdog nobody knew to watch.
+func TestADraftOnANamelessSectionIsNotInvisible(t *testing.T) {
+	r := &recordingRunner{
+		// With the draft applied: the reservation exists.
+		values: map[string]string{
+			"dhcp.cfg05fe63":     "host",
+			"dhcp.cfg05fe63.mac": "1a:a6:05:03:d4:9c",
+			"dhcp.cfg05fe63.ip":  "192.168.1.222",
+		},
+		// On disk: nothing. The draft creates the section.
+		committed:   map[string]string{},
+		sectionType: "host",
+		anonymous:   map[string]string{"cfg05fe63": "@host[0]"},
+		stagedLines: []string{
+			"dhcp.cfg05fe63='host'",
+			"dhcp.cfg05fe63.mac='1a:a6:05:03:d4:9c'",
+			"dhcp.cfg05fe63.ip='192.168.1.222'",
+		},
+	}
+	changes, err := (networkManager{run: r.run, configDir: t.TempDir()}).StagedChanges()
+	if err != nil {
+		t.Fatalf("staged: %v", err)
+	}
+	if len(changes) == 0 {
+		t.Fatal("the device holds a draft and the panel reports none")
+	}
+	// One row, not three: a reservation appearing is ONE thing to the person
+	// reading it — a device and the address kept for it.
+	if len(changes) != 1 {
+		t.Fatalf("got %d rows, want one entry: %+v", len(changes), changes)
+	}
+	row := changes[0]
+	if row.Detail != "dhcp.cfg05fe63" {
+		t.Errorf("row points at %q, want the entry itself", row.Detail)
+	}
+	// The section's own line is what says this is a reservation and not an
+	// interface, and it is asked for under the same name as the rest.
+	// Asserted by the words themselves: comparing against "not the generic
+	// label" let the section key quietly drop out of the lookup, because
+	// "Local network setting" is what BOTH a lost role and an unknown option
+	// produce.
+	if row.Label != "Reserved address" {
+		t.Errorf("row is labelled %q, want %q", row.Label, "Reserved address")
+	}
+	if row.From != "" {
+		t.Errorf("row starts from %q, want nothing: the entry is new", row.From)
+	}
+	for _, want := range []string{"1a:a6:05:03:d4:9c", "192.168.1.222"} {
+		if !strings.Contains(row.To, want) {
+			t.Errorf("row reads %q, want it to name %q", row.To, want)
+		}
+	}
+	// The section TYPE is a word out of the configuration file, and the one
+	// place it must never appear is the list somebody reads before pressing
+	// apply (D-3).
+	if strings.Contains(row.To, "host") || strings.ContainsAny(row.Label, ".[@") {
+		t.Errorf("row speaks the configuration file: %+v", row)
+	}
+}
+
+// The same asymmetry on a section that ALREADY existed: here the "before"
+// column is the one at risk, and getting it wrong states a falsehood —
+// "was nothing" about a value that was there all along.
+func TestTheBeforeColumnSurvivesANamelessSection(t *testing.T) {
+	r := &recordingRunner{
+		values: map[string]string{
+			"dhcp.cfg01411c":             "dnsmasq",
+			"dhcp.cfg01411c.expandhosts": "0",
+		},
+		committed: map[string]string{
+			"dhcp.cfg01411c":             "dnsmasq",
+			"dhcp.cfg01411c.expandhosts": "1",
+		},
+		sectionType: "dnsmasq",
+		anonymous:   map[string]string{"cfg01411c": "@dnsmasq[0]"},
+		stagedLines: []string{"dhcp.cfg01411c.expandhosts='0'"},
+	}
+	changes, err := (networkManager{run: r.run, configDir: t.TempDir()}).StagedChanges()
+	if err != nil {
+		t.Fatalf("staged: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("got %d rows, want 1: %+v", len(changes), changes)
+	}
+	if changes[0].From != "1" || changes[0].To != "0" {
+		t.Errorf("row reads as %q → %q, want 1 → 0", changes[0].From, changes[0].To)
+	}
+}
+
+// Moving an address that is already reserved: the draft touches ONE option of
+// a nameless section it did not create, so the section's own line is not in
+// `uci changes` at all. Without asking for that line the diff cannot know the
+// section is a reservation, and the row degrades from "Reserved address" to
+// "Local network setting" — the generic words, which is how the panel starts
+// speaking about configuration files instead of about the network (D-3).
+func TestRepinningANamelessReservationKeepsItsWords(t *testing.T) {
+	r := &recordingRunner{
+		values: map[string]string{
+			"dhcp.cfg05fe63":     "host",
+			"dhcp.cfg05fe63.mac": "1a:a6:05:03:d4:9c",
+			"dhcp.cfg05fe63.ip":  "192.168.1.30",
+		},
+		committed: map[string]string{
+			"dhcp.cfg05fe63":     "host",
+			"dhcp.cfg05fe63.mac": "1a:a6:05:03:d4:9c",
+			"dhcp.cfg05fe63.ip":  "192.168.1.222",
+		},
+		sectionType: "host",
+		anonymous:   map[string]string{"cfg05fe63": "@host[0]"},
+		// Only the option. The section already exists on disk.
+		stagedLines: []string{"dhcp.cfg05fe63.ip='192.168.1.30'"},
+	}
+	changes, err := (networkManager{run: r.run, configDir: t.TempDir()}).StagedChanges()
+	if err != nil {
+		t.Fatalf("staged: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("got %d rows, want 1: %+v", len(changes), changes)
+	}
+	if changes[0].Label != "Reserved address" {
+		t.Errorf("row is labelled %q, want %q", changes[0].Label, "Reserved address")
+	}
+	if changes[0].From != "192.168.1.222" || changes[0].To != "192.168.1.30" {
+		t.Errorf("row reads %q → %q, want 192.168.1.222 → 192.168.1.30",
+			changes[0].From, changes[0].To)
+	}
+}
+
+// The keys resolved one at a time come out of `uci changes`, which is the
+// device's output and not ours: a key is only asked for when it has the plain
+// shape uci prints for a named section. Anything else is left to the bulk
+// read rather than pasted into a command's arguments.
+//
+// The draft around it must still be shown: refusing to look up one odd key is
+// not a reason to hide the rest of what is about to be applied.
+func TestOnlyPlainKeysAreAskedForOneAtATime(t *testing.T) {
+	odd := []string{
+		"dhcp.@host[0].ip",  // positional: the bulk read already answers it
+		"dhcp.-c.ip",        // would read as a flag
+		"dhcp.a b.ip",       // a space
+		"dhcp.a'b.ip",       // a quote
+		"network.wan.ip.ip", // too deep to be a key
+	}
+	var lines []string
+	for _, k := range odd {
+		lines = append(lines, k+"='192.0.2.1'")
+	}
+	lines = append(lines, "network.wan.proto='static'")
+
+	r := &recordingRunner{
+		values:      map[string]string{"network.wan": "interface", "network.wan.proto": "static"},
+		committed:   map[string]string{"network.wan": "interface", "network.wan.proto": "dhcp"},
+		stagedLines: lines,
+	}
+	changes, err := (networkManager{run: r.run, configDir: t.TempDir()}).StagedChanges()
+	if err != nil {
+		t.Fatalf("staged: %v", err)
+	}
+	for _, call := range r.calls {
+		for _, arg := range call {
+			for _, k := range odd {
+				if strings.Contains(arg, k) {
+					t.Errorf("%q reached a command: %v", k, call)
+				}
+			}
+		}
+	}
+	var sawProto bool
+	for _, c := range changes {
+		if c.Detail == "network.wan.proto" && c.From == "dhcp" && c.To == "static" {
+			sawProto = true
+		}
+	}
+	if !sawProto {
+		t.Errorf("the rest of the draft was lost: %+v", changes)
+	}
+}
+
+// A staged REMOVAL of a reservation, as the device reports it after a reload.
+// There are no fields left to describe the entry — the draft deleted them —
+// so the one row has to name it from what is still on disk. Printing what uci
+// puts on that line instead would read "Reserved address: host → nothing".
+func TestARemovedReservationIsNamedNotTyped(t *testing.T) {
+	r := &recordingRunner{
+		// With the draft applied the entry is gone from the device's view.
+		values: map[string]string{},
+		committed: map[string]string{
+			"dhcp.cfg05fe63":      "host",
+			"dhcp.cfg05fe63.mac":  "1a:a6:05:03:d4:9c",
+			"dhcp.cfg05fe63.ip":   "192.168.1.222",
+			"dhcp.cfg05fe63.name": "workshop",
+		},
+		sectionType: "host",
+		anonymous:   map[string]string{"cfg05fe63": "@host[0]"},
+		stagedLines: []string{"-dhcp.cfg05fe63"},
+	}
+	changes, err := (networkManager{run: r.run, configDir: t.TempDir()}).StagedChanges()
+	if err != nil {
+		t.Fatalf("staged: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("got %d rows, want one: %+v", len(changes), changes)
+	}
+	row := changes[0]
+	if row.To != "" {
+		t.Errorf("row ends at %q, want nothing: the entry is being removed", row.To)
+	}
+	for _, want := range []string{"workshop", "1a:a6:05:03:d4:9c", "192.168.1.222"} {
+		if !strings.Contains(row.From, want) {
+			t.Errorf("row reads %q, want it to name %q", row.From, want)
+		}
+	}
+	if row.From == "host" {
+		t.Errorf("the entry is described by its configuration type: %+v", row)
+	}
+	// And it is still called a reservation. The type that says so is gone
+	// from the staged view — the draft removed the section — so reading it
+	// only from there degrades the row to the generic words for the file at
+	// the one moment the operator is about to delete something.
+	if row.Label != "Reserved address" {
+		t.Errorf("row is labelled %q, want %q", row.Label, "Reserved address")
+	}
 }

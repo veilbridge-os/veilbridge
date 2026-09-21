@@ -10,6 +10,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { isAuthed } from '@/api/client'
 import { i18n } from '@/i18n'
 import Dashboard from '@/views/Dashboard.vue'
+import Lan from '@/views/Lan.vue'
 import Login from '@/views/Login.vue'
 import Nodes from '@/views/Nodes.vue'
 import Routes from '@/views/Routes.vue'
@@ -22,6 +23,7 @@ const router = createRouter({
     { path: '/login', component: Login },
     { path: '/', component: Dashboard, meta: { auth: true } },
     { path: '/internet', component: Wan, meta: { auth: true } },
+    { path: '/network', component: Lan, meta: { auth: true } },
     { path: '/nodes', component: Nodes, meta: { auth: true } },
     { path: '/routes', component: Routes, meta: { auth: true } },
   ],
