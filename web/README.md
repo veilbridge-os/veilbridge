@@ -88,17 +88,19 @@ Measured on the reference device (Cudy WR3000S v1, OpenWrt 25.12.5, aarch64 — 
 RAM, 46 MB writable overlay). Numbers, not adjectives: this panel is stored on the
 device's flash and parsed by whatever phone the operator happens to hold.
 
-| What | Before on-demand imports | At M2.6 | Now (M3.4, + the internet screen) |
-| --- | --- | --- | --- |
-| JS bundle | 1 156 kB (366 kB gzip) | 609 kB (198 kB gzip) | **643 kB (207 kB gzip)** |
-| CSS bundle | 368 kB (49 kB gzip) | 135 kB (19 kB gzip) | **144 kB (21 kB gzip)** |
-| UI's contribution to the binary | ~1.5 MB | 873 kB | **876 kB** |
+| What | Before on-demand imports | At M2.6 | + internet screen | Now (+ visual layer, icons) |
+| --- | --- | --- | --- | --- |
+| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | **659 kB (212 gzip)** |
+| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | **149 kB (22 gzip)** |
+| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | **874 kB** |
 
-The internet screen (M3.4) cost +34 kB of JS and +9 kB of CSS: it is the first
-screen with a form, so it pulls in the form, radio-group, descriptions and
-skeleton components. Recorded rather than rounded away \u2014 the next screen that
-reuses those components should cost close to nothing, and if it does not, this
-row is where that shows up.
+The internet screen cost +34 kB of JS and +9 kB of CSS: it is the first screen
+with a form, so it pulls in the form, radio-group and skeleton components. The
+visual layer and the icon set cost another +16 kB of JS and +5 kB of CSS \u2014 the
+icons are Element Plus glyphs, imported per name, plus nine of our own. All of
+it is recorded rather than rounded away: the next screen that reuses these
+components should cost close to nothing, and if it does not, this table is
+where that shows up.
 
 Element Plus is registered per component (`unplugin-vue-components`) rather than
 globally: the global registration shipped every component the panel never renders.
