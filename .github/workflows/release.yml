@@ -47,11 +47,39 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Resolve version
+      - name: Resolve version and release channel
         id: version
         env:
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: echo "version=$TAG" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          # The tag becomes the package version on two package managers, and
+          # they disagree about pre-release syntax: nfpm maps v0.2.0-alpha.1 to
+          # 0.2.0_alpha.1 for apk, which apk-tools 3 rejects as an invalid
+          # version (measured on OpenWrt 25.12.5). v0.2.0-alpha1 maps to
+          # 0.2.0_alpha1 (apk) and 0.2.0~alpha1 (opkg), and both order it after
+          # 0.1.x and before 0.2.0. See RELEASING.md.
+          if ! printf '%s' "$TAG" | grep -Eq \
+            '^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)[1-9][0-9]*)?$'; then
+            echo "::error::tag '$TAG' is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc)N"
+            exit 1
+          fi
+          case "$TAG" in
+            *-*) prerelease=true latest=false ;;
+            *) prerelease=false latest=true ;;
+          esac
+          notes="docs/release-notes/$TAG.md"
+          if [ ! -s "$notes" ]; then
+            echo "::error::missing $notes - every release ships written notes"
+            exit 1
+          fi
+          {
+            echo "version=$TAG"
+            echo "prerelease=$prerelease"
+            echo "latest=$latest"
+            echo "notes=$notes"
+          } >> "$GITHUB_OUTPUT"
+          echo "$TAG: prerelease=$prerelease, notes=$notes"
 
       - name: Build frontend (populates the embedded dist)
         run: |
@@ -184,6 +212,12 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
+          body_path: ${{ steps.version.outputs.notes }}
+          # A pre-release must never become "latest": install.sh and the README
+          # download from releases/latest, so that would ship an alpha to
+          # everyone who runs the one-line installer.
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          make_latest: ${{ steps.version.outputs.latest }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
