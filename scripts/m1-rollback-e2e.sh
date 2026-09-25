@@ -46,6 +46,9 @@
 #                   break: the daemon still dies with the link down, which is
 #                   the property under test.
 #   VB_KILL_DELAY   seconds before the scheduled kill fires    (default: 25)
+#   VB_OUTSIDE      address the target must reach after a revert (default:
+#                   1.1.1.1). Skipped with a note if it was not reachable
+#                   before the break either — an offline lab is not a failure.
 #
 # Exit code 0 only if every assertion held. Anything else means M1 is not done.
 set -uo pipefail
@@ -58,6 +61,7 @@ WINDOW="${VB_WINDOW:-60}"
 SCENARIO="${VB_SCENARIO:-both}"
 RESCUE_SSH="${VB_RESCUE_SSH:-}"
 KILL_DELAY="${VB_KILL_DELAY:-25}"
+OUTSIDE="${VB_OUTSIDE:-1.1.1.1}"
 # Scenario B's window. Short on purpose: it is the cost of a failed kill, paid
 # in lockout time. It only has to outlast the observation budget below.
 WINDOW_B="${VB_WINDOW_B:-180}"
@@ -158,6 +162,33 @@ STAGED=$(on_target "uci changes" | wc -l | tr -d ' ')
 [ "$STAGED" = "0" ] || { bad "the target already has $STAGED staged uci changes — clean them first"; exit 1; }
 ok "no staged uci changes on the target"
 
+# The configuration coming back byte for byte is not the same as the device
+# working again (#39). On the reference router the kernel once had no default
+# route while netifd still listed one — the configuration was fine and the
+# router could not reach anything. So the gate also records what is LIVE: the
+# default route (only `via` and `dev`, which a DHCP renewal does not change)
+# and whether an outside address answers.
+route_now() {
+	on_target "ip -4 route show default" 2>/dev/null |
+		awk '{ for (i = 1; i <= NF; i++) if ($i == "via" || $i == "dev") printf "%s %s ", $i, $(i + 1); print "" }' |
+		sed 's/ *$//' | sort
+}
+outside_ok() { on_target "ping -c 1 -W 3 $OUTSIDE" >/dev/null 2>&1; }
+
+ROUTE_BEFORE=$(route_now)
+[ -n "$ROUTE_BEFORE" ] || {
+	bad "the target has no default route before the break — the gate could not tell a broken revert from this"
+	exit 1
+}
+ok "default route before the break: $ROUTE_BEFORE"
+if outside_ok; then
+	OUTSIDE_BEFORE=1
+	ok "the target reaches $OUTSIDE"
+else
+	OUTSIDE_BEFORE=0
+	info "the target does not reach $OUTSIDE even now; that check is skipped"
+fi
+
 # --- helpers shared by both scenarios -------------------------------------
 
 stage_break() {
@@ -227,6 +258,30 @@ assert_restored() {
 		ok "no staged changes left behind"
 	else
 		bad "$staged staged uci changes survived the revert — the next commit would re-apply the break"
+	fi
+
+	# netifd restores the route after the configuration, and on DHCP only once
+	# a lease is back: give it the time a person would.
+	local route="" waited=0
+	while [ "$waited" -lt 30 ]; do
+		route=$(route_now)
+		[ "$route" = "$ROUTE_BEFORE" ] && break
+		sleep 2
+		waited=$((waited + 2))
+	done
+	if [ "$route" = "$ROUTE_BEFORE" ]; then
+		ok "the default route is back ($route)"
+	else
+		bad "the default route did NOT come back — the configuration is restored and the device still cannot route"
+		info "before: $ROUTE_BEFORE"
+		info "now:    ${route:-none}"
+	fi
+	if [ "$OUTSIDE_BEFORE" = "1" ]; then
+		if outside_ok; then
+			ok "the target reaches $OUTSIDE again"
+		else
+			bad "the target no longer reaches $OUTSIDE after the revert"
+		fi
 	fi
 }
 

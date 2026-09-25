@@ -91,7 +91,10 @@ The risk gate for the apply transaction: it stages a change that cuts the
 panel's own management link through the product API and proves the device
 comes back by itself — once by staying silent past the confirmation window,
 once by killing the daemon inside it so recovery has to come from the on-disk
-journal. Usage and environment are documented at the top of the script. Run it
+journal. After each revert it checks what is live, not only what is written:
+the configuration is byte-identical, nothing is left staged, the default route
+is back and the device reaches an outside address again. Usage and environment
+are documented at the top of the script. Run it
 on a VM first and then on a physical router: a VM always has a hypervisor
 console, which is exactly what hides a rollback that does not work.
 
