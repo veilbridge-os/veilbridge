@@ -557,6 +557,8 @@ export interface components {
             detail?: string;
             from: string;
             label: string;
+            /** @description Stable key of the label, for translating it in the UI (e.g. network.uplink.proto). The set of keys is fixed by the device; empty when there are no words for this setting yet and label is all there is. */
+            labelKey?: string;
             to: string;
         };
         DiagnosticsOutputBody: {

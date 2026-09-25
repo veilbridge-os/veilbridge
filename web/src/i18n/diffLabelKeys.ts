@@ -1,0 +1,37 @@
+// Generated from internal/adapters/openwrt (LabelKeys). Do not edit by hand:
+//   VB_UPDATE_GOLDEN=1 go test ./internal/adapters/openwrt/ -run TestDiffLabelKeysFileIsCurrent
+// Every key the device can send as `labelKey`. check.ts makes the build fail
+// when one of them has no translation under `diff` in a locale bundle.
+export const DIFF_LABEL_KEYS = [
+  'dhcp.host.ip',
+  'dhcp.host.mac',
+  'dhcp.host.name',
+  'dhcp.host.section',
+  'dhcp.lan.ignore',
+  'dhcp.lan.leasetime',
+  'dhcp.lan.limit',
+  'dhcp.lan.start',
+  'dhcp.section',
+  'dhcp.setting',
+  'firewall.section',
+  'firewall.setting',
+  'network.lan.dns',
+  'network.lan.ipaddr',
+  'network.lan.netmask',
+  'network.lan.proto',
+  'network.section',
+  'network.setting',
+  'network.uplink.dns',
+  'network.uplink.gateway',
+  'network.uplink.ipaddr',
+  'network.uplink.netmask',
+  'network.uplink.password',
+  'network.uplink.peerdns',
+  'network.uplink.proto',
+  'network.uplink.username',
+  'section',
+  'setting',
+  'system.setting',
+  'wireless.section',
+  'wireless.setting',
+] as const

@@ -162,6 +162,9 @@ components:
           type: string
         label:
           type: string
+        labelKey:
+          description: Stable key of the label, for translating it in the UI (e.g. network.uplink.proto). The set of keys is fixed by the device; empty when there are no words for this setting yet and label is all there is.
+          type: string
         to:
           type: string
       required:

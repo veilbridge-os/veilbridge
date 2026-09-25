@@ -43,4 +43,9 @@ hardware:
    is read both when an edit is staged and when a draft is read back off the
    device. The role matters: `ipaddr` on the uplink is the address a provider
    handed us, and the same key on the local network is this router's own
-   address.
+   address. `describe` returns the English words together with their stable
+   key (`labelKey` in the API), and the panel translates only that key. Adding
+   a phrase means regenerating `web/src/i18n/diffLabelKeys.ts`
+   (`VB_UPDATE_GOLDEN=1 go test ./internal/adapters/openwrt/ -run
+   TestDiffLabelKeysFileIsCurrent`) and giving it words in every locale — the
+   panel does not build until it has them.

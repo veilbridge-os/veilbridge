@@ -97,6 +97,9 @@ part of CI. Without a router, `-demo` runs the panel anywhere.
   `web/src/api/schema.ts` matches the contract.
 - **i18n is type-safe.** UI strings live in `web/src/i18n/messages/*`; keys are
   checked against the English schema at compile time. Add keys to `en` first.
+  Rows of the "what will change" list are translated by the `labelKey` the
+  device sends; every key it can send is listed in the generated
+  `web/src/i18n/diffLabelKeys.ts`, and the build fails when one has no words.
 - **Secrets never reach the API.** Node private keys / PSKs live in `config` only;
   the API exposes the public `core.Node`. Keep it that way.
 - **Liveness is by egress, not by status code.** Path checks compare the tunnel

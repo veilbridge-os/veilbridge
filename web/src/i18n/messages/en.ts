@@ -193,31 +193,51 @@ const en = {
   // stable part of the configuration key. They exist here because the device
   // answers in English and the panel does not: see ApplyBar.labelOf.
   // Nested per configuration, not keyed by a dotted string: vue-i18n resolves
-  // `diff.network.proto` by walking the object, so a literal key with a dot in
+  // `diff.network.uplink.proto` by walking the object, so a literal key with a dot in
   // it is unreachable \u2014 measured on the device, where every label came back in
   // English because the lookup silently missed. `section` is the row for a
   // whole added or removed section.
   diff: {
+    // Keyed exactly like `labelKey` from the device: <config>.<role>.<option>,
+    // plus `section` for a whole entry and `setting` for a key the device has
+    // no words for. The panel no longer derives keys from `detail` (#27): it
+    // did not know roles, and showed a change to the LOCAL address as
+    // "Address on the internet side". check.ts fails the build when a key the
+    // device can send is missing here.
+    section: 'Configuration section',
+    setting: 'System setting',
     network: {
       section: 'Network connection',
-      proto: 'Connection type',
-      ipaddr: 'Address on the internet side',
-      netmask: 'Network mask',
-      gateway: 'Gateway',
-      dns: 'DNS servers',
-      peerdns: 'Use the provider\u2019s DNS servers',
-      username: 'Provider login',
-      password: 'Provider password',
+      setting: 'Network setting',
+      uplink: {
+        proto: 'Connection type',
+        ipaddr: 'Address on the internet side',
+        netmask: 'Network mask',
+        gateway: 'Gateway',
+        dns: 'DNS servers',
+        peerdns: 'Use the provider\u2019s DNS servers',
+        username: 'Provider login',
+        password: 'Provider password',
+      },
+      lan: {
+        proto: 'How the local network address is set',
+        ipaddr: 'Address of this router on the local network',
+        netmask: 'Local network mask',
+        dns: 'DNS servers for the local network',
+      },
     },
-    firewall: { section: 'Firewall rule' },
+    firewall: { section: 'Firewall rule', setting: 'Firewall setting' },
     // The local network keeps two different things in one configuration, so
     // the handout and a device's reserved address are named apart.
     dhcp: {
       section: 'Address handout',
-      start: 'First address handed out',
-      limit: 'Last address handed out',
-      leasetime: 'How long an address is given for',
-      ignore: 'Hand out addresses on the local network',
+      setting: 'Local network setting',
+      lan: {
+        start: 'First address handed out',
+        limit: 'Last address handed out',
+        leasetime: 'How long an address is given for',
+        ignore: 'Hand out addresses on the local network',
+      },
       host: {
         section: 'Reserved address',
         mac: 'Device',
@@ -225,7 +245,8 @@ const en = {
         name: 'Device name',
       },
     },
-    wireless: { section: 'Wi-Fi network' },
+    wireless: { section: 'Wi-Fi network', setting: 'Wi-Fi setting' },
+    system: { setting: 'Device setting' },
   },
   wan: {
     title: 'Internet',

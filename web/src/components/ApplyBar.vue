@@ -17,32 +17,16 @@ const { applyState, reachable, staged } = useLive()
 
 /** labelOf translates a staged change into the language of the interface.
  *
- * The device already names every change in words (M3.1a) \u2014 but in English,
- * because a daemon has no locale, and this panel ships in 13 languages. So the
- * words from the device are the fallback, and the translation is looked up by
- * the stable part of the technical key: `network.wan.proto` \u2192 `diff.network.proto`.
- *
- * Debt, recorded rather than hidden: the API should carry a key of its own
- * instead of making the panel derive one from `detail`. */
+ * The device names every change in English words (a daemon has no locale) and
+ * sends the stable key of that same phrase as `labelKey` (#27). The panel only
+ * translates the key; it no longer works out what a key means from `detail`.
+ * It used to, and it did not know roles: a change to the local network
+ * address was shown as "Address on the internet side". The device's own words
+ * remain the fallback for a key this build cannot translate, and check.ts
+ * makes that a build error for every key the device can send. */
 function labelOf(c: ConfigChange): string {
-  const parts = (c.detail ?? '').split('.')
-  if (parts.length < 2) return c.label
-  const kind = roleIn(parts)
-  const key =
-    parts.length >= 3
-      ? `diff.${parts[0]}.${kind}${parts.at(-1)}`
-      : `diff.${parts[0]}.${kind}section`
-  return te(key) ? t(key) : c.label
-}
-
-/** roleIn says what KIND of thing a section is, for the configuration where
- * its name alone is not enough. In `dhcp` a section is the address handout
- * when it is the local network's own, and a device's reserved address
- * otherwise — the same rule the device applies when it names the row. Without
- * it a reservation was announced to the operator as "Address handout", which
- * is a different setting on the same screen. */
-function roleIn(parts: string[]): string {
-  return parts[0] === 'dhcp' && parts[1] !== 'lan' ? 'host.' : ''
+  const key = `diff.${c.labelKey}`
+  return c.labelKey && te(key) ? t(key) : c.label
 }
 
 /** valueOf does for a value what labelOf does for a name. The device stores a
@@ -51,7 +35,7 @@ function roleIn(parts: string[]): string {
  * known enumerations are translated; an address stays exactly as measured. */
 function shownValue(c: ConfigChange, value: string): string {
   if (!value) return ''
-  const option = (c.detail ?? '').split('.').at(-1)
+  const option = (c.labelKey ?? '').split('.').at(-1)
   if (option === 'proto') {
     const key = `wan.proto${value.charAt(0).toUpperCase()}${value.slice(1)}`
     return te(key) ? t(key) : value

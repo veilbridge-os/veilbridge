@@ -53,9 +53,9 @@ func (m networkManager) StageLAN(cfg core.LANConfig) ([]core.ConfigChange, error
 	}
 
 	return m.stage(ctx, "network", lanSection, roleLAN, []wanSetting{
-		{key: "proto", value: "static", label: labelFor("network", roleLAN, "proto")},
-		{key: "ipaddr", value: cfg.Address, label: labelFor("network", roleLAN, "ipaddr")},
-		{key: "netmask", value: cfg.Netmask, label: labelFor("network", roleLAN, "netmask")},
+		{key: "proto", value: "static", label: describe("network", roleLAN, "proto")},
+		{key: "ipaddr", value: cfg.Address, label: describe("network", roleLAN, "ipaddr")},
+		{key: "netmask", value: cfg.Netmask, label: describe("network", roleLAN, "netmask")},
 	})
 }
 
@@ -89,7 +89,7 @@ func (m networkManager) StageHandout(cfg core.HandoutConfig) ([]core.ConfigChang
 		// Off is `ignore=1`, and the pool keeps its numbers: turning the
 		// handout back on must not require typing the range again.
 		return m.stage(ctx, "dhcp", lanSection, roleLAN, []wanSetting{
-			{key: "ignore", value: "1", label: labelFor("dhcp", roleLAN, "ignore")},
+			{key: "ignore", value: "1", label: describe("dhcp", roleLAN, "ignore")},
 		})
 	}
 
@@ -103,10 +103,10 @@ func (m networkManager) StageHandout(cfg core.HandoutConfig) ([]core.ConfigChang
 	}
 
 	sets := []wanSetting{
-		{key: "ignore", value: "", remove: true, label: labelFor("dhcp", roleLAN, "ignore")},
+		{key: "ignore", value: "", remove: true, label: describe("dhcp", roleLAN, "ignore")},
 		{
 			key: "start", value: strconv.Itoa(start),
-			label: labelFor("dhcp", roleLAN, "start"),
+			label: describe("dhcp", roleLAN, "start"),
 			// The diff speaks addresses even though the key carries a number:
 			// "100 → 120" is the operating system talking (D-3, D-44).
 			shown: cfg.First,
@@ -115,7 +115,7 @@ func (m networkManager) StageHandout(cfg core.HandoutConfig) ([]core.ConfigChang
 		},
 		{
 			key: "limit", value: strconv.Itoa(limit),
-			label: labelFor("dhcp", roleLAN, "limit"),
+			label: describe("dhcp", roleLAN, "limit"),
 			shown: cfg.Last,
 			shownBefore: lastAsAddress(network,
 				m.uciGet(ctx, "dhcp."+lanSection+".start"),
@@ -126,7 +126,7 @@ func (m networkManager) StageHandout(cfg core.HandoutConfig) ([]core.ConfigChang
 		sets = append(sets, wanSetting{
 			key:   "leasetime",
 			value: formatLeaseTime(cfg.LeaseSeconds),
-			label: labelFor("dhcp", roleLAN, "leasetime"),
+			label: describe("dhcp", roleLAN, "leasetime"),
 		})
 	}
 	return m.stage(ctx, "dhcp", lanSection, roleLAN, sets)
@@ -271,12 +271,12 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 	}
 
 	sets := []wanSetting{
-		{key: "mac", value: mac.String(), label: labelFor("dhcp", roleHost, "mac")},
-		{key: "ip", value: ip.String(), label: labelFor("dhcp", roleHost, "ip")},
+		{key: "mac", value: mac.String(), label: describe("dhcp", roleHost, "mac")},
+		{key: "ip", value: ip.String(), label: describe("dhcp", roleHost, "ip")},
 	}
 	if cfg.Name != "" {
 		sets = append(sets, wanSetting{
-			key: "name", value: cfg.Name, label: labelFor("dhcp", roleHost, "name"),
+			key: "name", value: cfg.Name, label: describe("dhcp", roleHost, "name"),
 		})
 	}
 	changes, err := m.stage(ctx, "dhcp", section, roleHost, sets)
@@ -289,8 +289,10 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 	// reads the draft back off the device describes it that way too (M3.1a).
 	// Three rows here and one there would mean a reload changed the list
 	// under somebody halfway through reading it.
+	said := describe("dhcp", roleHost, "")
 	return []core.ConfigChange{{
-		Label: labelFor("dhcp", roleHost, ""),
+		Label:    said.words,
+		LabelKey: said.key,
 		To: reservationWords(core.ReservedAddress{
 			MAC: mac.String(), IP: ip.String(), Name: cfg.Name,
 		}),
@@ -342,8 +344,10 @@ func (m networkManager) RemoveReservation(id string) ([]core.ConfigChange, error
 	if _, err := m.run(ctx, "uci", "delete", "dhcp."+id); err != nil {
 		return nil, fmt.Errorf("openwrt: stage removal of a reservation: %w", err)
 	}
+	said := describe("dhcp", roleHost, "")
 	return []core.ConfigChange{{
-		Label:     labelFor("dhcp", roleHost, ""),
+		Label:     said.words,
+		LabelKey:  said.key,
 		From:      reservationWords(*target),
 		To:        "",
 		Dangerous: dangerousConfig("dhcp"),

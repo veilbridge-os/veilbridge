@@ -15,6 +15,12 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ### Fixed
+- A change to the **local network** address was listed for confirmation as
+  "Connection type / Address on the internet side / Network mask" — the words
+  of the uplink. The device now sends a stable key with every row
+  (`labelKey`), the panel translates exactly that key, and the build fails if
+  any key the device can send has no translation
+  ([#27](https://github.com/veilbridge-os/veilbridge/issues/27)).
 - On a 360 px phone the list of staged changes no longer runs 3 px off the
   screen in Russian, and the "pin an address by hand" dialog is no longer cut
   off at the right edge.

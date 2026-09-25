@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -102,26 +103,62 @@ var sectionLabels = map[string]string{
 	"wireless": "Wi-Fi network",
 }
 
-// labelFor turns a configuration key into what the panel calls it. An unknown
+// phrase is what the panel calls a setting: the English words, and the stable
+// key the panel translates them by. They are produced together, from the same
+// tables, so a translation can never be looked up for words the device did not
+// send (#27). Before this the panel derived the key from `detail` itself and
+// knew nothing about roles, so a change to the LOCAL network address was shown
+// to the operator as "Address on the internet side" — measured on the stand.
+type phrase struct {
+	key   string
+	words string
+}
+
+// describe turns a configuration key into what the panel calls it. An unknown
 // role falls back to naming the configuration file rather than guessing: a
 // wrong word is worse than a general one on a screen people act on.
-func labelFor(config, role, option string) string {
+func describe(config, role, option string) phrase {
 	if option == "" {
 		if role == roleHost {
-			return "Reserved address"
+			return phrase{"dhcp.host.section", "Reserved address"}
 		}
 		if l, ok := sectionLabels[config]; ok {
-			return l
+			return phrase{config + ".section", l}
 		}
-		return "Configuration section"
+		return phrase{"section", "Configuration section"}
 	}
-	if l, ok := optionLabels[config+"."+role+"."+option]; ok {
-		return l
+	key := config + "." + role + "." + option
+	if l, ok := optionLabels[key]; ok {
+		return phrase{key, l}
 	}
 	if l, ok := configLabels[config]; ok {
-		return l
+		return phrase{config + ".setting", l}
 	}
-	return "System setting"
+	return phrase{"setting", "System setting"}
+}
+
+// labelFor is describe without the key, for places that only need words.
+func labelFor(config, role, option string) string {
+	return describe(config, role, option).words
+}
+
+// LabelKeys lists every key describe can return. The panel keeps a generated
+// copy (web/src/i18n/diffLabelKeys.ts) and refuses to build when one of them
+// has no translation, so adding a phrase here without words for people is a
+// build failure rather than an English line in a Russian interface.
+func LabelKeys() []string {
+	keys := []string{"dhcp.host.section", "section", "setting"}
+	for k := range optionLabels {
+		keys = append(keys, k)
+	}
+	for c := range sectionLabels {
+		keys = append(keys, c+".section")
+	}
+	for c := range configLabels {
+		keys = append(keys, c+".setting")
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // secretOption reports whether a key holds something that must never be shown
@@ -223,7 +260,8 @@ func (m networkManager) stage(
 			to = ""
 		}
 		changes = append(changes, core.ConfigChange{
-			Label:     s.label,
+			Label:     s.label.words,
+			LabelKey:  s.label.key,
 			From:      from,
 			To:        to,
 			Dangerous: dangerousConfig(config),
@@ -237,7 +275,7 @@ func (m networkManager) stage(
 type wanSetting struct {
 	key    string
 	value  string
-	label  string
+	label  phrase
 	secret bool
 	// remove drops the key instead of writing it. A setting that can only be
 	// turned on is a trap: it was measured on a live device that asking for
@@ -262,7 +300,7 @@ type wanSetting struct {
 func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 	switch cfg.Proto {
 	case core.WANProtoDHCP:
-		out := []wanSetting{{key: "proto", value: "dhcp", label: labelFor("network", roleUplink, "proto")}}
+		out := []wanSetting{{key: "proto", value: "dhcp", label: describe("network", roleUplink, "proto")}}
 		if len(cfg.DNS) == 0 {
 			// Back to the provider's resolvers: the other direction of the pair
 			// below, or the panel can set this and never unset it.
@@ -278,9 +316,9 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 					key:          "peerdns",
 					remove:       true,
 					sameAsAbsent: "1",
-					label:        labelFor("network", roleUplink, "peerdns"),
+					label:        describe("network", roleUplink, "peerdns"),
 				},
-				wanSetting{key: "dns", remove: true, label: labelFor("network", roleUplink, "dns")},
+				wanSetting{key: "dns", remove: true, label: describe("network", roleUplink, "dns")},
 			), nil
 		}
 		// Resolvers given alongside DHCP are not a contradiction — wanting the
@@ -289,7 +327,7 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 		// provider's resolvers win unless peerdns is turned off, so asking for
 		// one without the other silently does nothing.
 		out = append(out, wanSetting{
-			key: "peerdns", value: "0", label: labelFor("network", roleUplink, "peerdns"),
+			key: "peerdns", value: "0", label: describe("network", roleUplink, "peerdns"),
 		})
 		return appendDNS(out, cfg.DNS)
 
@@ -304,13 +342,13 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 			return nil, fmt.Errorf("openwrt: %q is not a gateway address", cfg.Gateway)
 		}
 		out := []wanSetting{
-			{key: "proto", value: "static", label: labelFor("network", roleUplink, "proto")},
-			{key: "ipaddr", value: cfg.Address, label: labelFor("network", roleUplink, "ipaddr")},
-			{key: "netmask", value: cfg.Netmask, label: labelFor("network", roleUplink, "netmask")},
+			{key: "proto", value: "static", label: describe("network", roleUplink, "proto")},
+			{key: "ipaddr", value: cfg.Address, label: describe("network", roleUplink, "ipaddr")},
+			{key: "netmask", value: cfg.Netmask, label: describe("network", roleUplink, "netmask")},
 		}
 		if cfg.Gateway != "" {
 			out = append(out, wanSetting{
-				key: "gateway", value: cfg.Gateway, label: labelFor("network", roleUplink, "gateway"),
+				key: "gateway", value: cfg.Gateway, label: describe("network", roleUplink, "gateway"),
 			})
 		}
 		return appendDNS(out, cfg.DNS)
@@ -320,14 +358,14 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 			return nil, fmt.Errorf("openwrt: PPPoE needs a user name")
 		}
 		out := []wanSetting{
-			{key: "proto", value: "pppoe", label: labelFor("network", roleUplink, "proto")},
-			{key: "username", value: cfg.Username, label: labelFor("network", roleUplink, "username")},
+			{key: "proto", value: "pppoe", label: describe("network", roleUplink, "proto")},
+			{key: "username", value: cfg.Username, label: describe("network", roleUplink, "username")},
 		}
 		if cfg.Password != "" {
 			out = append(out, wanSetting{
 				key:    "password",
 				value:  cfg.Password,
-				label:  labelFor("network", roleUplink, "password"),
+				label:  describe("network", roleUplink, "password"),
 				secret: true,
 			})
 		}
@@ -348,7 +386,7 @@ func appendDNS(out []wanSetting, dns []string) ([]wanSetting, error) {
 		}
 	}
 	return append(out, wanSetting{
-		key: "dns", value: strings.Join(dns, " "), label: labelFor("network", roleUplink, "dns"),
+		key: "dns", value: strings.Join(dns, " "), label: describe("network", roleUplink, "dns"),
 	}), nil
 }
 
@@ -493,8 +531,10 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 		// generic ("Address handout") at exactly the moment it matters.
 		role := roleOf(e.config, e.section, firstNonEmpty(
 			after[e.config+"."+e.section], before[e.config+"."+e.section]), uplink)
+		said := describe(e.config, role, e.option)
 		changes = append(changes, core.ConfigChange{
-			Label:     labelFor(e.config, role, e.option),
+			Label:     said.words,
+			LabelKey:  said.key,
 			From:      redact(secret, from),
 			To:        redact(secret, to),
 			Dangerous: dangerousConfig(e.config),

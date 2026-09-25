@@ -253,7 +253,13 @@ type WANConfig struct {
 // as "what will change on this device" before anyone presses the button.
 type ConfigChange struct {
 	// Label names the setting in domain words: "Internet connection type".
+	// It is English, because a daemon has no locale.
 	Label string `json:"label"`
+	// LabelKey is the stable name of that same phrase, which the panel
+	// translates ("network.uplink.proto"). It comes from the table the words
+	// come from, so the two cannot disagree. Empty means there are no words
+	// for this setting yet and Label is all there is.
+	LabelKey string `json:"labelKey,omitempty" doc:"Stable key of the label, for translating it in the UI (e.g. network.uplink.proto). The set of keys is fixed by the device; empty when there are no words for this setting yet and label is all there is."`
 	// From and To are the old and new values, already rendered for a human.
 	From string `json:"from"`
 	To   string `json:"to"`
