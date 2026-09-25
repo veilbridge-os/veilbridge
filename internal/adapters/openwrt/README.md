@@ -20,6 +20,11 @@ Files:
   configuration key, and reading a draft back off the device
 - `lan.go` / `lan_write.go` — the local network: its address, the address
   handout and the clients holding an address (M3.2)
+- `firewall.go` / `firewall_write.go` — the firewall (M3.3): zones by what
+  they do rather than their names, forwarded ports, rules marked as the
+  firewall package ships them; staging port forwards, with `fw4 check` as the
+  last word, since it exits 0 on an entry it will skip. Fixtures of both
+  OpenWrt branches are in `testdata/`
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon

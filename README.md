@@ -39,8 +39,11 @@ handout, lease time, and reserving an address for a device straight from the
 client table). Every change is staged, shown as a before/after diff and applied
 through the self-reverting transaction.
 
-VeilBridge still does **not** manage firewall zones, port forwarding, static
-routes, Wi-Fi or clients — keep LuCI around for those. See [Install](#install)
+On `main`, not yet in a release: the firewall can be read over the API
+(zones, forwarded ports, rules) and port forwards can be added, changed and
+removed through the same self-reverting transaction; the firewall screen is
+next. VeilBridge does **not** yet manage its own firewall rules, static routes,
+Wi-Fi or clients — keep LuCI around for those. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
@@ -73,7 +76,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 | Version | Highlights | Status |
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha1`: platform layer, panel, uplink and local network/DHCP done; firewall and static routes in progress |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha1`: platform layer, panel, uplink and local network/DHCP done; on `main`: firewall reading and port forwards over the API; firewall screen and static routes in progress |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover | planned |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |

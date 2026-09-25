@@ -24,6 +24,11 @@ Layout:
 - `LANReader` / `LANWriter` are optional: the API asks for them by type
   assertion and answers 501 when the adapter lacks them, which is not the same
   as "this device has no local network" (404).
+- `firewall.go` — the firewall in the panel's words: zones and their role,
+  forwardings, port forwards, rules; `FirewallReader`/`FirewallWriter` are
+  optional capabilities of an adapter, like `LANReader`.
+- `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
+  field it is about, returned by the API as `errors[].location`.
 - `capabilities.go` — what a device can do, and why not when it cannot. The
   `reason` is written in the panel's own words; device nodes, package names and
   errno values live in `detail`.
