@@ -265,6 +265,112 @@ components:
           format: uri
           type: string
       type: object
+    FirewallRule:
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+        enabled:
+          type: boolean
+        family:
+          type: string
+        from:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        ports:
+          type: string
+        protocols:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        system:
+          type: boolean
+        to:
+          type: string
+      required:
+        - id
+        - enabled
+        - system
+        - protocols
+        - action
+      type: object
+    FirewallStatus:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/FirewallStatus.json
+          format: uri
+          readOnly: true
+          type: string
+        forwardings:
+          items:
+            $ref: "#/components/schemas/ZoneForwarding"
+          type:
+            - array
+            - "null"
+        portForwards:
+          items:
+            $ref: "#/components/schemas/PortForward"
+          type:
+            - array
+            - "null"
+        rules:
+          items:
+            $ref: "#/components/schemas/FirewallRule"
+          type:
+            - array
+            - "null"
+        zones:
+          items:
+            $ref: "#/components/schemas/FirewallZone"
+          type:
+            - array
+            - "null"
+      required:
+        - zones
+        - forwardings
+        - portForwards
+        - rules
+      type: object
+    FirewallZone:
+      additionalProperties: false
+      properties:
+        forward:
+          type: string
+        input:
+          type: string
+        live:
+          type: boolean
+        masquerade:
+          type: boolean
+        name:
+          type: string
+        networks:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        output:
+          type: string
+        role:
+          type: string
+      required:
+        - name
+        - networks
+        - live
+        - input
+        - output
+        - forward
+        - masquerade
+      type: object
     HandoutConfig:
       additionalProperties: false
       properties:
@@ -551,6 +657,38 @@ components:
         - actualVia
         - ok
       type: object
+    PortForward:
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+        externalPort:
+          type: string
+        from:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        protocols:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        toAddress:
+          type: string
+        toPort:
+          type: string
+      required:
+        - id
+        - enabled
+        - protocols
+        - from
+        - externalPort
+        - toAddress
+        - toPort
+      type: object
     ProbeInputBody:
       additionalProperties: false
       properties:
@@ -827,6 +965,17 @@ components:
       required:
         - interface
         - selectedBy
+      type: object
+    ZoneForwarding:
+      additionalProperties: false
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+      required:
+        - from
+        - to
       type: object
   securitySchemes:
     bearerAuth:
@@ -1148,6 +1297,27 @@ paths:
       summary: "Live updates: one stream, topics system/apply/error"
       tags:
         - system
+  /firewall:
+    get:
+      operationId: getFirewall
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallStatus"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Zones, what they allow, forwarded ports and traffic rules
+      tags:
+        - firewall
   /network/interfaces:
     get:
       operationId: listInterfaces

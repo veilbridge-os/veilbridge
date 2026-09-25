@@ -1,0 +1,108 @@
+package core
+
+// The firewall as the panel shows it (M3.3, #35): zones and what they allow,
+// which zone may reach which, forwarded ports and traffic rules. Everything
+// here is in the panel's terms — "accept", "internet", "local" — and nothing
+// in it is nftables syntax (D-3). DESIGN D-66…D-69 record how it was decided.
+
+// Firewall actions, lower-case: the panel's words, not the kernel's.
+const (
+	ActionAccept = "accept"
+	ActionReject = "reject"
+	ActionDrop   = "drop"
+)
+
+// Zone roles (D-68). They are derived from what a zone does, never from its
+// name: on one of our own stands the uplink sits in the zone called "lan".
+const (
+	// ZoneInternet is the zone that hides the local network behind the
+	// router's address (NAT) — the side the internet is on.
+	ZoneInternet = "internet"
+	// ZoneLocal is the zone the local network belongs to.
+	ZoneLocal = "local"
+)
+
+// FirewallZone is a group of connections with one policy.
+type FirewallZone struct {
+	Name string `json:"name"`
+	// Role is ZoneInternet, ZoneLocal, or empty for any other zone.
+	Role string `json:"role,omitempty"`
+	// Networks are the connections the zone is made of, as configured.
+	Networks []string `json:"networks"`
+	// Live reports whether at least one of those connections is up right
+	// now. A zone with nothing live is configured and not in use — on the x86
+	// stand that is the zone called "wan".
+	Live bool `json:"live"`
+	// Input is what happens to traffic from this zone to the router itself,
+	// Output to traffic the router sends into it, Forward to traffic passing
+	// through between connections of the same zone.
+	Input   string `json:"input"`
+	Output  string `json:"output"`
+	Forward string `json:"forward"`
+	// Masquerade: addresses in other zones are hidden behind the router's
+	// own address when leaving through this one (NAT).
+	Masquerade bool `json:"masquerade"`
+}
+
+// ZoneForwarding allows traffic from one zone into another.
+type ZoneForwarding struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// PortForward sends connections arriving at the router on a port to a device
+// inside the network.
+type PortForward struct {
+	// ID addresses the entry on the device; it is what an edit or a removal
+	// refers to (same reasoning as D-49).
+	ID      string `json:"id"`
+	Name    string `json:"name,omitempty"`
+	Enabled bool   `json:"enabled"`
+	// Protocols: "tcp", "udp", or both.
+	Protocols []string `json:"protocols"`
+	// From is the zone the connections come from, usually the internet side.
+	From string `json:"from"`
+	// ExternalPort is the port (or "first-last" range) on the router.
+	ExternalPort string `json:"externalPort"`
+	// ToAddress and ToPort are where the connection is sent. ToPort equals
+	// ExternalPort when the device keeps the number.
+	ToAddress string `json:"toAddress"`
+	ToPort    string `json:"toPort"`
+}
+
+// FirewallRule is a traffic rule: what to do with matching traffic.
+type FirewallRule struct {
+	ID      string `json:"id"`
+	Name    string `json:"name,omitempty"`
+	Enabled bool   `json:"enabled"`
+	// System marks a rule exactly as the firewall package ships it (D-67).
+	// The panel shows it read-only; once a person changes it, it is theirs.
+	System bool `json:"system"`
+	// From is the zone traffic comes from. To is the zone it goes to; empty
+	// means traffic to the router itself, "*" any zone.
+	From      string   `json:"from,omitempty"`
+	To        string   `json:"to,omitempty"`
+	Protocols []string `json:"protocols"`
+	// Ports is the destination port or range, empty for any.
+	Ports  string `json:"ports,omitempty"`
+	Action string `json:"action"`
+	// Family limits the rule to "ipv4" or "ipv6"; empty means both.
+	Family string `json:"family,omitempty"`
+}
+
+// FirewallStatus is the whole firewall in one answer, for the same reason as
+// D-45: a screen assembled from four requests shows a rule whose zone has not
+// loaded yet.
+type FirewallStatus struct {
+	Zones        []FirewallZone   `json:"zones"`
+	Forwardings  []ZoneForwarding `json:"forwardings"`
+	PortForwards []PortForward    `json:"portForwards"`
+	Rules        []FirewallRule   `json:"rules"`
+}
+
+// FirewallReader is an optional capability of an adapter, asked for by type
+// assertion like LANReader: a platform that cannot answer says 501, which is
+// not the same as "no firewall here".
+type FirewallReader interface {
+	FirewallInfo() (FirewallStatus, error)
+}

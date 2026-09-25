@@ -285,6 +285,11 @@ func (s *Server) register() {
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
 	}, s.getLAN)
 	huma.Register(s.api, huma.Operation{
+		OperationID: "getFirewall", Method: http.MethodGet, Path: "/firewall",
+		Summary: "Zones, what they allow, forwarded ports and traffic rules",
+		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
+	}, s.getFirewall)
+	huma.Register(s.api, huma.Operation{
 		OperationID: "stageLAN", Method: http.MethodPut, Path: "/network/lan",
 		Summary: "Stage this router's own address on the local network (does not apply it)",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
@@ -640,6 +645,24 @@ func (s *Server) getLAN(_ context.Context, _ *struct{}) (*LANOutput, error) {
 		return nil, huma.Error502BadGateway("lan", err)
 	}
 	return &LANOutput{Body: lan}, nil
+}
+
+// getFirewall answers the firewall screen. Like the local network it is an
+// optional capability of the adapter: 501 says "this build cannot read it",
+// which must not look like a device without a firewall.
+func (s *Server) getFirewall(_ context.Context, _ *struct{}) (*FirewallOutput, error) {
+	reader, ok := s.adapter.Network().(core.FirewallReader)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot read the firewall")
+	}
+	fw, err := reader.FirewallInfo()
+	switch {
+	case errors.Is(err, core.ErrNotImplemented):
+		return nil, huma.Error501NotImplemented("firewall", err)
+	case err != nil:
+		return nil, huma.Error502BadGateway("firewall", err)
+	}
+	return &FirewallOutput{Body: fw}, nil
 }
 
 // lanWriter is the local-network half of the writer. Like LANReader it is an

@@ -361,3 +361,47 @@ func TestNetworkEndpointsRequireAuth(t *testing.T) {
 		}
 	}
 }
+
+// GET /firewall answers in the panel's words (D-3): no nftables verbs and no
+// uci section types in the body — the same rule the capability reasons follow.
+func TestFirewallEndpointSpeaksThePanelsLanguage(t *testing.T) {
+	ts, base := setup(t)
+	defer ts.Close()
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/firewall", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var raw bytes.Buffer
+	if _, err := raw.ReadFrom(resp.Body); err != nil {
+		t.Fatal(err)
+	}
+	var fw struct {
+		Zones        []map[string]any `json:"zones"`
+		PortForwards []map[string]any `json:"portForwards"`
+		Rules        []map[string]any `json:"rules"`
+	}
+	if err := json.Unmarshal(raw.Bytes(), &fw); err != nil {
+		t.Fatal(err)
+	}
+	if len(fw.Zones) == 0 || len(fw.PortForwards) == 0 || len(fw.Rules) == 0 {
+		t.Fatalf("demo firewall is missing a part: %s", raw.String())
+	}
+	// Ids are left out: they address an entry on the device and are never
+	// shown (the same trade as D-49). Everything else may reach a screen.
+	var shown []byte
+	for _, list := range [][]map[string]any{fw.Zones, fw.PortForwards, fw.Rules} {
+		for _, item := range list {
+			delete(item, "id")
+			b, _ := json.Marshal(item)
+			shown = append(shown, b...)
+		}
+	}
+	for _, banned := range []string{"ACCEPT", "REJECT", "DROP", "DNAT", "SNAT", "redirect", "src_dport", "dest_ip", "nft"} {
+		if bytes.Contains(shown, []byte(banned)) {
+			t.Errorf("response contains %q, a word of the operating system rather than the panel", banned)
+		}
+	}
+}

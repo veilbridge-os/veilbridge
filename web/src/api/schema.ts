@@ -159,6 +159,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/firewall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Zones, what they allow, forwarded ports and traffic rules */
+        get: operations["getFirewall"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/network/interfaces": {
         parameters: {
             query?: never;
@@ -624,6 +641,40 @@ export interface components {
              */
             type: string;
         };
+        FirewallRule: {
+            action: string;
+            enabled: boolean;
+            family?: string;
+            from?: string;
+            id: string;
+            name?: string;
+            ports?: string;
+            protocols: string[] | null;
+            system: boolean;
+            to?: string;
+        };
+        FirewallStatus: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/FirewallStatus.json
+             */
+            readonly $schema?: string;
+            forwardings: components["schemas"]["ZoneForwarding"][] | null;
+            portForwards: components["schemas"]["PortForward"][] | null;
+            rules: components["schemas"]["FirewallRule"][] | null;
+            zones: components["schemas"]["FirewallZone"][] | null;
+        };
+        FirewallZone: {
+            forward: string;
+            input: string;
+            live: boolean;
+            masquerade: boolean;
+            name: string;
+            networks: string[] | null;
+            output: string;
+            role?: string;
+        };
         HandoutConfig: {
             /**
              * Format: uri
@@ -762,6 +813,16 @@ export interface components {
             expectedVia: string;
             ok: boolean;
             target: string;
+        };
+        PortForward: {
+            enabled: boolean;
+            externalPort: string;
+            from: string;
+            id: string;
+            name?: string;
+            protocols: string[] | null;
+            toAddress: string;
+            toPort: string;
         };
         ProbeInputBody: {
             /**
@@ -903,6 +964,10 @@ export interface components {
             candidates?: string[] | null;
             interface: components["schemas"]["NetworkInterface"];
             selectedBy: string;
+        };
+        ZoneForwarding: {
+            from: string;
+            to: string;
         };
     };
     responses: never;
@@ -1268,6 +1333,35 @@ export interface operations {
                         /** @description The retry time in milliseconds. */
                         retry?: number;
                     })[];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getFirewall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FirewallStatus"];
                 };
             };
             /** @description Error */

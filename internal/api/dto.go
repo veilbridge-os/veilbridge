@@ -141,6 +141,11 @@ type LANOutput struct {
 	Body core.LANStatus
 }
 
+// FirewallOutput is the whole firewall in one answer (M3.3, #35).
+type FirewallOutput struct {
+	Body core.FirewallStatus
+}
+
 // StageLANInput is this router's own address on the local network. As with
 // the uplink, staging is a separate call from applying.
 type StageLANInput struct {

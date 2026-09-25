@@ -9,6 +9,11 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 ## [Unreleased]
 
 ### Added
+- `GET /firewall`: zones with their role (internet side, local network —
+  derived from what a zone does, not from its name), which zone may reach
+  which, forwarded ports and traffic rules, with the rules the firewall
+  package ships marked as the system's (read-only in the panel). Reading only;
+  changes follow ([#35](https://github.com/veilbridge-os/veilbridge/issues/35)).
 - A `dhcp-server` capability: a device with one network port and no Wi-Fi has
   no local network to hand addresses out on, says so with a reason, and the
   panel does not show a local network section there at all

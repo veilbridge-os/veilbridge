@@ -192,6 +192,33 @@ func (m Network) WANInfo() (core.WANStatus, error) {
 	}, nil
 }
 
+// FirewallInfo describes the stock firewall of a home router plus one port
+// forward and one rule of the owner's, so the screen has both kinds to show.
+// Addresses are from the documentation ranges and the private LAN range.
+func (m Network) FirewallInfo() (core.FirewallStatus, error) {
+	return core.FirewallStatus{
+		Zones: []core.FirewallZone{
+			{Name: "lan", Role: core.ZoneLocal, Networks: []string{"lan"}, Live: true,
+				Input: core.ActionAccept, Output: core.ActionAccept, Forward: core.ActionAccept},
+			{Name: "wan", Role: core.ZoneInternet, Networks: []string{"wan", "wan6"}, Live: true,
+				Input: core.ActionReject, Output: core.ActionAccept, Forward: core.ActionReject, Masquerade: true},
+		},
+		Forwardings: []core.ZoneForwarding{{From: "lan", To: "wan"}},
+		PortForwards: []core.PortForward{
+			{ID: "@redirect[0]", Name: "NAS", Enabled: true, Protocols: []string{"tcp"},
+				From: "wan", ExternalPort: "8443", ToAddress: "192.168.1.50", ToPort: "443"},
+		},
+		Rules: []core.FirewallRule{
+			{ID: "@rule[0]", Name: "Allow-DHCP-Renew", Enabled: true, System: true, From: "wan",
+				Protocols: []string{"udp"}, Ports: "68", Action: core.ActionAccept, Family: "ipv4"},
+			{ID: "@rule[1]", Name: "Allow-Ping", Enabled: true, System: true, From: "wan",
+				Protocols: []string{"icmp"}, Action: core.ActionAccept, Family: "ipv4"},
+			{ID: "@rule[9]", Name: "Block game console", Enabled: true, From: "lan", To: "wan",
+				Protocols: []string{"tcp", "udp"}, Action: core.ActionReject},
+		},
+	}, nil
+}
+
 // LANInfo describes a plausible home network: a handout that is on, four
 // clients and two addresses pinned by hand. It exists so the local-network
 // screen can be seen and photographed without a router underneath — and so
@@ -349,6 +376,7 @@ var (
 	_ core.SystemManager   = System{}
 	_ core.NetworkManager  = Network{}
 	_ core.LANReader       = Network{}
+	_ core.FirewallReader  = Network{}
 	_ core.DeviceManager   = Device{}
 	_ core.Adapter         = (*Adapter)(nil)
 	_ core.CapabilityProbe = (*Adapter)(nil)
