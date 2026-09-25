@@ -32,8 +32,10 @@ come), and it is never offered as the latest release.
   available, a userspace fallback otherwise; the choice is shown in the API.
 - Rebuilt panel: new shell and dashboard, dark theme, layouts from 360 px.
 - `install.sh`: `VB_VERSION` installs a specific release,
-  `VB_ALLOW_DOWNGRADE=1` goes back on purpose, and the result is verified
-  against the release checksum instead of trusting the package manager.
+  `VB_ALLOW_DOWNGRADE=1` goes back on purpose (without it the installer never
+  moves a router to an older version, on opkg or apk), and the result is
+  verified against the release checksum instead of trusting the package
+  manager.
 
 ### Changed
 - The panel no longer polls; the dashboard reads the event stream.

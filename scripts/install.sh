@@ -92,9 +92,33 @@ sha256sum -c one.sum || die "checksum mismatch — refusing to install"
 echo "install: $PM update (needed to resolve kmod-tun and nftables)"
 "$PM" update >/dev/null 2>&1 || echo "install: $PM update failed, trying anyway" >&2
 
-# Going back to an older release is refused by opkg ("Not downgrading") while
-# it still exits 0, so it has to be asked for explicitly.
+# --- 4a. Never go back silently -------------------------------------------
+# The two package managers disagree here (measured): opkg refuses an older
+# package ("Not downgrading") and still exits 0, while apk downgrades without
+# a word when handed an explicit file. So someone on a pre-release who runs the
+# plain one-liner would be moved back to the stable release on 25.12 and not on
+# 24.10. Compare the versions with the package manager's own ordering and go
+# back only when asked to.
 DOWNGRADE="${VB_ALLOW_DOWNGRADE:-}"
+OLDER=""
+if [ "$PM" = apk ]; then
+	CAND=$(tar -xzOf "$TMP/$PKG" .PKGINFO 2>/dev/null | sed -n 's/^pkgver = //p')
+	INST=$(apk list -I veilbridge 2>/dev/null | sed -n 's/^veilbridge-\([^ ]*\) .*/\1/p')
+	if [ -n "$CAND" ] && [ -n "$INST" ] && [ "$(apk version -t "$CAND" "$INST")" = "<" ]; then
+		OLDER=1
+	fi
+else
+	CAND=$(tar -xzOf "$TMP/$PKG" ./control.tar.gz 2>/dev/null | tar -xzOf - ./control 2>/dev/null | sed -n 's/^Version: //p')
+	INST=$(opkg status veilbridge 2>/dev/null | sed -n 's/^Version: //p')
+	if [ -n "$CAND" ] && [ -n "$INST" ] && opkg compare-versions "$CAND" '<<' "$INST"; then
+		OLDER=1
+	fi
+fi
+if [ -n "$OLDER" ] && [ -z "$DOWNGRADE" ]; then
+	die "version $INST is installed and this release is older ($CAND).
+  Nothing was changed. To go back on purpose, run again with
+  VB_ALLOW_DOWNGRADE=1 (keep a copy of /etc/veilbridge first)."
+fi
 
 if [ "$PM" = apk ]; then
 	# The package is not signed by a repository key (a signed feed is roadmap

@@ -79,6 +79,11 @@ All of these, on the exact commit that will be tagged:
 
 ## Cutting a release
 
+Build and tag from a **clean checkout**. A working tree that has seen a build of
+another branch carries generated files (`web/src/components.d.ts`,
+`web/src/auto-imports.d.ts`) that are ignored on `main` but not on older lines;
+`git add -A` on a release branch committed them once and broke the release build.
+
 ```sh
 git switch main && git pull --ff-only
 # notes + changelog committed and pushed, CI green on this commit
@@ -97,15 +102,28 @@ and CPU guard, writes `SHA256SUMS` and publishes the release.
 1. The release is marked correctly: pre-release for `-alphaN/-betaN/-rcN`, and
    *Latest* still points at the newest stable version.
 2. Seven assets: two binaries, four packages, `SHA256SUMS`.
-3. **Install it the way users will**, with `install.sh`, on both package
-   managers: an OpenWrt 24.10-or-older target (opkg) and a 25.12 target (apk).
+3. **Install it the way users will**, with the one-liner from `main`, on both
+   package managers: an OpenWrt 24.10-or-older target (opkg) and a 25.12 target (apk).
    `veilbridged -version` reports the tag, the package manager lists the expected
    package version, an upgrade keeps `/etc/veilbridge`, and the panel signs in.
+   For a pre-release, also check that the plain one-liner does **not** move a
+   router on the pre-release back to stable without `VB_ALLOW_DOWNGRADE=1` —
+   apk would, if the installer did not stop it.
 4. Close the milestone (stable only) and move the finished items on the board.
+
+## Patch releases on an older line
+
+Fixes for a stable line that `main` has moved past go on a `release/vX.Y`
+branch cut from the last tag of that line (the first one: `release/v0.1`, for
+`v0.1.2`). Cherry-pick the fix and the release tooling, add the notes file, and
+tag from that branch. `main` keeps the changelog for every line.
 
 ## When a release is bad
 
-Never delete or move a tag somebody may have installed. Publish a fixed patch
+Never delete or move a tag somebody may have installed. The one exception: the
+release workflow failed and **nothing was published** under the tag
+(`gh release view <tag>` finds no release) — then the tag may be deleted and
+recreated on the fixed commit, because nobody can have installed it. Publish a fixed patch
 (or the next pre-release) and put a warning at the top of the bad release's
 notes pointing to it. If the problem is only in the published assets, rebuild
 from the same tag with the workflow's manual trigger — note that a rebuild of a
