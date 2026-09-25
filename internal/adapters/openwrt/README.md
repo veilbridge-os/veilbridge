@@ -4,13 +4,15 @@ The OpenWrt implementation of the core managers, and the only adapter: the
 daemon refuses to start on a host without `/etc/openwrt_release` (see
 `../detect.go`).
 
-Today it uses nftables and `/proc` directly; `uci`/`ubus` arrive with the
-platform layer, together with transactional apply and rollback. VeilBridge ships
-its own routing and does NOT depend on podkop.
+It reads the device over `ubus` (see `ubus/`) and `/proc`/`/sys`, stages
+configuration changes with `uci`, commits them only through the apply
+transaction, and renders routing with nftables. VeilBridge ships its own
+routing and does NOT depend on podkop.
 
 Files:
 
-- `adapter.go` — package doc + the product constructor (kernel engine)
+- `adapter.go` — package doc + the product constructor, which picks the
+  tunnel engine by probing the kernel (kernel TUN, or the userspace fallback)
 - `wiring.go` — the adapter struct and the engine-injecting constructor
 - `vpn.go`, `routing.go`, `system.go` — one manager each
 - `network.go` — reading L3 interfaces and identifying the uplink
@@ -20,6 +22,12 @@ Files:
   handout and the clients holding an address (M3.2)
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
+- `journal.go` — the on-disk apply journal, so a revert survives the daemon
+  dying inside the confirmation window
+- `capabilities.go` — what this device can do, probed from the kernel and
+  hardware rather than from the distribution
+- `ubus/` — the typed ubus client (the one seam to `/bin/ubus`), with fixtures
+  captured from both supported OpenWrt branches
 - `bind_linux.go` / `bind_other.go` — `SO_BINDTODEVICE`, with a no-op off Linux
   so the package still builds on a macOS dev machine
 

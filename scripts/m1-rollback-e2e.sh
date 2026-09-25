@@ -27,8 +27,8 @@
 # or repair the change under test.
 #
 # Usage:
-#   VB_SSH=root@192.168.10.116 VB_PANEL=192.168.10.116:8080 \
-#   VB_PASSWORD=vbtest123 VB_BREAK_IFACE=lanwan scripts/m1-rollback-e2e.sh
+#   VB_SSH=root@192.0.2.10 VB_PANEL=192.0.2.10:8080 \
+#   VB_PASSWORD='<admin-password>' VB_BREAK_IFACE=lanwan scripts/m1-rollback-e2e.sh
 #
 # Environment:
 #   VB_SSH          user@host for staging the break            (required)

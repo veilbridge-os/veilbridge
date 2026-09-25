@@ -17,9 +17,13 @@ Files:
 - `parse.go` — AmneziaWG `.conf` parser → `core.Node` + `config.NodeSecret`
   (keeps Jc/Jmin/Jmax/S1-S4/H1-H4 obfuscation that Keenetic's UI hides);
   `ToNodeConfig` bridges a stored secret to `vpn.NodeConfig`.
+- `kernel.go` — `kernelEngine`: creates the `awg0` TUN interface, configures
+  it over UAPI; `Dialer()` is nil because the kernel routes the traffic.
 - `netstack.go` — `netstackEngine`: `CreateNetTUN` → `device.NewDevice` →
   `IpcSet`; renders the UAPI config (base64 keys → hex), parses stats from
   `IpcGet`. `Dialer()` returns the netstack `*Net` (egress through the tunnel).
 - `helpers.go` — endpoint resolution + time seam.
 
-Live packet flow and RAM are the Phase 4 gate, not yet verified.
+Live egress is verified for both engines — the userspace one by `cmd/p4smoke`,
+the kernel one end to end on OpenWrt by `scripts/p8-e2e.sh`. Comparing their RAM
+and CPU on a 256 MB router has not been done yet.

@@ -31,10 +31,15 @@ back), device capabilities the UI branches on, a live update stream, and a
 rebuilt panel with a dashboard that reports model, firmware, memory and the
 flash space that actually runs out first.
 
-VeilBridge still does **not** manage LAN, DHCP, firewall zones, Wi-Fi or
-clients — keep LuCI around for those. Changing the uplink exists in the API but
-has no screen yet. See [Install](#install) for the release binaries and the
-[roadmap](#roadmap) for what is next.
+The first router-network screens are on `main` too: the uplink (connection
+type, addresses, DNS servers) and the local network (router address, address
+handout, lease time, and reserving an address for a device straight from the
+client table). Every change is staged, shown as a before/after diff and applied
+through the self-reverting transaction.
+
+VeilBridge still does **not** manage firewall zones, port forwarding, static
+routes, Wi-Fi or clients — keep LuCI around for those. See [Install](#install)
+for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
 
@@ -55,15 +60,18 @@ has no screen yet. See [Install](#install) for the release binaries and the
 - **Live updates** — one event stream instead of polling ten tiles
 - **Device vitals** — model, firmware, kernel, load, memory and writable space,
   with a short history kept in RAM only (nothing is written to flash)
-- **Uplink configuration over the API** — staged, diffed, then applied through
-  the same transaction; the screen for it lands with `v0.2`
+- **Internet (uplink) screen** — DHCP, static or PPPoE, staged, shown as a diff
+  in the panel's own words, then applied through the same transaction; if the
+  panel stops answering mid-change, it says so instead of waiting silently
+- **Local network screen** — router address, address handout and lease time,
+  the clients currently holding an address, and reserved addresses
 
 ## Roadmap
 
 | Version | Highlights | Status |
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel | 🟡 on `main`: platform layer and panel done; router network (WAN/LAN, DHCP, firewall) in progress |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 on `main`: platform layer, panel, uplink and local network/DHCP done; firewall and static routes in progress |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover | planned |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |

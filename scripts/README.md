@@ -64,15 +64,17 @@ Note: busybox `ip` has no `-brief` flag — match `inet ` on plain `ip addr show
 
 The kernel engine (the product path) is covered end to end by `p8-e2e.sh`. The
 userspace netstack engine — the fallback for devices without `kmod-tun` — is
-covered by the `p4smoke` harness above, not through the product API: engine
-auto-detection is not implemented yet, so there is no API-level path to select
-it. Closing that gap is part of the platform-layer milestone.
+covered by the `p4smoke` harness above. The daemon picks the engine itself by
+probing `/dev/net/tun` and reports the choice as `tunnelEngine` in
+`GET /system`, so the fallback is reachable through the product too; a live
+tunnel through it on a real router has not been run yet.
 
 ## install.sh
 
 The one-command installer for the router (`wget -qO- … | sh`). It is a thin
 wrapper, not a third installation path: it picks the build for the CPU, verifies
-the checksum against `SHA256SUMS`, and calls `opkg`. Everything that decides
+the checksum against `SHA256SUMS`, and calls `apk` (OpenWrt 25.12+) or `opkg`
+(24.10 and earlier), whichever the device has. Everything that decides
 *how* VeilBridge is installed — the procd service, config permissions, package
 dependencies — lives in [`../packaging/nfpm.yaml`](../packaging/nfpm.yaml).
 
@@ -80,4 +82,20 @@ Verified on the OpenWrt stand: clean install prints the two remaining steps and
 refuses to start without a password; upgrade keeps the config and brings the
 service back; `opkg remove` stops the service, drops the autostart links and
 deliberately keeps `/etc/veilbridge` (it holds VPN private keys); after a reboot
-the panel comes up on its own.
+the panel comes up on its own. The same was later checked on a physical router
+with both package managers (24.10.8 via `opkg`, 25.12.5 via `apk`).
+
+## m1-rollback-e2e.sh
+
+The risk gate for the apply transaction: it stages a change that cuts the
+panel's own management link through the product API and proves the device
+comes back by itself — once by staying silent past the confirmation window,
+once by killing the daemon inside it so recovery has to come from the on-disk
+journal. Usage and environment are documented at the top of the script. Run it
+on a VM first and then on a physical router: a VM always has a hypervisor
+console, which is exactly what hides a rollback that does not work.
+
+## screenshots.mjs
+
+Recaptures the README screenshots from `veilbridged -demo` in headless Chrome,
+so every address in them comes from the documentation ranges.

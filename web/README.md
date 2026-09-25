@@ -10,7 +10,10 @@ npm install
 npm run dev          # Vite on :5173, proxies /api → the Go agent on :8080
 ```
 
-Run the agent separately: `go run ./cmd/veilbridged -dev -set-password <pw>` then start it.
+Run the agent separately. Off a router the daemon refuses to start without
+`-demo`, so for UI work:
+`go run ./cmd/veilbridged -config /tmp/demo.json -set-password <pw>`, then
+`go run ./cmd/veilbridged -demo -dev -config /tmp/demo.json`.
 
 To develop against a remote agent (e.g. a test stand) instead of a local one,
 point the dev proxy at it:
@@ -33,11 +36,24 @@ then `go build -tags ui`.
 
 ## Screens
 
+All screens live inside one shell (`AppShell.vue`): the menu is built from
+`GET /capabilities`, and the apply bar (`ApplyBar.vue`) shows any staged change
+as a diff with the confirmation timer.
+
 - **Login** — JWT (token in localStorage).
-- **Dashboard** — live tiles (egress geo/IP, tunnel up, CPU, memory), 5s polling.
+- **Dashboard** — live tiles over one event stream (`GET /events`): egress,
+  tunnel, model and firmware, load, memory, writable space, with a short
+  history kept in RAM.
+- **Internet** (`Wan.vue`) — uplink type and addresses, staged through the
+  apply bar.
+- **Local network** (`Lan.vue`) — router address, address handout, clients and
+  reserved addresses.
 - **Nodes** — import `.conf`, activate (switches egress), remove; handshake age.
 - **Routing** — add/delete domain|subnet → tunnel|direct rules, Apply, and Probe
   (egress-comparing path check, D-5).
+
+Nodes and Routing are the v0.1 screens moved into the new shell without a
+redesign; they are replaced in the policies milestone.
 
 Types in `src/api/schema.ts` are generated from `api/openapi.yaml` — the frontend
 never drifts from the backend contract.

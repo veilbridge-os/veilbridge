@@ -107,7 +107,7 @@ part of CI. Without a router, `-demo` runs the panel anywhere.
 
 - Keep commits focused; a clear `type(scope): summary` subject is appreciated.
 - Make sure `go vet`, `go test`, `npm run lint`, and `npm run build` pass — these
-  are exactly what CI runs on `ubuntu-latest`.
+  are exactly what CI runs (on `ubuntu-24.04` runners).
 - Describe *what* changed and *why*; note anything you verified by hand.
 
 ## License

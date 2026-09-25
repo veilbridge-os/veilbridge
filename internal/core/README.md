@@ -18,8 +18,12 @@ Two interfaces are deliberately kept apart from the managers above:
 Layout:
 - `types.go` — domain model (Node, RouteRule, SystemInfo, Vitals, WANConfig,
   NetworkInterface, WANStatus, ConfigChange, PathProbe, …).
-- `managers.go` — manager interfaces, the `Adapter` bundle, `ErrNotImplemented`
-  and `ErrNoWAN` (a device with no uplink is a state, not a failure).
+- `managers.go` — manager interfaces, the `Adapter` bundle, the optional
+  `LANReader`, `ErrNotImplemented`, `ErrNoWAN` and `ErrNoLAN` (a device with no
+  uplink or no local network is a state, not a failure).
+- `LANReader` / `LANWriter` are optional: the API asks for them by type
+  assertion and answers 501 when the adapter lacks them, which is not the same
+  as "this device has no local network" (404).
 - `capabilities.go` — what a device can do, and why not when it cannot. The
   `reason` is written in the panel's own words; device nodes, package names and
   errno values live in `detail`.
