@@ -76,19 +76,10 @@ const secondsLeft = computed(() => {
   return Math.max(0, Math.round((new Date(dl).getTime() - now.value) / 1000))
 })
 
-// The length of the window is not in the API: only the deadline is. Measuring
-// it as the largest remaining time seen for THIS transaction keeps the bar
-// honest — it never claims a window the daemon did not grant, and it never
-// hardcodes 90 seconds either (D-14).
-const windowSec = ref(0)
-watch(
-  () => [applyState.value?.snapshot_id, secondsLeft.value] as const,
-  ([id, left], prev) => {
-    if (prev && id !== prev[0]) windowSec.value = 0
-    if (left > windowSec.value) windowSec.value = left
-  },
-  { immediate: true },
-)
+// The daemon reports the window of the transaction in flight (#29); before
+// that the bar measured it as the largest remaining time it had seen, which
+// was wrong for a bar opened halfway through a countdown.
+const windowSec = computed(() => applyState.value?.window_seconds ?? 0)
 
 const countdown = computed(() => {
   const s = secondsLeft.value

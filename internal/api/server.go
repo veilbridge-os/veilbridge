@@ -41,11 +41,9 @@ type Server struct {
 	streams atomic.Int32
 }
 
-// defaultApplyTimeout is how long the panel has to be confirmed before the
-// device undoes the change by itself: long enough for a human to reload the
-// page and see that the connection survived, short enough that a lockout is a
-// pause rather than an evening.
-const defaultApplyTimeout = 90 * time.Second
+// defaultApplyTimeout lives in core (DefaultApplyWindow) since #29: the
+// panel is told the window before applying, so it has one source.
+const defaultApplyTimeout = core.DefaultApplyWindow
 
 // maxApplyTimeout bounds what a client may ask for. An hour-long window is
 // indistinguishable from having no watchdog at all.

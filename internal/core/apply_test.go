@@ -540,3 +540,30 @@ func TestSnapshotIDFollowsTheNewestTransaction(t *testing.T) {
 		t.Fatalf("snapshot id = %q after the second revert, want snap-2", got)
 	}
 }
+
+// #29: the panel tells the operator how long they will have BEFORE they press
+// Apply, so the window is part of the state at every phase — the default while
+// idle, the real one while a change waits, and the default again afterwards.
+func TestTheStateCarriesTheConfirmationWindow(t *testing.T) {
+	f := &fakeApplier{}
+	c, _ := newTestCoordinator(f)
+	def := int(DefaultApplyWindow / time.Second)
+
+	if got := c.State().WindowSeconds; got != def {
+		t.Fatalf("idle window = %d, want the default %d", got, def)
+	}
+	st, err := c.Apply(37 * time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.WindowSeconds != 37 || c.State().WindowSeconds != 37 {
+		t.Fatalf("window while waiting = %d/%d, want the transaction's own 37",
+			st.WindowSeconds, c.State().WindowSeconds)
+	}
+	if _, err := c.Confirm(st.Token); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.State().WindowSeconds; got != def {
+		t.Errorf("window after confirm = %d, want the default %d for the next change", got, def)
+	}
+}

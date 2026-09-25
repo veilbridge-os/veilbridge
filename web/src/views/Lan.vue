@@ -26,6 +26,10 @@ import { refreshStaged, useLive } from '@/stores/live'
 
 const { t } = useI18n()
 const { applyState, staged, stale, lastUpdate } = useLive()
+// How long a change will have to be confirmed, from the daemon (#29): the
+// warning is read BEFORE Apply, so it cannot quote a number from the UI; until
+// the daemon has said, the sentence that needs the number is not shown.
+const windowSeconds = computed(() => applyState.value?.window_seconds ?? 0)
 const { fmtDuration, fmtAgo } = useDuration()
 
 const lan = ref<LANStatus | null>(null)
@@ -771,11 +775,12 @@ async function discard() {
              from inside this network the panel moves out from under the
              operator, from outside it does not. -->
         <el-alert
+          v-if="windowSeconds || !insideThisNetwork"
           :type="insideThisNetwork ? 'warning' : 'info'"
           :closable="false"
           show-icon
           class="vb-lan__alert"
-          :title="insideThisNetwork ? t('lan.warnInside', { sec: 90 }) : t('lan.warnOutside')"
+          :title="insideThisNetwork ? t('lan.warnInside', { sec: windowSeconds }) : t('lan.warnOutside')"
         />
 
         <el-alert

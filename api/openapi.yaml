@@ -97,8 +97,12 @@ components:
           type: string
         token:
           type: string
+        window_seconds:
+          format: int64
+          type: integer
       required:
         - phase
+        - window_seconds
       type: object
     ApplyTxInputBody:
       additionalProperties: false

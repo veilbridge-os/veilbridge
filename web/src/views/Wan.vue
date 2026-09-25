@@ -29,6 +29,10 @@ import { refreshStaged, useLive } from '@/stores/live'
 
 const { t } = useI18n()
 const { applyState, staged, capability, can, stale, lastUpdate } = useLive()
+// How long a change will have to be confirmed, from the daemon (#29): the
+// warning is read BEFORE Apply, so it cannot quote a number from the UI; until
+// the daemon has said, the sentence that needs the number is not shown.
+const windowSeconds = computed(() => applyState.value?.window_seconds ?? 0)
 const { fmtDuration } = useDuration()
 
 type Proto = 'dhcp' | 'static' | 'pppoe'
@@ -507,11 +511,12 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
       <!-- Said plainly and once: this is the only way in, and it comes back
            by itself. The number comes from the daemon's own window. -->
       <el-alert
+        v-if="windowSeconds"
         type="info"
         :closable="false"
         show-icon
         class="vb-wan__alert"
-        :title="t('wan.onlyWayIn', { sec: 90 })"
+        :title="t('wan.onlyWayIn', { sec: windowSeconds })"
       />
 
       <div class="vb-wan__actions">

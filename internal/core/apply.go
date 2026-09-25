@@ -115,7 +115,19 @@ type ApplyState struct {
 	SnapshotID string `json:"snapshot_id,omitempty"`
 	// Err is the last failure, if any (revert failures live here).
 	Err string `json:"error,omitempty"`
+	// WindowSeconds is how long a change has to be confirmed: the window of
+	// the transaction awaiting confirmation, otherwise the one the next apply
+	// gets by default. The panel says "you will have N seconds" BEFORE the
+	// button is pressed, and that number has to come from here rather than
+	// from a constant in the interface that can drift from the daemon (#29).
+	WindowSeconds int `json:"window_seconds"`
 }
+
+// DefaultApplyWindow is how long a change has to be confirmed before the
+// device undoes it by itself: long enough for a human to reload the page and
+// see that the connection survived, short enough that a lockout is a pause
+// rather than an evening (D-14).
+const DefaultApplyWindow = 90 * time.Second
 
 // timer is the slice of time.Timer the coordinator needs. Tests inject a fake
 // one instead of sleeping: a watchdog verified by waiting is a watchdog tested
@@ -145,6 +157,9 @@ type ApplyCoordinator struct {
 	phase    ApplyPhase
 	token    string
 	deadline time.Time
+	// window is the confirmation window of the transaction in flight; zero
+	// when none is, and then State reports DefaultApplyWindow.
+	window   time.Duration
 	snapshot Snapshot
 	// lastSnapshotID outlives snapshot, which is dropped as soon as a
 	// transaction ends so its payload is not held in RAM on a 256 MB router.
@@ -260,6 +275,7 @@ func (c *ApplyCoordinator) Apply(timeout time.Duration) (ApplyState, error) {
 	c.token = c.newToken()
 	c.snapshot = snap
 	c.deadline = c.now().Add(timeout)
+	c.window = timeout
 	c.lastErr = nil
 	token := c.token
 
@@ -370,11 +386,16 @@ func (c *ApplyCoordinator) clearJournalLocked() {
 }
 
 func (c *ApplyCoordinator) stateLocked() ApplyState {
+	window := DefaultApplyWindow
+	if c.phase == PhaseAwaitingConfirm && c.window > 0 {
+		window = c.window
+	}
 	st := ApplyState{
-		Phase:      c.phase,
-		Token:      c.token,
-		Deadline:   c.deadline,
-		SnapshotID: c.lastSnapshotID,
+		Phase:         c.phase,
+		Token:         c.token,
+		Deadline:      c.deadline,
+		SnapshotID:    c.lastSnapshotID,
+		WindowSeconds: int(window / time.Second),
 	}
 	if c.lastErr != nil {
 		st.Err = c.lastErr.Error()

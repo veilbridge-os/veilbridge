@@ -523,6 +523,8 @@ export interface components {
             phase: string;
             snapshot_id?: string;
             token?: string;
+            /** Format: int64 */
+            window_seconds: number;
         };
         ApplyTxInputBody: {
             /**

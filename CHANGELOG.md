@@ -15,6 +15,11 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ### Fixed
+- The warning read before applying ("settings come back by themselves in N
+  seconds") now quotes the device's actual confirmation window instead of a
+  number written into the interface, and the countdown bar measures from the
+  real window even when the page is opened halfway through it
+  ([#29](https://github.com/veilbridge-os/veilbridge/issues/29)).
 - When the device refuses a value, the refusal now always lands next to the
   field it is about, on the internet and local network screens and in the
   pin dialog. The device names the field (`errors[].location` in the API)
