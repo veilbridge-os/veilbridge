@@ -8,7 +8,11 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+- The panel uses the words router owners already know: **DNS servers**
+  instead of "Resolvers", and **MAC address** instead of "Hardware address",
+  in both languages and in the list of staged changes
+  ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ## [0.2.0-alpha1] — 2026-09-25 — pre-release
 

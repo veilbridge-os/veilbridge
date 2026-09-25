@@ -326,6 +326,41 @@ func TestBadValuesAreRefusedBeforeAnythingIsWritten(t *testing.T) {
 	}
 }
 
+// The internet screen puts a refusal next to the field it is about by matching
+// the refusal's text (REFUSALS in web/src/views/Wan.vue). Until the API names
+// the field itself (#28), these phrases are a contract: renaming one here
+// without the screen moves the error off its field silently, which is exactly
+// what nearly happened when "resolver" became "DNS server" (#26).
+func TestRefusalsNameTheFieldTheScreenLooksFor(t *testing.T) {
+	cases := map[string]struct {
+		cfg  core.WANConfig
+		want string
+	}{
+		"address": {core.WANConfig{Interface: "wan", Proto: core.WANProtoStatic,
+			Address: "198.51.100.999", Netmask: "255.255.255.0"}, "not an IPv4 address"},
+		"netmask": {core.WANConfig{Interface: "wan", Proto: core.WANProtoStatic,
+			Address: "198.51.100.9", Netmask: "255.255.0.1"}, "network mask"},
+		"gateway": {core.WANConfig{Interface: "wan", Proto: core.WANProtoStatic,
+			Address: "198.51.100.9", Netmask: "255.255.255.0", Gateway: "x"}, "gateway address"},
+		"dns": {core.WANConfig{Interface: "wan", Proto: core.WANProtoDHCP,
+			DNS: []string{"nope"}}, "DNS server address"},
+		"username": {core.WANConfig{Interface: "wan", Proto: core.WANProtoPPPoE}, "user name"},
+	}
+	for field, c := range cases {
+		t.Run(field, func(t *testing.T) {
+			m, _ := writerWith(map[string]string{"network.wan.proto": "dhcp"})
+			_, err := m.StageWAN(c.cfg)
+			if err == nil {
+				t.Fatalf("accepted %+v", c.cfg)
+			}
+			if !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(c.want)) {
+				t.Errorf("refusal %q does not contain %q, so the screen cannot put it next to the %s field",
+					err, c.want, field)
+			}
+		})
+	}
+}
+
 // DHCP is the one configuration with nothing to validate, so it must still
 // work — a refusal-heavy validator that also refuses the simple case is not
 // safe, it is broken.

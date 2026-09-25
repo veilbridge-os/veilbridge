@@ -52,15 +52,15 @@ var optionLabels = map[string]string{
 	"network.uplink.ipaddr":   "Address on the internet side",
 	"network.uplink.netmask":  "Network mask",
 	"network.uplink.gateway":  "Gateway",
-	"network.uplink.dns":      "Resolvers",
-	"network.uplink.peerdns":  "Use the provider's resolvers",
+	"network.uplink.dns":      "DNS servers",
+	"network.uplink.peerdns":  "Use the provider's DNS servers",
 	"network.uplink.username": "Provider login",
 	"network.uplink.password": "Provider password",
 
 	"network.lan.proto":   "How the local network address is set",
 	"network.lan.ipaddr":  "Address of this router on the local network",
 	"network.lan.netmask": "Local network mask",
-	"network.lan.dns":     "Resolvers for the local network",
+	"network.lan.dns":     "DNS servers for the local network",
 
 	"dhcp.lan.start":     "First address handed out",
 	"dhcp.lan.limit":     "Last address handed out",
@@ -344,7 +344,7 @@ func appendDNS(out []wanSetting, dns []string) ([]wanSetting, error) {
 	}
 	for _, d := range dns {
 		if net.ParseIP(d) == nil {
-			return nil, fmt.Errorf("openwrt: %q is not a resolver address", d)
+			return nil, fmt.Errorf("openwrt: %q is not a DNS server address", d)
 		}
 	}
 	return append(out, wanSetting{

@@ -145,7 +145,7 @@ const REFUSALS: Array<{ match: RegExp; field: string; message: string }> = [
   { match: /not an IPv4 address/i, field: 'address', message: 'wan.badAddress' },
   { match: /network mask/i, field: 'netmask', message: 'wan.badNetmask' },
   { match: /gateway address/i, field: 'gateway', message: 'wan.badGateway' },
-  { match: /resolver address/i, field: 'dns', message: 'wan.badResolver' },
+  { match: /DNS server address/i, field: 'dns', message: 'wan.badResolver' },
   { match: /user name/i, field: 'username', message: 'wan.needUsername' },
 ]
 
