@@ -46,8 +46,11 @@ func describeKey(key string) string {
 		return "Configuration section"
 	case "setting":
 		return "System setting"
-	case "dhcp.host.section":
-		return "Reserved address"
+	}
+	for _, p := range entryRoles {
+		if p.key == key {
+			return p.words
+		}
 	}
 	if l, ok := optionLabels[key]; ok {
 		return l
@@ -211,5 +214,34 @@ func TestDiffLabelKeysFileIsCurrent(t *testing.T) {
 	}
 	if string(got) != want {
 		t.Errorf("%s is stale; regenerate it with\n  VB_UPDATE_GOLDEN=1 go test ./internal/adapters/openwrt/ -run TestDiffLabelKeysFileIsCurrent", diffKeysFile)
+	}
+}
+
+// Discard must reset every file the panel writes. The list is kept by hand, so
+// it is tied here to the one thing that grows whenever the panel learns to
+// write somewhere new: the words for that file's settings. The firewall got
+// words and was left out of the list once — a discarded port forward stayed
+// on the router, staged, for the next apply to commit.
+func TestDiscardResetsEveryFileThePanelWrites(t *testing.T) {
+	for key := range optionLabels {
+		config, _, _ := strings.Cut(key, ".")
+		if !slices.Contains(writtenConfigs, config) {
+			t.Errorf("the panel has words for %q but discarding a draft leaves %s alone", key, config)
+		}
+	}
+	m, r := writerWith(map[string]string{})
+	if err := m.DiscardStaged(); err != nil {
+		t.Fatal(err)
+	}
+	for _, config := range writtenConfigs {
+		found := false
+		for _, c := range r.calls {
+			if strings.Join(c, " ") == "uci revert "+config {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("discard did not revert %s: %v", config, r.calls)
+		}
 	}
 }

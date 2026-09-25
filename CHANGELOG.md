@@ -14,6 +14,12 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   which, forwarded ports and traffic rules, with the rules the firewall
   package ships marked as the system's (read-only in the panel). Reading only;
   changes follow ([#35](https://github.com/veilbridge-os/veilbridge/issues/35)).
+- Port forwards through the API: add, edit, switch off and remove, staged and
+  applied under the confirmation window like every firewall change. The
+  device's own firewall checks the draft before it is accepted — it silently
+  skips an entry it cannot use, so its warnings are treated as a refusal.
+  Verified on the router: a forwarded port answers from outside, closes by
+  itself when nobody confirms, and closes again when removed.
 - A `dhcp-server` capability: a device with one network port and no Wi-Fi has
   no local network to hand addresses out on, says so with a reason, and the
   panel does not show a local network section there at all

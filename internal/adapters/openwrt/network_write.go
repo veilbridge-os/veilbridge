@@ -71,6 +71,26 @@ var optionLabels = map[string]string{
 	"dhcp.host.mac":  "Device",
 	"dhcp.host.ip":   "Reserved address",
 	"dhcp.host.name": "Device name",
+
+	// A port forward edited field by field (a new or removed one is a single
+	// row, see entryRoles).
+	"firewall.redirect.name":      "Port forward name",
+	"firewall.redirect.enabled":   "Port forward is on",
+	"firewall.redirect.proto":     "Protocols",
+	"firewall.redirect.src":       "Connections from",
+	"firewall.redirect.src_dport": "Port on the router",
+	"firewall.redirect.dest":      "Forwarded into",
+	"firewall.redirect.dest_ip":   "Device address",
+	"firewall.redirect.dest_port": "Port on the device",
+	"firewall.redirect.target":    "Kind of forward",
+}
+
+// entryRoles are the kinds of section that appear and disappear as ONE thing
+// to a person: a reserved address, a port forward. Their words when the
+// whole entry is added or removed (D-60).
+var entryRoles = map[string]phrase{
+	roleHost:        {"dhcp.host.section", "Reserved address"},
+	rolePortForward: {"firewall.redirect.section", "Port forward"},
 }
 
 // Section roles: what the panel means by a section, as opposed to what the
@@ -80,6 +100,8 @@ const (
 	roleUplink = "uplink"
 	roleLAN    = "lan"
 	roleHost   = "host"
+	// rolePortForward is a firewall `redirect` section of the DNAT kind.
+	rolePortForward = "redirect"
 )
 
 // configLabels name a whole configuration file in domain words, for a key we
@@ -119,8 +141,8 @@ type phrase struct {
 // wrong word is worse than a general one on a screen people act on.
 func describe(config, role, option string) phrase {
 	if option == "" {
-		if role == roleHost {
-			return phrase{"dhcp.host.section", "Reserved address"}
+		if p, ok := entryRoles[role]; ok {
+			return p
 		}
 		if l, ok := sectionLabels[config]; ok {
 			return phrase{config + ".section", l}
@@ -147,7 +169,10 @@ func labelFor(config, role, option string) string {
 // has no translation, so adding a phrase here without words for people is a
 // build failure rather than an English line in a Russian interface.
 func LabelKeys() []string {
-	keys := []string{"dhcp.host.section", "section", "setting"}
+	keys := []string{"section", "setting"}
+	for _, p := range entryRoles {
+		keys = append(keys, p.key)
+	}
 	for k := range optionLabels {
 		keys = append(keys, k)
 	}
@@ -484,10 +509,11 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 	// are folded into the one row that names the entry — see below.
 	wholeEntries := map[string]bool{}
 	for _, e := range edits {
-		if e.config == "dhcp" && e.option == "" &&
-			roleOf(e.config, e.section, firstNonEmpty(
-				after[e.key], before[e.key]), uplink) == roleHost {
-			wholeEntries[e.key] = true
+		if e.option == "" {
+			role := roleOf(e.config, e.section, firstNonEmpty(after[e.key], before[e.key]), uplink)
+			if _, whole := entryRoles[role]; whole {
+				wholeEntries[e.key] = true
+			}
 		}
 	}
 
@@ -567,6 +593,8 @@ func roleOf(config, section, sectionType, uplink string) string {
 	switch {
 	case sectionType == "host":
 		return roleHost
+	case config == "firewall" && sectionType == "redirect":
+		return rolePortForward
 	case section == lanSection:
 		return roleLAN
 	case config == "network" && uplink != "" && section == uplink:
@@ -632,6 +660,10 @@ func parseStagedEdits(out string) []stagedEdit {
 // inventing a description of a section we have no words for would be worse
 // than leaving the column as the device put it.
 func entryWords(e stagedEdit, values map[string]string) string {
+	if e.config == "firewall" && values[e.key+".src_dport"] != "" {
+		return portForwardWords(values[e.key+".proto"], values[e.key+".src_dport"],
+			values[e.key+".dest_ip"], values[e.key+".dest_port"])
+	}
 	if e.config != "dhcp" || values[e.key+".mac"] == "" {
 		return ""
 	}
@@ -878,17 +910,23 @@ func parseUCIShow(config, out string) map[string]string {
 // DiscardStaged throws the draft away. It reverts the staging area only: the
 // live configuration is not touched, which is why this is safe to call from a
 // failed StageWAN.
+// writtenConfigs are the configuration files this package stages edits in.
+// A test ties it to the words the diff has: a file the panel can describe an
+// edit in is a file it writes, and must be discarded with the rest.
+var writtenConfigs = []string{"network", "dhcp", "firewall"}
+
 func (m networkManager) DiscardStaged() error {
 	if m.run == nil {
 		return core.ErrNotImplemented
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)
 	defer cancel()
-	// Both files this package writes: since M3.2 a draft can hold the local
-	// network and its address handout as well, and discarding half of it
-	// would leave the operator with a pending change they thought they threw
-	// away \u2014 which the next apply would then commit.
-	for _, config := range []string{"network", "dhcp"} {
+	// Every file this package writes. Discarding part of a draft leaves the
+	// operator with a pending change they thought they threw away, which the
+	// next apply then commits. It happened twice: once for the local network
+	// (M3.2), and again for the firewall (#35) — the port forward survived a
+	// "discard" on the router, nine staged lines of it.
+	for _, config := range writtenConfigs {
 		if err := m.discardConfig(ctx, config); err != nil {
 			return err
 		}

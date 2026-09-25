@@ -170,6 +170,17 @@ type RemoveReservationInput struct {
 	ID string `path:"id" doc:"Reservation entry as reported by GET /network/lan"`
 }
 
+// StagePortForwardInput adds (no id) or edits (an id from GET /firewall) one
+// port forward.
+type StagePortForwardInput struct {
+	Body core.PortForwardConfig
+}
+
+// RemovePortForwardInput names the forward to drop as the device reported it.
+type RemovePortForwardInput struct {
+	ID string `path:"id" doc:"Port forward entry as reported by GET /firewall"`
+}
+
 // StageWANInput is a requested uplink configuration. Staging is deliberately
 // a separate call from applying: the operator sees the diff first, and the
 // change only reaches the device through the watchdogged transaction.

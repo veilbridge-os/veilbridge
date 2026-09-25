@@ -106,3 +106,25 @@ type FirewallStatus struct {
 type FirewallReader interface {
 	FirewallInfo() (FirewallStatus, error)
 }
+
+// PortForwardConfig is a requested port forward: an intent on its way to the
+// apply transaction. An empty ID adds a new one; an ID from FirewallStatus
+// edits that entry in place.
+type PortForwardConfig struct {
+	ID      string `json:"id,omitempty" doc:"Entry to edit, as reported by GET /firewall; empty adds a new one"`
+	Name    string `json:"name,omitempty" maxLength:"64"`
+	Enabled bool   `json:"enabled"`
+	// Protocols: "tcp", "udp", or both.
+	Protocols    []string `json:"protocols" minItems:"1" maxItems:"2"`
+	ExternalPort string   `json:"externalPort" doc:"Port or first-last range on the router"`
+	ToAddress    string   `json:"toAddress" doc:"Device on the local network the connections go to"`
+	ToPort       string   `json:"toPort,omitempty" doc:"Port on that device; empty keeps the external one"`
+}
+
+// FirewallWriter stages firewall changes. Like every writer it only stages:
+// the apply transaction commits, and every firewall change is dangerous
+// (D-69), so it always runs under the confirmation window.
+type FirewallWriter interface {
+	StagePortForward(cfg PortForwardConfig) ([]ConfigChange, error)
+	RemovePortForward(id string) ([]ConfigChange, error)
+}

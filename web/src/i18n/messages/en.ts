@@ -226,7 +226,22 @@ const en = {
         dns: 'DNS servers for the local network',
       },
     },
-    firewall: { section: 'Firewall rule', setting: 'Firewall setting' },
+    firewall: {
+      section: 'Firewall rule',
+      setting: 'Firewall setting',
+      redirect: {
+        section: 'Port forward',
+        name: 'Port forward name',
+        enabled: 'Port forward is on',
+        proto: 'Protocols',
+        src: 'Connections from',
+        src_dport: 'Port on the router',
+        dest: 'Forwarded into',
+        dest_ip: 'Device address',
+        dest_port: 'Port on the device',
+        target: 'Kind of forward',
+      },
+    },
     // The local network keeps two different things in one configuration, so
     // the handout and a device's reserved address are named apart.
     dhcp: {

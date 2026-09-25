@@ -689,6 +689,47 @@ components:
         - toAddress
         - toPort
       type: object
+    PortForwardConfig:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/PortForwardConfig.json
+          format: uri
+          readOnly: true
+          type: string
+        enabled:
+          type: boolean
+        externalPort:
+          description: Port or first-last range on the router
+          type: string
+        id:
+          description: Entry to edit, as reported by GET /firewall; empty adds a new one
+          type: string
+        name:
+          maxLength: 64
+          type: string
+        protocols:
+          items:
+            type: string
+          maxItems: 2
+          minItems: 1
+          type:
+            - array
+            - "null"
+        toAddress:
+          description: Device on the local network the connections go to
+          type: string
+        toPort:
+          description: Port on that device; empty keeps the external one
+          type: string
+      required:
+        - enabled
+        - protocols
+        - externalPort
+        - toAddress
+      type: object
     ProbeInputBody:
       additionalProperties: false
       properties:
@@ -1316,6 +1357,62 @@ paths:
       security:
         - bearerAuth: []
       summary: Zones, what they allow, forwarded ports and traffic rules
+      tags:
+        - firewall
+  /firewall/port-forwards:
+    put:
+      operationId: stagePortForward
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortForwardConfig"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage a port forward, new or edited (does not apply it)
+      tags:
+        - firewall
+  /firewall/port-forwards/{id}:
+    delete:
+      operationId: removePortForward
+      parameters:
+        - description: Port forward entry as reported by GET /firewall
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Port forward entry as reported by GET /firewall
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage the removal of a port forward (does not apply it)
       tags:
         - firewall
   /network/interfaces:

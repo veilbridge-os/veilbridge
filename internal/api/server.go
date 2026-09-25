@@ -290,6 +290,17 @@ func (s *Server) register() {
 		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
 	}, s.getFirewall)
 	huma.Register(s.api, huma.Operation{
+		OperationID: "stagePortForward", Method: http.MethodPut, Path: "/firewall/port-forwards",
+		Summary: "Stage a port forward, new or edited (does not apply it)",
+		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
+	}, s.stagePortForward)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "removePortForward", Method: http.MethodDelete,
+		Path:    "/firewall/port-forwards/{id}",
+		Summary: "Stage the removal of a port forward (does not apply it)",
+		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
+	}, s.removePortForward)
+	huma.Register(s.api, huma.Operation{
 		OperationID: "stageLAN", Method: http.MethodPut, Path: "/network/lan",
 		Summary: "Stage this router's own address on the local network (does not apply it)",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
@@ -663,6 +674,35 @@ func (s *Server) getFirewall(_ context.Context, _ *struct{}) (*FirewallOutput, e
 		return nil, huma.Error502BadGateway("firewall", err)
 	}
 	return &FirewallOutput{Body: fw}, nil
+}
+
+func (s *Server) firewallWriter() (core.FirewallWriter, bool) {
+	w, ok := s.adapter.Network().(core.FirewallWriter)
+	return w, ok
+}
+
+func (s *Server) stagePortForward(_ context.Context, in *StagePortForwardInput) (*ChangesOutput, error) {
+	w, ok := s.firewallWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the firewall")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StagePortForward(in.Body)
+	return stagedOr("staging a port forward", changes, err)
+}
+
+func (s *Server) removePortForward(_ context.Context, in *RemovePortForwardInput) (*ChangesOutput, error) {
+	w, ok := s.firewallWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the firewall")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.RemovePortForward(in.ID)
+	return stagedOr("removing a port forward", changes, err)
 }
 
 // lanWriter is the local-network half of the writer. Like LANReader it is an

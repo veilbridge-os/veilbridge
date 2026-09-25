@@ -176,6 +176,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/firewall/port-forwards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Stage a port forward, new or edited (does not apply it) */
+        put: operations["stagePortForward"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/firewall/port-forwards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stage the removal of a port forward (does not apply it) */
+        delete: operations["removePortForward"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/network/interfaces": {
         parameters: {
             query?: never;
@@ -824,6 +858,25 @@ export interface components {
             toAddress: string;
             toPort: string;
         };
+        PortForwardConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/PortForwardConfig.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+            /** @description Port or first-last range on the router */
+            externalPort: string;
+            /** @description Entry to edit, as reported by GET /firewall; empty adds a new one */
+            id?: string;
+            name?: string;
+            protocols: string[] | null;
+            /** @description Device on the local network the connections go to */
+            toAddress: string;
+            /** @description Port on that device; empty keeps the external one */
+            toPort?: string;
+        };
         ProbeInputBody: {
             /**
              * Format: uri
@@ -1362,6 +1415,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FirewallStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stagePortForward: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortForwardConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removePortForward: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Port forward entry as reported by GET /firewall */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
                 };
             };
             /** @description Error */
