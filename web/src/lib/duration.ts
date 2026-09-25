@@ -45,3 +45,16 @@ export function useDuration() {
 
   return { fmtDuration, fmtAgo }
 }
+
+/** deviceSeconds reads a duration the way the DHCP server stores it — `12h`,
+ * `30m`, `1d`, `1w`, `120s` or bare seconds — and returns null for anything
+ * else, including `infinite`, so the caller decides how to say those. The
+ * same rules as the device's own parser (parseLeaseTime), which is what
+ * decides what these strings mean. */
+export function deviceSeconds(v: string): number | null {
+  const m = /^\s*(\d+)\s*([smhdw]?)\s*$/.exec(v)
+  if (!m) return null
+  const units: Record<string, number> = { '': 1, s: 1, m: 60, h: 3600, d: 86400, w: 604800 }
+  const unit = units[m[2] ?? ''] ?? 1
+  return Number(m[1]) * unit
+}

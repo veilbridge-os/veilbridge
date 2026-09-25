@@ -88,10 +88,13 @@ func TestPoolOffsetsBecomeAddresses(t *testing.T) {
 
 func TestLeaseTimesTheDeviceAccepts(t *testing.T) {
 	cases := map[string]int64{
-		"12h":      43200,
-		"30m":      1800,
-		"600":      600,
-		"120s":     120,
+		"12h":  43200,
+		"30m":  1800,
+		"600":  600,
+		"120s": 120,
+		// dnsmasq accepts days and weeks too (#30, checked on the router).
+		"1d":       86400,
+		"2w":       1209600,
 		"infinite": 0,
 		"":         0,
 		"nonsense": 0,

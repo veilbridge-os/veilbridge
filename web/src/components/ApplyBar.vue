@@ -10,9 +10,11 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, api, type ConfigChange } from '@/api/client'
+import { deviceSeconds, useDuration } from '@/lib/duration'
 import { refreshApply, refreshStaged, useLive } from '@/stores/live'
 
 const { t, te } = useI18n()
+const { fmtDuration } = useDuration()
 const { applyState, reachable, staged } = useLive()
 
 /** labelOf translates a staged change into the language of the interface.
@@ -39,6 +41,14 @@ function shownValue(c: ConfigChange, value: string): string {
   if (option === 'proto') {
     const key = `wan.proto${value.charAt(0).toUpperCase()}${value.slice(1)}`
     return te(key) ? t(key) : value
+  }
+  // The device stores a lease as `12h`; a row reading "12h → 2h" is the
+  // operating system's spelling (#30). Say it the way the lease is shown on
+  // the local network screen.
+  if (option === 'leasetime') {
+    if (value === 'infinite') return t('lan.forever')
+    const sec = deviceSeconds(value)
+    return sec ? fmtDuration(sec) : value
   }
   // A flag the panel words as a question: \u201cuse the provider\u2019s resolvers\u201d.
   if (option === 'peerdns') return value === '0' ? t('apply.flagOff') : t('apply.flagOn')

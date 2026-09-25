@@ -15,6 +15,10 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ### Fixed
+- Lease time in the list of changes reads "12 hours → 2 hours" instead of the
+  device's spelling "12h → 2h"; a lease set in days or weeks (`1d`, `1w`, as
+  LuCI allows) is no longer read as zero
+  ([#30](https://github.com/veilbridge-os/veilbridge/issues/30)).
 - The warning read before applying ("settings come back by themselves in N
   seconds") now quotes the device's actual confirmation window instead of a
   number written into the interface, and the countdown bar measures from the

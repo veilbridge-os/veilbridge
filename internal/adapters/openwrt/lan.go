@@ -142,8 +142,11 @@ func addOffset(base net.IP, offset int) net.IP {
 	return net.IPv4(byte(n>>24), byte(n>>16), byte(n>>8), byte(n)).To4()
 }
 
-// parseLeaseTime reads the durations OpenWrt accepts: `12h`, `30m`, `infinite`
-// and a bare number of seconds.
+// parseLeaseTime reads the durations OpenWrt accepts: `12h`, `30m`, `1d`,
+// `1w`, `infinite` and a bare number of seconds. Days and weeks were missing
+// until #30: dnsmasq 2.93 accepts both (checked with `dnsmasq --test` on the
+// router) and the init script passes the value through, so a lease set to
+// `1d` in LuCI was read here as zero and shown as a dash.
 func parseLeaseTime(v string) int64 {
 	v = strings.TrimSpace(v)
 	if v == "" || v == "infinite" {
@@ -151,6 +154,10 @@ func parseLeaseTime(v string) int64 {
 	}
 	unit := int64(1)
 	switch v[len(v)-1] {
+	case 'w':
+		unit, v = 7*86400, v[:len(v)-1]
+	case 'd':
+		unit, v = 86400, v[:len(v)-1]
 	case 'h':
 		unit, v = 3600, v[:len(v)-1]
 	case 'm':
