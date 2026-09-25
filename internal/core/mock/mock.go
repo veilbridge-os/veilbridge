@@ -328,6 +328,7 @@ func (*Adapter) Capabilities() core.Capabilities {
 		core.CapSwitchPorts: {Available: true},
 		core.CapKernelTUN:   {Available: true},
 		core.CapIPv6:        {Available: true},
+		core.CapDHCPServer:  {Available: true},
 		core.CapUSB: {
 			Reason: "this device has no USB port",
 			Detail: "no USB controller on this board",

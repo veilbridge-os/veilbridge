@@ -19,9 +19,11 @@ type fakeSys struct {
 	// kernel with no wireless support looks like (measured on the x86 stand).
 	noWiFiSubsystem bool
 	netDevices      []string
-	dsaOn           string   // network device carrying a DSA switch, "" for none
-	swconfigSwitch  []string // entries under /sys/class/switch, the older API
-	usbEntries      []string
+	// physical are the netDevices that get a `device` link, as real ports do.
+	physical       []string
+	dsaOn          string   // network device carrying a DSA switch, "" for none
+	swconfigSwitch []string // entries under /sys/class/switch, the older API
+	usbEntries     []string
 	// tunMode: "char" points the probe at a real character device, "file" at
 	// a regular file, "" leaves it absent.
 	tunMode     string
@@ -50,6 +52,9 @@ func (f fakeSys) probe(t *testing.T) sysProbe {
 	net := mk("sys", "class", "net")
 	for _, d := range f.netDevices {
 		mk("sys", "class", "net", d)
+	}
+	for _, d := range f.physical {
+		mk("sys", "class", "net", d, "device")
 	}
 	if f.dsaOn != "" {
 		mk("sys", "class", "net", f.dsaOn, "dsa")
@@ -110,12 +115,14 @@ func TestCapabilitiesMatchTheMeasuredDevices(t *testing.T) {
 			name: "x86 stand: USB controllers, no radio, no switch",
 			sys: fakeSys{
 				netDevices:  []string{"br-lan", "eth0", "eth1", "lo"},
+				physical:    []string{"eth0", "eth1"},
 				usbEntries:  []string{"usb1", "usb2", "1-0:1.0"},
 				ipv6Present: true,
 			},
 			want: map[string]bool{
 				core.CapWiFi: false, core.CapSwitchPorts: false,
 				core.CapUSB: true, core.CapIPv6: true,
+				core.CapDHCPServer: true,
 			},
 		},
 		{
@@ -123,12 +130,14 @@ func TestCapabilitiesMatchTheMeasuredDevices(t *testing.T) {
 			sys: fakeSys{
 				radios:      []string{"phy0", "phy1"},
 				netDevices:  []string{"br-lan", "eth0", "lan1", "lan2", "lo", "wan"},
+				physical:    []string{"eth0", "lan1", "lan2", "wan"},
 				dsaOn:       "eth0",
 				ipv6Present: true,
 			},
 			want: map[string]bool{
 				core.CapWiFi: true, core.CapSwitchPorts: true,
 				core.CapUSB: false, core.CapIPv6: true,
+				core.CapDHCPServer: true,
 			},
 		},
 	}
@@ -259,6 +268,7 @@ func TestRealProbeAnswersForEveryKnownCapability(t *testing.T) {
 	caps := newSysProbe().Capabilities()
 	for _, name := range []string{
 		core.CapWiFi, core.CapSwitchPorts, core.CapUSB, core.CapKernelTUN, core.CapIPv6,
+		core.CapDHCPServer,
 	} {
 		if _, ok := caps[name]; !ok {
 			t.Errorf("capability %q is missing from the probe's answer", name)
@@ -271,5 +281,40 @@ func TestRealProbeAnswersForEveryKnownCapability(t *testing.T) {
 func TestUnknownCapabilityIsNotAvailable(t *testing.T) {
 	if (core.Capabilities{}).Available("wifi-7-and-a-pony") {
 		t.Fatal("an unknown capability was reported as available")
+	}
+}
+
+// #34: a local network is possible with a second port or with a radio, and not
+// otherwise. Bridges and loopback do not count as ports: a box with one card
+// still has `br-lan` if somebody configured one, and serving addresses on it
+// reaches nobody.
+func TestALocalNetworkNeedsASecondPortOrARadio(t *testing.T) {
+	cases := map[string]struct {
+		sys  fakeSys
+		want bool
+	}{
+		"one port, no radio": {fakeSys{
+			noWiFiSubsystem: true, netDevices: []string{"br-lan", "eth0", "lo"}, physical: []string{"eth0"},
+		}, false},
+		"one port and a radio (an access point)": {fakeSys{
+			radios: []string{"phy0"}, netDevices: []string{"eth0", "lo"}, physical: []string{"eth0"},
+		}, true},
+		"two ports, no radio": {fakeSys{
+			noWiFiSubsystem: true, netDevices: []string{"eth0", "eth1", "lo"}, physical: []string{"eth0", "eth1"},
+		}, true},
+		"only virtual devices": {fakeSys{
+			noWiFiSubsystem: true, netDevices: []string{"br-lan", "lo", "tun0"},
+		}, false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := c.sys.probe(t).Capabilities()[core.CapDHCPServer]
+			if got.Available != c.want {
+				t.Fatalf("available = %v, want %v (%q)", got.Available, c.want, got.Reason)
+			}
+			if !got.Available && (got.Reason == "" || strings.Contains(got.Reason, "/sys")) {
+				t.Errorf("reason %q must say why in the panel's words", got.Reason)
+			}
+		})
 	}
 }

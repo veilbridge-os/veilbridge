@@ -67,6 +67,40 @@ func (p sysProbe) Capabilities() core.Capabilities {
 		core.CapUSB:         p.usb(),
 		core.CapKernelTUN:   p.kernelTUN(),
 		core.CapIPv6:        p.ipv6(),
+		core.CapDHCPServer:  p.dhcpServer(),
+	}
+}
+
+// dhcpServer answers whether a local network is physically possible: a
+// second network port, or a radio. Physical ports are the netdevs with a
+// `device` link; bridges, loopback and tunnels have none. Measured: the x86
+// stand has eth0 and eth1, the router eth0, lan1-lan4 and wan, plus two
+// radios.
+//
+// It is deliberately about hardware and not about configuration. A router whose
+// configuration simply has no `lan` section can have one, and the local
+// network screen says so on its own (404 from GET /network/lan); hiding the
+// section there would make an unconfigured device look like a smaller one.
+func (p sysProbe) dhcpServer() core.Capability {
+	devices, err := listDir(p.sysClassNet)
+	if err != nil {
+		return core.Capability{
+			Reason: "cannot tell how many network ports this device has",
+			Detail: fmt.Sprintf("cannot read %s", p.sysClassNet),
+		}
+	}
+	var ports []string
+	for _, dev := range devices {
+		if exists(filepath.Join(p.sysClassNet, dev, "device")) {
+			ports = append(ports, dev)
+		}
+	}
+	if len(ports) >= 2 || p.wifi().Available {
+		return core.Capability{Available: true}
+	}
+	return core.Capability{
+		Reason: "this device has a single network port and no Wi-Fi, so there is no local network to hand addresses out on",
+		Detail: fmt.Sprintf("physical network interfaces: %d %v, no radio", len(ports), ports),
 	}
 }
 
@@ -199,4 +233,12 @@ func listDir(path string) ([]string, error) {
 func isDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// exists reports whether path is there at all. /sys/class/net/<dev>/device is
+// a symlink to the bus device, and following it is not needed to know the
+// port is physical.
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }

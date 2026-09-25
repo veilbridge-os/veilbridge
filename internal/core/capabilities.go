@@ -25,6 +25,11 @@ const (
 	CapKernelTUN = "kernel-tun"
 	// CapIPv6: the kernel has IPv6 support compiled in.
 	CapIPv6 = "ipv6"
+	// CapDHCPServer: the device can have a local network to hand addresses
+	// out on — a second network port, or a radio to be an access point. A box
+	// with one port and no radio has nobody to serve, which is a shape of
+	// hardware and not a missing feature (D-20, #34).
+	CapDHCPServer = "dhcp-server"
 )
 
 // Capability is one answer: can we, and if not, why not.
