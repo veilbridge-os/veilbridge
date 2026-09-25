@@ -132,6 +132,13 @@ function inThisNetwork(ip: string): boolean {
  *
  * A name in the address bar is not resolvable to an address here, so it is
  * treated as "unknown" and gets the cautious wording. */
+/** Where the panel will be after the change: the new address on the port this
+ * page was opened on. "Reconnect" alone was a consequence, not a way back (#31). */
+const newPanelUrl = computed(() => {
+  const port = window.location.port ? `:${window.location.port}` : ''
+  return `${window.location.protocol}//${lanForm.value.address.trim() || routerAddress.value}${port}`
+})
+
 const insideThisNetwork = computed(() => {
   const host = window.location.hostname
   if (ipToUint(host) === null) return true
@@ -780,7 +787,7 @@ async function discard() {
           :closable="false"
           show-icon
           class="vb-lan__alert"
-          :title="insideThisNetwork ? t('lan.warnInside', { sec: windowSeconds }) : t('lan.warnOutside')"
+          :title="insideThisNetwork ? t('lan.warnInside', { sec: windowSeconds, url: newPanelUrl }) : t('lan.warnOutside')"
         />
 
         <el-alert

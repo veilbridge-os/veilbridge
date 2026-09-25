@@ -309,6 +309,8 @@ const en = {
     cancel: 'Cancel',
     onlyWayIn:
       'This connection is the only way to the panel. If the link goes away after applying, the settings come back by themselves in {sec} seconds.',
+    onlyWayInBack:
+      'If the panel still does not open after that, plug a cable into a local network port and open {url} — that way does not depend on the internet.',
     ipv6: 'IPv6',
     readOnly: 'read-only',
     ipv6Hint: 'There are no IPv6 settings here yet — the panel only reads the addresses.',
@@ -396,7 +398,7 @@ const en = {
     routerAddress: 'Router address in this network',
     mayCutAccess: 'may cut access to the panel',
     warnInside:
-      'You are in this very network. After applying, the panel opens at the new address and your device has to reconnect. If the link does not come back, the settings return by themselves in {sec} seconds.',
+      'You are in this very network, so applying will cut your link to the panel. To get back: unplug and replug the cable or rejoin the Wi-Fi, open {url} and press “Yes, the panel is up”. If that takes longer than {sec} seconds, the settings return by themselves and the panel is back at the old address.',
     warnOutside:
       'You are connected from outside this network, so your own access to the panel is not affected. Devices inside it will have to reconnect, and anything given a fixed address by hand will have to be changed.',
     nameOptional: 'Name (optional)',

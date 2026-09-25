@@ -66,6 +66,21 @@ const form = ref({
 const SLOW_POLL_MS = 15_000
 let poll = 0
 
+// The way back when the uplink is what broke (#31): a cable into a local port
+// and the router's address there. Read once; without a local network there is
+// no such way, and the sentence is not shown.
+const lanUrl = ref('')
+async function loadLanWayBack() {
+  try {
+    const lan = await api.lan()
+    const addr = lan?.interface?.ipv4?.[0]?.split('/')[0]
+    const port = window.location.port ? `:${window.location.port}` : ''
+    lanUrl.value = addr ? `${window.location.protocol}//${addr}${port}` : ''
+  } catch {
+    lanUrl.value = ''
+  }
+}
+
 async function load() {
   try {
     wan.value = await api.wan()
@@ -79,6 +94,7 @@ async function load() {
 
 onMounted(() => {
   void load()
+  void loadLanWayBack()
   void refreshStaged()
   poll = window.setInterval(load, SLOW_POLL_MS)
 })
@@ -517,6 +533,7 @@ const draftRows = computed<ConfigChange[]>(() => staged.value.slice())
         show-icon
         class="vb-wan__alert"
         :title="t('wan.onlyWayIn', { sec: windowSeconds })"
+        :description="lanUrl ? t('wan.onlyWayInBack', { url: lanUrl }) : ''"
       />
 
       <div class="vb-wan__actions">

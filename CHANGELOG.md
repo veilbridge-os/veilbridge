@@ -15,6 +15,11 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ### Fixed
+- A warning about losing access now says how to get back: on the local
+  network screen — reconnect, open the new address (shown) and confirm in
+  time; on the internet screen — a cable into a local network port and the
+  panel's address there, which does not depend on the uplink
+  ([#31](https://github.com/veilbridge-os/veilbridge/issues/31)).
 - Lease time in the list of changes reads "12 hours → 2 hours" instead of the
   device's spelling "12h → 2h"; a lease set in days or weeks (`1d`, `1w`, as
   LuCI allows) is no longer read as zero
