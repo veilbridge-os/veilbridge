@@ -26,6 +26,10 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ### Fixed
+- The address kept for a device can be changed again: pinning a device the
+  panel had already pinned to another address was refused with "not a valid
+  section name", because the panel creates entries without a name and then
+  refused to address them by position. Present in `v0.2.0-alpha1`.
 - A warning about losing access now says how to get back: on the local
   network screen — reconnect, open the new address (shown) and confirm in
   time; on the internet screen — a cable into a local network port and the

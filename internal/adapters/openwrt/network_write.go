@@ -214,7 +214,12 @@ func (m networkManager) stage(
 	ctx context.Context, config, section, role string, sets []wanSetting,
 ) ([]core.ConfigChange, error) {
 	_ = role // the words are already resolved by the caller; kept for clarity
-	if !sectionNameRe.MatchString(section) {
+	// Both shapes uci hands out: a named section, and the positional name it
+	// prints for a section that has none — which is every section the panel
+	// itself creates. Accepting only the first meant a device the panel had
+	// pinned could never be pinned to another address: measured on the stand,
+	// the second PUT answered 400 "@host[0] is not a valid section name".
+	if !sectionNameRe.MatchString(section) && !anonSectionRe.MatchString(section) {
 		return nil, fmt.Errorf("openwrt: %q is not a valid section name", section)
 	}
 

@@ -370,3 +370,29 @@ func TestBothPathsDescribeANewReservationTheSameWay(t *testing.T) {
 		}
 	}
 }
+
+// Pinning a device the panel already pinned, to another address. The panel
+// creates reservations without a name, `uci show` then calls them by position,
+// and staging by position was refused — so the address kept for a device
+// could never be changed from the panel. Measured on the stand (400).
+func TestADevicePinnedByThePanelCanBePinnedToAnotherAddress(t *testing.T) {
+	m, r := lanWriter(t, map[string]string{
+		"dhcp.cfg05fe63":     "host",
+		"dhcp.cfg05fe63.mac": "1a:a6:05:03:d4:9c",
+		"dhcp.cfg05fe63.ip":  "192.168.1.222",
+	})
+	r.sectionType = "host"
+	r.anonymous = map[string]string{"cfg05fe63": "@host[0]"}
+
+	if _, err := m.StageReservation(core.ReservationConfig{MAC: "1a:a6:05:03:d4:9c", IP: "192.168.1.30"}); err != nil {
+		t.Fatalf("re-pinning refused: %v", err)
+	}
+	if got := strings.Join(r.sets(), "|"); !strings.Contains(got, "dhcp.@host[0].ip=192.168.1.30") {
+		t.Errorf("staged %q, want the existing entry's address changed", got)
+	}
+	for _, c := range r.calls {
+		if len(c) >= 2 && c[1] == "add" {
+			t.Fatal("re-pinning added a second entry for the same device")
+		}
+	}
+}
