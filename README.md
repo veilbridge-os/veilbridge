@@ -16,15 +16,17 @@ and proof of where your traffic actually leaves.
 
 ## Status
 
-🧪 **`v0.1` released; `v0.2` in development on `main`.** Everything below is
-verified on real hardware — an x86 OpenWrt VM and a Cudy WR3000S router — not
-on a developer's laptop.
+🧪 **Stable: [`v0.1.2`](https://github.com/veilbridge-os/veilbridge/releases/latest).
+Pre-release for testers: [`v0.2.0-alpha1`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-alpha1).**
+Everything below is verified on real hardware — an x86 OpenWrt VM and a Cudy
+WR3000S router — not on a developer's laptop. What changed in each version:
+[`CHANGELOG.md`](./CHANGELOG.md).
 
-**In the released binaries (`v0.1.1`):** the tunnel comes up through the kernel
+**In the stable line (`v0.1.x`):** the tunnel comes up through the kernel
 engine, `awg0` appears, and the dashboard confirms traffic egresses through it
 by comparing egress IPs rather than trusting a `200 OK`.
 
-**On `main`, not yet released:** the platform layer — configuration changes go
+**In `v0.2.0-alpha1` and on `main`:** the platform layer — configuration changes go
 through a transaction that undoes itself if nobody confirms (proven by
 deliberately cutting the router's own management link and watching it come
 back), device capabilities the UI branches on, a live update stream, and a
@@ -51,7 +53,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **Path-aware checks** — verify traffic *actually* egresses through the tunnel, by comparing the egress IP, not by trusting `200 OK`
 - **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
-### Added on `main` since `v0.1.1`
+### Added in the `v0.2` line (pre-release `v0.2.0-alpha1`)
 
 - **Safe apply** — a dangerous change is applied with a confirmation window; no
   confirmation, and the device restores the previous settings by itself
@@ -71,10 +73,16 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 | Version | Highlights | Status |
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 on `main`: platform layer, panel, uplink and local network/DHCP done; firewall and static routes in progress |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha1`: platform layer, panel, uplink and local network/DHCP done; firewall and static routes in progress |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover | planned |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |
+
+Live plan: the [VeilBridge Roadmap](https://github.com/orgs/veilbridge-os/projects/1)
+board and the [milestones](https://github.com/veilbridge-os/veilbridge/milestones)
+— one per version, with epics and tasks. There are no dates on purpose: a
+version ships when its milestone is done and proven on a router. How releases
+are cut: [`RELEASING.md`](./RELEASING.md).
 
 ## Architecture
 
@@ -116,9 +124,20 @@ wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/script
 ```
 
 The script picks the build for your CPU **and for your package manager**,
-verifies its SHA-256 checksum and installs it. OpenWrt 25.12 replaced `opkg`
-with `apk`, so every release ships both formats: `.ipk` for 24.10 and earlier,
-`.apk` for 25.12 and later. Prefer to do it by hand? That is the same two steps:
+verifies its SHA-256 checksum, installs it, and checks that the installed
+binary is exactly the released one. OpenWrt 25.12 replaced `opkg` with `apk`, so
+releases from `v0.1.2` on ship both formats: `.ipk` for 24.10 and earlier,
+`.apk` for 25.12 and later.
+
+It installs the latest **stable** release. To try a pre-release, or to go back
+to an older version on purpose:
+
+```sh
+wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-alpha1 sh
+wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.1.2 VB_ALLOW_DOWNGRADE=1 sh
+```
+
+Prefer to do it by hand? That is the same two steps:
 
 ```sh
 # x86_64 -> amd64, aarch64 -> arm64

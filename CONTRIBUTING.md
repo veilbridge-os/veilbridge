@@ -103,6 +103,19 @@ part of CI. Without a router, `-demo` runs the panel anywhere.
   egress IP against the direct WAN — a `200 OK` does not prove the tunnel.
 - Run `gofmt` and Biome before committing; both are enforced in CI.
 
+## Where the work is
+
+- **Milestones are versions** (`v0.2.0`, `v0.3.0`, …), **epics** (issue type
+  *Epic*) group the work of one roadmap step, and **tasks** are their
+  sub-issues. The board: [VeilBridge Roadmap](https://github.com/orgs/veilbridge-os/projects/1)
+  — the *Current release* view is what is being worked on now.
+- `good first issue` — small and self-contained. `provable on a VM` — you can
+  prove the change without a router; `needs hardware` — the proof needs a
+  physical router (Wi-Fi, switch ports, memory budget).
+- Releases, version numbers and pre-release channels: [`RELEASING.md`](./RELEASING.md).
+  User-visible changes go into the `Unreleased` section of
+  [`CHANGELOG.md`](./CHANGELOG.md) in the same pull request.
+
 ## Commits & PRs
 
 - Keep commits focused; a clear `type(scope): summary` subject is appreciated.
