@@ -259,7 +259,7 @@ function dismiss() {
             </dd>
           </template>
         </dl>
-        <el-button link size="small" @click="showTech = !showTech">
+        <el-button link size="small" class="vb-applybar__techtoggle" @click="showTech = !showTech">
           {{ showTech ? t('apply.hideTechnical') : t('apply.showTechnical') }}
         </el-button>
         <dl v-if="showTech" class="vb-applybar__tech">
@@ -404,6 +404,16 @@ function dismiss() {
 }
 .vb-applybar__body {
   flex: 1 1 320px;
+  /* A flex item does not shrink below its content by default, so one
+     unbreakable line widened the whole bar past a 360 px screen. */
+  min-width: 0;
+}
+/* Element Plus buttons never wrap. The Russian label of this toggle is wider
+   than a 360 px phone, and it pushed the bar 3 px off screen (measured). */
+.vb-applybar__techtoggle {
+  white-space: normal;
+  height: auto;
+  text-align: left;
 }
 .vb-applybar__head {
   display: flex;

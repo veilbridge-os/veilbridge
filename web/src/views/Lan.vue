@@ -800,7 +800,13 @@ async function discard() {
 
     <!-- Pinning by hand: for a device that is not connected right now, which
          is the common case for a printer or a camera being installed. -->
-    <el-dialog v-model="manualOpen" :title="t('lan.pinByHand')" width="440">
+    <!-- A fixed 440 px dialog was clipped on a 360 px phone: it lives in an
+         overlay, so the page itself never reported the overflow. -->
+    <el-dialog
+      v-model="manualOpen"
+      :title="t('lan.pinByHand')"
+      width="min(440px, calc(100vw - 24px))"
+    >
       <el-form label-position="top">
         <el-form-item :label="t('lan.hardware')" required>
           <el-input v-model="manual.mac" class="vb-mono" placeholder="2c:44:fd:18:0b:71" />

@@ -14,6 +14,11 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   in both languages and in the list of staged changes
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
+### Fixed
+- On a 360 px phone the list of staged changes no longer runs 3 px off the
+  screen in Russian, and the "pin an address by hand" dialog is no longer cut
+  off at the right edge.
+
 ## [0.2.0-alpha1] — 2026-09-25 — pre-release
 
 The first public build of the `v0.2` line. It is a **pre-release**: the version
