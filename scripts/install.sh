@@ -8,11 +8,25 @@
 # decides how VeilBridge is installed (service, permissions, dependencies) lives
 # in the package itself — see packaging/nfpm.yaml.
 #
+# By default it installs the latest stable release. Pre-releases are never
+# "latest"; to try one, name it (see RELEASING.md for the channels):
+#
+#   wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-alpha1 sh
+#
 # POSIX sh / ash: this runs on the router, where there is no bash.
 set -eu
 
 REPO="veilbridge-os/veilbridge"
-BASE="${VB_BASE_URL:-https://github.com/$REPO/releases/latest/download}"
+VERSION="${VB_VERSION:-}"
+case "$VERSION" in
+	'') RELEASE="releases/latest/download" ;;
+	v[0-9]*.[0-9]*.[0-9]*) RELEASE="releases/download/$VERSION" ;;
+	*) echo "install: VB_VERSION must look like v0.2.0 or v0.2.0-alpha1, got '$VERSION'" >&2; exit 1 ;;
+esac
+# The case above admits only a tag-shaped value, so it cannot smuggle a path
+# or a query into the URL.
+case "$VERSION" in *[!A-Za-z0-9.-]*) echo "install: invalid VB_VERSION" >&2; exit 1 ;; esac
+BASE="${VB_BASE_URL:-https://github.com/$REPO/$RELEASE}"
 TMP="${TMPDIR:-/tmp}/veilbridge-install.$$"
 
 die() { echo "install: $*" >&2; exit 1; }
@@ -63,7 +77,7 @@ fi
 mkdir -p "$TMP"
 PKG="veilbridge_${ARCH}.${EXT}"
 
-echo "install: downloading $PKG"
+echo "install: downloading $PKG (${VERSION:-latest stable release})"
 fetch "$TMP/$PKG" "$BASE/$PKG" || die "download failed: $BASE/$PKG"
 fetch "$TMP/SHA256SUMS" "$BASE/SHA256SUMS" || die "download failed: SHA256SUMS"
 
@@ -78,12 +92,34 @@ sha256sum -c one.sum || die "checksum mismatch — refusing to install"
 echo "install: $PM update (needed to resolve kmod-tun and nftables)"
 "$PM" update >/dev/null 2>&1 || echo "install: $PM update failed, trying anyway" >&2
 
+# Going back to an older release is refused by opkg ("Not downgrading") while
+# it still exits 0, so it has to be asked for explicitly.
+DOWNGRADE="${VB_ALLOW_DOWNGRADE:-}"
+
 if [ "$PM" = apk ]; then
 	# The package is not signed by a repository key (a signed feed is roadmap
 	# D1), so apk needs to be told that installing this local file is intended.
 	# The checksum was already verified against SHA256SUMS above, which is the
 	# guarantee that actually matters here.
 	apk add --allow-untrusted "$TMP/$PKG"
+elif [ -n "$DOWNGRADE" ]; then
+	opkg install --force-downgrade "$TMP/$PKG"
 else
 	opkg install "$TMP/$PKG"
 fi
+
+# --- 5. Verify the result, not the exit code ---------------------------------
+# Neither package manager can be trusted to fail loudly: opkg exits 0 when it
+# declines a downgrade, and apk ignores the result of package scripts. The
+# release publishes the bare binary next to the packages, built from the same
+# file, so the installed binary must match its checksum exactly.
+want=$(awk -v f="veilbridged-linux-$ARCH" '$2 == f { print $1 }' SHA256SUMS)
+got=$(sha256sum /usr/bin/veilbridged 2>/dev/null | cut -d' ' -f1)
+if [ -n "$want" ] && [ "$got" != "$want" ]; then
+	now=$(/usr/bin/veilbridged -version 2>/dev/null || echo "nothing runnable")
+	die "the installed binary is not the one from this release.
+  Installed now: $now
+  If you asked for an older release, the package manager kept the newer one;
+  run again with VB_ALLOW_DOWNGRADE=1 to go back on purpose."
+fi
+echo "install: installed $(/usr/bin/veilbridged -version)"
