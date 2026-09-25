@@ -61,9 +61,14 @@ export function isAuthed(): boolean {
 
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  /** Refusals the server tied to one field of the request body, keyed by the
+   * field's JSON name (`address`, `netmask`, `dns`…). Screens place an error
+   * by this, never by the wording of the sentence (#28). */
+  fields: Record<string, string>
+  constructor(status: number, message: string, fields: Record<string, string> = {}) {
     super(message)
     this.status = status
+    this.fields = fields
   }
 }
 
@@ -85,19 +90,28 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   if (!resp.ok) {
     let msg = `HTTP ${resp.status}`
+    const fields: Record<string, string> = {}
     try {
       const err = await resp.json()
       // Huma puts validation reasons in `errors[]` and a short summary in
       // `detail`. Showing only `detail` tells the operator "stage uplink" and
       // hides the one sentence that says what was wrong with their input.
-      const reasons = Array.isArray(err?.errors)
-        ? err.errors.map((e: { message?: string }) => e?.message).filter(Boolean)
-        : []
-      msg = [err?.detail || err?.title || msg, ...reasons].join(': ')
+      // A reason with a `body.<field>` location is also kept by field, and
+      // not repeated in the sentence when it already is the sentence.
+      const detail: string = err?.detail || err?.title || msg
+      const reasons: string[] = []
+      for (const e of Array.isArray(err?.errors) ? err.errors : []) {
+        const text: string | undefined = e?.message
+        if (!text) continue
+        const at = typeof e.location === 'string' ? e.location : ''
+        if (at.startsWith('body.')) fields[at.slice(5)] ??= text
+        if (text !== detail) reasons.push(text)
+      }
+      msg = [detail, ...reasons].join(': ')
     } catch {
       // non-JSON error body; keep the status message
     }
-    throw new ApiError(resp.status, msg)
+    throw new ApiError(resp.status, msg, fields)
   }
   if (resp.status === 204) return undefined as T
   return (await resp.json()) as T

@@ -192,7 +192,7 @@ func (m networkManager) StageWAN(cfg core.WANConfig) ([]core.ConfigChange, error
 		iface = wan.Interface.Name
 	}
 	if !sectionNameRe.MatchString(iface) {
-		return nil, fmt.Errorf("openwrt: %q is not a valid interface name", iface)
+		return nil, core.Refuse("interface", fmt.Errorf("openwrt: %q is not a valid interface name", iface))
 	}
 
 	sets, err := wanSettings(cfg)
@@ -333,13 +333,13 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 
 	case core.WANProtoStatic:
 		if ip := net.ParseIP(cfg.Address); ip == nil || ip.To4() == nil {
-			return nil, fmt.Errorf("openwrt: %q is not an IPv4 address", cfg.Address)
+			return nil, core.Refuse("address", fmt.Errorf("openwrt: %q is not an IPv4 address", cfg.Address))
 		}
 		if err := validNetmask(cfg.Netmask); err != nil {
-			return nil, err
+			return nil, core.Refuse("netmask", err)
 		}
 		if cfg.Gateway != "" && net.ParseIP(cfg.Gateway) == nil {
-			return nil, fmt.Errorf("openwrt: %q is not a gateway address", cfg.Gateway)
+			return nil, core.Refuse("gateway", fmt.Errorf("openwrt: %q is not a gateway address", cfg.Gateway))
 		}
 		out := []wanSetting{
 			{key: "proto", value: "static", label: describe("network", roleUplink, "proto")},
@@ -355,7 +355,7 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 
 	case core.WANProtoPPPoE:
 		if strings.TrimSpace(cfg.Username) == "" {
-			return nil, fmt.Errorf("openwrt: PPPoE needs a user name")
+			return nil, core.Refuse("username", fmt.Errorf("openwrt: PPPoE needs a user name"))
 		}
 		out := []wanSetting{
 			{key: "proto", value: "pppoe", label: describe("network", roleUplink, "proto")},
@@ -372,7 +372,7 @@ func wanSettings(cfg core.WANConfig) ([]wanSetting, error) {
 		return appendDNS(out, cfg.DNS)
 
 	default:
-		return nil, fmt.Errorf("openwrt: unknown connection type %q", cfg.Proto)
+		return nil, core.Refuse("proto", fmt.Errorf("openwrt: unknown connection type %q", cfg.Proto))
 	}
 }
 
@@ -382,7 +382,7 @@ func appendDNS(out []wanSetting, dns []string) ([]wanSetting, error) {
 	}
 	for _, d := range dns {
 		if net.ParseIP(d) == nil {
-			return nil, fmt.Errorf("openwrt: %q is not a DNS server address", d)
+			return nil, core.Refuse("dns", fmt.Errorf("openwrt: %q is not a DNS server address", d))
 		}
 	}
 	return append(out, wanSetting{

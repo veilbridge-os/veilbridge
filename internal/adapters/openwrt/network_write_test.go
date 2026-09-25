@@ -326,38 +326,84 @@ func TestBadValuesAreRefusedBeforeAnythingIsWritten(t *testing.T) {
 	}
 }
 
-// The internet screen puts a refusal next to the field it is about by matching
-// the refusal's text (REFUSALS in web/src/views/Wan.vue). Until the API names
-// the field itself (#28), these phrases are a contract: renaming one here
-// without the screen moves the error off its field silently, which is exactly
-// what nearly happened when "resolver" became "DNS server" (#26).
-func TestRefusalsNameTheFieldTheScreenLooksFor(t *testing.T) {
-	cases := map[string]struct {
-		cfg  core.WANConfig
-		want string
-	}{
-		"address": {core.WANConfig{Interface: "wan", Proto: core.WANProtoStatic,
-			Address: "198.51.100.999", Netmask: "255.255.255.0"}, "not an IPv4 address"},
-		"netmask": {core.WANConfig{Interface: "wan", Proto: core.WANProtoStatic,
-			Address: "198.51.100.9", Netmask: "255.255.0.1"}, "network mask"},
-		"gateway": {core.WANConfig{Interface: "wan", Proto: core.WANProtoStatic,
-			Address: "198.51.100.9", Netmask: "255.255.255.0", Gateway: "x"}, "gateway address"},
-		"dns": {core.WANConfig{Interface: "wan", Proto: core.WANProtoDHCP,
-			DNS: []string{"nope"}}, "DNS server address"},
-		"username": {core.WANConfig{Interface: "wan", Proto: core.WANProtoPPPoE}, "user name"},
+// Every refusal of a typed value names the field it is about (#28), in the
+// request's own JSON spelling, so a screen puts it next to that input without
+// reading the sentence. The screens used to match wording, and renaming
+// "resolver" to "DNS server" nearly moved an error off its field (#26).
+func TestRefusalsNameTheirField(t *testing.T) {
+	wan := map[string]core.WANConfig{
+		"address":   {Interface: "wan", Proto: core.WANProtoStatic, Address: "198.51.100.999", Netmask: "255.255.255.0"},
+		"netmask":   {Interface: "wan", Proto: core.WANProtoStatic, Address: "198.51.100.9", Netmask: "255.255.0.1"},
+		"gateway":   {Interface: "wan", Proto: core.WANProtoStatic, Address: "198.51.100.9", Netmask: "255.255.255.0", Gateway: "x"},
+		"dns":       {Interface: "wan", Proto: core.WANProtoDHCP, DNS: []string{"nope"}},
+		"username":  {Interface: "wan", Proto: core.WANProtoPPPoE},
+		"proto":     {Interface: "wan", Proto: "carrier-pigeon"},
+		"interface": {Interface: "wan.evil", Proto: core.WANProtoDHCP},
 	}
-	for field, c := range cases {
-		t.Run(field, func(t *testing.T) {
+	for field, cfg := range wan {
+		t.Run("uplink/"+field, func(t *testing.T) {
 			m, _ := writerWith(map[string]string{"network.wan.proto": "dhcp"})
-			_, err := m.StageWAN(c.cfg)
-			if err == nil {
-				t.Fatalf("accepted %+v", c.cfg)
-			}
-			if !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(c.want)) {
-				t.Errorf("refusal %q does not contain %q, so the screen cannot put it next to the %s field",
-					err, c.want, field)
-			}
+			_, err := m.StageWAN(cfg)
+			assertRefusedField(t, err, field)
 		})
+	}
+
+	lan := map[string]core.LANConfig{
+		"address": {Address: "192.168.1.999", Netmask: "255.255.255.0"},
+		"netmask": {Address: "192.168.1.2", Netmask: "255.0.255.0"},
+	}
+	for field, cfg := range lan {
+		t.Run("lan/"+field, func(t *testing.T) {
+			m, _ := lanWriter(t, nil)
+			_, err := m.StageLAN(cfg)
+			assertRefusedField(t, err, field)
+		})
+	}
+
+	handout := map[string]core.HandoutConfig{
+		"first":            {Enabled: true, First: "nope", Last: "192.168.1.200"},
+		"last":             {Enabled: true, First: "192.168.1.100", Last: "nope"},
+		"last/reversed":    {Enabled: true, First: "192.168.1.200", Last: "192.168.1.100"},
+		"first/outside":    {Enabled: true, First: "10.0.0.5", Last: "192.168.1.200"},
+		"last/outside":     {Enabled: true, First: "192.168.1.100", Last: "10.0.0.5"},
+		"first/network-ip": {Enabled: true, First: "192.168.1.0", Last: "192.168.1.200"},
+	}
+	for name, cfg := range handout {
+		field, _, _ := strings.Cut(name, "/")
+		t.Run("handout/"+name, func(t *testing.T) {
+			m, _ := lanWriter(t, nil)
+			_, err := m.StageHandout(cfg)
+			assertRefusedField(t, err, field)
+		})
+	}
+
+	res := map[string]core.ReservationConfig{
+		"mac":        {MAC: "not-a-mac", IP: "192.168.1.50"},
+		"ip":         {MAC: "1a:a6:05:03:d4:9c", IP: "nope"},
+		"ip/outside": {MAC: "1a:a6:05:03:d4:9c", IP: "10.0.0.5"},
+		"name":       {MAC: "1a:a6:05:03:d4:9c", IP: "192.168.1.50", Name: "has space"},
+	}
+	for name, cfg := range res {
+		field, _, _ := strings.Cut(name, "/")
+		t.Run("reservation/"+name, func(t *testing.T) {
+			m, _ := lanWriter(t, nil)
+			_, err := m.StageReservation(cfg)
+			assertRefusedField(t, err, field)
+		})
+	}
+}
+
+func assertRefusedField(t *testing.T, err error, field string) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("accepted a value that cannot work")
+	}
+	var fe *core.FieldError
+	if !errors.As(err, &fe) {
+		t.Fatalf("refusal %q names no field; want %q", err, field)
+	}
+	if fe.Field != field {
+		t.Errorf("refusal %q is about %q; want %q", err, fe.Field, field)
 	}
 }
 

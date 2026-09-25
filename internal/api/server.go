@@ -662,7 +662,7 @@ func stagedOr(what string, changes []core.ConfigChange, err error) (*ChangesOutp
 	case errors.Is(err, core.ErrNoLAN):
 		return nil, huma.Error404NotFound("no lan interface", err)
 	case err != nil:
-		return nil, huma.Error400BadRequest(reasonFor(err))
+		return nil, refusal(err)
 	}
 	return changesOutput(changes), nil
 }
@@ -750,7 +750,7 @@ func (s *Server) stageWAN(_ context.Context, in *StageWANInput) (*ChangesOutput,
 		// name it where the panel actually reads it: clients show `detail`,
 		// so burying the reason in the errors array means the operator is
 		// told "stage uplink" and nothing else.
-		return nil, huma.Error400BadRequest(reasonFor(err))
+		return nil, refusal(err)
 	}
 	return changesOutput(changes), nil
 }
@@ -784,6 +784,22 @@ func (s *Server) discardStaged(_ context.Context, _ *struct{}) (*struct{}, error
 // reasonFor turns an adapter error into a sentence for the panel. The adapter
 // prefixes its errors with its own package name, which is useful in a log and
 // noise in a dialog.
+// refusal answers a rejected value with 400. When the device said which field
+// it was about, that goes into the standard `errors[].location` as
+// `body.<field>`, so a screen places the refusal next to its input without
+// reading the sentence (#28); the sentence stays in `detail` for people.
+func refusal(err error) error {
+	reason := reasonFor(err)
+	var fe *core.FieldError
+	if errors.As(err, &fe) {
+		return huma.Error400BadRequest(reason, &huma.ErrorDetail{
+			Message:  reason,
+			Location: "body." + fe.Field,
+		})
+	}
+	return huma.Error400BadRequest(reason)
+}
+
 func reasonFor(err error) string {
 	return strings.TrimPrefix(err.Error(), "openwrt: ")
 }

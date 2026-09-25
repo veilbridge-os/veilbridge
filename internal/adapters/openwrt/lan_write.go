@@ -38,10 +38,10 @@ func (m networkManager) StageLAN(cfg core.LANConfig) ([]core.ConfigChange, error
 		return nil, core.ErrNotImplemented
 	}
 	if ip := net.ParseIP(cfg.Address); ip == nil || ip.To4() == nil {
-		return nil, fmt.Errorf("openwrt: %q is not an IPv4 address", cfg.Address)
+		return nil, core.Refuse("address", fmt.Errorf("openwrt: %q is not an IPv4 address", cfg.Address))
 	}
 	if err := validNetmask(cfg.Netmask); err != nil {
-		return nil, err
+		return nil, core.Refuse("netmask", err)
 	}
 	// A router that hands out addresses it cannot reach is a network that
 	// half works, which is harder to diagnose than one that plainly does not.
@@ -49,7 +49,9 @@ func (m networkManager) StageLAN(cfg core.LANConfig) ([]core.ConfigChange, error
 	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)
 	defer cancel()
 	if err := m.poolFitsAddress(ctx, cfg.Address, cfg.Netmask); err != nil {
-		return nil, err
+		// The new address is what is wrong, not the pool the operator did
+		// not touch on this card.
+		return nil, core.Refuse("address", err)
 	}
 
 	return m.stage(ctx, "network", lanSection, roleLAN, []wanSetting{
@@ -153,14 +155,18 @@ func (m networkManager) lanNetwork(ctx context.Context) (*net.IPNet, error) {
 func poolOffsets(network *net.IPNet, first, last string) (int, int, error) {
 	f, l := net.ParseIP(first), net.ParseIP(last)
 	if f == nil || f.To4() == nil {
-		return 0, 0, fmt.Errorf("openwrt: %q is not an IPv4 address", first)
+		return 0, 0, core.Refuse("first", fmt.Errorf("openwrt: %q is not an IPv4 address", first))
 	}
 	if l == nil || l.To4() == nil {
-		return 0, 0, fmt.Errorf("openwrt: %q is not an IPv4 address", last)
+		return 0, 0, core.Refuse("last", fmt.Errorf("openwrt: %q is not an IPv4 address", last))
 	}
 	if !network.Contains(f) || !network.Contains(l) {
-		return 0, 0, fmt.Errorf(
-			"openwrt: %s-%s is outside the local network %s", first, last, network)
+		field := "first"
+		if network.Contains(f) {
+			field = "last"
+		}
+		return 0, 0, core.Refuse(field, fmt.Errorf(
+			"openwrt: %s-%s is outside the local network %s", first, last, network))
 	}
 	base := ipToUint(network.IP.To4())
 	fu, lu := ipToUint(f.To4()), ipToUint(l.To4())
@@ -169,14 +175,14 @@ func poolOffsets(network *net.IPNet, first, last string) (int, int, error) {
 	// negative, and the range would be accepted. Found by the test that fed
 	// it the ends the wrong way round.
 	if lu < fu {
-		return 0, 0, fmt.Errorf("openwrt: %s comes before %s", last, first)
+		return 0, 0, core.Refuse("last", fmt.Errorf("openwrt: %s comes before %s", last, first))
 	}
 	start := int(fu - base)
 	count := int(lu-fu) + 1
 	if start == 0 {
 		// Offset zero is the network address itself, which no client may be
 		// given; dnsmasq would take the number and hand out a broken lease.
-		return 0, 0, fmt.Errorf("openwrt: %s is the address of the network itself", first)
+		return 0, 0, core.Refuse("first", fmt.Errorf("openwrt: %s is the address of the network itself", first))
 	}
 	return start, count, nil
 }
@@ -230,14 +236,14 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 	}
 	mac, err := net.ParseMAC(strings.TrimSpace(cfg.MAC))
 	if err != nil {
-		return nil, fmt.Errorf("openwrt: %q is not a hardware address", cfg.MAC)
+		return nil, core.Refuse("mac", fmt.Errorf("openwrt: %q is not a MAC address", cfg.MAC))
 	}
 	ip := net.ParseIP(strings.TrimSpace(cfg.IP))
 	if ip == nil || ip.To4() == nil {
-		return nil, fmt.Errorf("openwrt: %q is not an IPv4 address", cfg.IP)
+		return nil, core.Refuse("ip", fmt.Errorf("openwrt: %q is not an IPv4 address", cfg.IP))
 	}
 	if cfg.Name != "" && !hostNameRe.MatchString(cfg.Name) {
-		return nil, fmt.Errorf("openwrt: %q is not a device name", cfg.Name)
+		return nil, core.Refuse("name", fmt.Errorf("openwrt: %q is not a device name", cfg.Name))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)
@@ -247,7 +253,7 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 	// hand out an address nobody can use and the client will look "connected
 	// but silent" — the hardest kind of fault to find.
 	if network, err := m.lanNetwork(ctx); err == nil && !network.Contains(ip) {
-		return nil, fmt.Errorf("openwrt: %s is outside the local network %s", cfg.IP, network)
+		return nil, core.Refuse("ip", fmt.Errorf("openwrt: %s is outside the local network %s", cfg.IP, network))
 	}
 
 	section := ""

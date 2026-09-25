@@ -270,25 +270,43 @@ const lanChanged = computed(
 // --- refusals ------------------------------------------------------------
 
 // The device is the one validator (same rule as the uplink screen), so none
-// of its rules are copied here. What IS done here is placing its answer at
-// the right field, and the device quotes the value it rejected — which is a
-// stronger signal than matching words, and does not drift when the wording
-// changes. Anything unplaceable is shown at card level rather than pinned to
-// the wrong input.
+// of its rules are copied here. It also says which field a refusal is about
+// (`errors[].location`, #28), and that is the only thing used to place it:
+// this screen used to match the quoted value and the word "mask", which
+// breaks the moment the device words a sentence differently. A refusal about
+// a field this card does not show stays at card level.
 const handoutErrors = ref<Record<string, string>>({})
 const handoutError = ref('')
 const lanErrors = ref<Record<string, string>>({})
 const lanError = ref('')
+const manualErrors = ref<Record<string, string>>({})
 const rowError = ref<Record<string, string>>({})
 const savedCard = ref('')
 
-function placeByValue(detail: string, fields: Record<string, string>): { field: string } | null {
-  const quoted = detail.match(/"([^"]+)"/)?.[1] ?? detail.match(/\b\d{1,3}(?:\.\d{1,3}){3}\b/)?.[0]
-  if (!quoted) return null
-  for (const [field, value] of Object.entries(fields)) {
-    if (value && value === quoted) return { field }
-  }
-  return null
+type RefusedField = 'address' | 'netmask' | 'first' | 'last' | 'mac' | 'ip' | 'name'
+
+// Spelled out rather than built as `lan.bad.${field}`: a template key is not
+// type-checked, and one built that way rendered as the raw key on the stand.
+const REFUSED: Record<RefusedField, () => string> = {
+  address: () => t('lan.bad.address'),
+  netmask: () => t('lan.bad.netmask'),
+  first: () => t('lan.bad.first'),
+  last: () => t('lan.bad.last'),
+  mac: () => t('lan.bad.mac'),
+  ip: () => t('lan.bad.ip'),
+  name: () => t('lan.bad.name'),
+}
+
+/** place puts a refusal at the first of `shown` it names, or returns false.
+ * The field gets this panel's sentence in the interface language, then the
+ * device's own words: they are English (a daemon has no locale) but carry the
+ * specifics — which address, which network. */
+function place(e: unknown, shown: RefusedField[], into: Record<string, string>): boolean {
+  if (!(e instanceof ApiError)) return false
+  const field = shown.find((f) => e.fields[f])
+  if (!field) return false
+  into[field] = `${REFUSED[field]()} — ${t('lan.deviceSaid', { detail: e.fields[field] })}`
+  return true
 }
 
 function clearMessages() {
@@ -296,6 +314,7 @@ function clearMessages() {
   handoutError.value = ''
   lanErrors.value = {}
   lanError.value = ''
+  manualErrors.value = {}
   rowError.value = {}
   savedCard.value = ''
 }
@@ -319,13 +338,8 @@ async function saveHandout() {
     const detail = e instanceof Error ? e.message : String(e)
     if (e instanceof ApiError && e.status === 409) {
       handoutError.value = t('lan.busyHint')
-    } else {
-      const hit = placeByValue(detail, {
-        first: handoutForm.value.first.trim(),
-        last: handoutForm.value.last.trim(),
-      })
-      if (hit) handoutErrors.value[hit.field] = detail
-      else handoutError.value = detail
+    } else if (!place(e, ['first', 'last'], handoutErrors.value)) {
+      handoutError.value = detail
     }
   } finally {
     savingHandout.value = false
@@ -346,12 +360,8 @@ async function saveLAN() {
     const detail = e instanceof Error ? e.message : String(e)
     if (e instanceof ApiError && e.status === 409) {
       lanError.value = t('lan.busyHint')
-    } else if (/mask/i.test(detail)) {
-      lanErrors.value.netmask = detail
-    } else {
-      const hit = placeByValue(detail, { address: lanForm.value.address.trim() })
-      if (hit) lanErrors.value[hit.field] = detail
-      else lanError.value = detail
+    } else if (!place(e, ['address', 'netmask'], lanErrors.value)) {
+      lanError.value = detail
     }
   } finally {
     savingLAN.value = false
@@ -401,12 +411,14 @@ const manualSaving = ref(false)
 function openManual() {
   manual.value = { mac: '', ip: '', name: '' }
   manualError.value = ''
+  manualErrors.value = {}
   manualOpen.value = true
 }
 
 async function saveManual() {
   manualSaving.value = true
   manualError.value = ''
+  manualErrors.value = {}
   try {
     await api.stageReservation({
       mac: manual.value.mac.trim(),
@@ -415,7 +427,9 @@ async function saveManual() {
     })
     manualOpen.value = false
   } catch (e) {
-    manualError.value = e instanceof Error ? e.message : String(e)
+    if (!place(e, ['mac', 'ip', 'name'], manualErrors.value)) {
+      manualError.value = e instanceof Error ? e.message : String(e)
+    }
   } finally {
     manualSaving.value = false
     await refreshStaged()
@@ -808,14 +822,14 @@ async function discard() {
       width="min(440px, calc(100vw - 24px))"
     >
       <el-form label-position="top">
-        <el-form-item :label="t('lan.hardware')" required>
+        <el-form-item :label="t('lan.hardware')" :error="manualErrors.mac" required>
           <el-input v-model="manual.mac" class="vb-mono" placeholder="2c:44:fd:18:0b:71" />
           <div class="vb-lan__hint">{{ t('lan.macHint') }}</div>
         </el-form-item>
-        <el-form-item :label="t('lan.address')" required>
+        <el-form-item :label="t('lan.address')" :error="manualErrors.ip" required>
           <el-input v-model="manual.ip" class="vb-mono" placeholder="192.168.1.50" />
         </el-form-item>
-        <el-form-item :label="t('lan.nameOptional')">
+        <el-form-item :label="t('lan.nameOptional')" :error="manualErrors.name">
           <el-input v-model="manual.name" placeholder="printer-hp" />
           <div class="vb-lan__hint">{{ t('lan.nameHint') }}</div>
         </el-form-item>

@@ -135,31 +135,31 @@ function removeResolver(i: number) {
   if (form.value.dns.length === 0) form.value.dns.push('')
 }
 
-/** A refusal names the field it belongs to. The device answers in one
- * sentence, so this maps that sentence back to a field; anything unmapped is
- * shown at form level rather than attached to the wrong input.
- *
- * Debt, recorded rather than hidden: the API should carry the field itself
- * (`errors[].location`), and then this table disappears. */
-const REFUSALS: Array<{ match: RegExp; field: string; message: string }> = [
-  { match: /not an IPv4 address/i, field: 'address', message: 'wan.badAddress' },
-  { match: /network mask/i, field: 'netmask', message: 'wan.badNetmask' },
-  { match: /gateway address/i, field: 'gateway', message: 'wan.badGateway' },
-  { match: /DNS server address/i, field: 'dns', message: 'wan.badResolver' },
-  { match: /user name/i, field: 'username', message: 'wan.needUsername' },
-]
+/** A refusal names the field it belongs to: the device says which one, in
+ * `errors[].location` (#28), and this screen only chooses the sentence to show
+ * there. Until #28 the field was guessed from the wording, and renaming a
+ * word on the device silently moved errors off their inputs. A refusal about
+ * no field, or about one this form does not show, stays at form level rather
+ * than being pinned to the wrong input. */
+const FIELD_MESSAGE: Record<string, string> = {
+  address: 'wan.badAddress',
+  netmask: 'wan.badNetmask',
+  gateway: 'wan.badGateway',
+  dns: 'wan.badResolver',
+  username: 'wan.needUsername',
+}
 
-function placeRefusal(detail: string) {
+function placeRefusal(e: ApiError) {
   fieldErrors.value = {}
   deviceReply.value = {}
   formError.value = ''
-  const hit = REFUSALS.find((r) => r.match.test(detail))
-  if (!hit) {
-    formError.value = detail
+  const field = Object.keys(e.fields).find((f) => f in FIELD_MESSAGE)
+  if (!field) {
+    formError.value = e.message
     return
   }
-  fieldErrors.value[hit.field] = t(hit.message)
-  deviceReply.value[hit.field] = detail
+  fieldErrors.value[field] = t(FIELD_MESSAGE[field] as string)
+  deviceReply.value[field] = e.fields[field] as string
 }
 
 function requestBody(): WANConfig {
@@ -194,7 +194,7 @@ async function save() {
     savedNote.value = true
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) formError.value = t('wan.busyHint')
-    else if (e instanceof ApiError) placeRefusal(e.message)
+    else if (e instanceof ApiError) placeRefusal(e)
     else formError.value = e instanceof Error ? e.message : String(e)
   } finally {
     saving.value = false

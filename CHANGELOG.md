@@ -15,6 +15,13 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ### Fixed
+- When the device refuses a value, the refusal now always lands next to the
+  field it is about, on the internet and local network screens and in the
+  pin dialog. The device names the field (`errors[].location` in the API)
+  instead of the panel guessing it from the wording
+  ([#28](https://github.com/veilbridge-os/veilbridge/issues/28)); on the local
+  network screen the message is also in the interface language now, followed
+  by the device's own words.
 - A change to the **local network** address was listed for confirmation as
   "Connection type / Address on the internet side / Network mask" — the words
   of the uplink. The device now sends a stable key with every row

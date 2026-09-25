@@ -409,6 +409,17 @@ const en = {
     saved: 'Draft saved — nothing has changed on the device yet',
     refused: 'The device refused the draft',
     deviceSaid: 'the device answered: {detail}',
+    // What is shown at a field the device refused (#28): our sentence first,
+    // the device's own words after it, which carry the specifics.
+    bad: {
+      address: 'This address cannot be used',
+      netmask: 'This is not a network mask',
+      first: 'The first address does not fit',
+      last: 'The last address does not fit',
+      mac: 'This is not a MAC address',
+      ip: 'This address cannot be reserved',
+      name: 'This name cannot be published on the network',
+    },
     busyTitle: 'A previous change is still waiting for confirmation',
     busyHint:
       'A new draft cannot be saved until you confirm the link is up, or until the settings come back by themselves. The form is locked and your values are kept.',
