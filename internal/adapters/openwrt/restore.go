@@ -328,4 +328,3 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 	}
 	return os.Rename(tmp, path)
 }
-
