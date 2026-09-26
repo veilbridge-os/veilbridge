@@ -10,14 +10,17 @@
 import {
   Aim,
   ArrowRight,
+  Bottom,
   CircleCheck,
   Clock,
   Close,
   Cpu,
   Delete,
+  Edit,
   EditPen,
   Expand,
   Files,
+  Filter,
   Grid,
   Guide,
   Loading,
@@ -28,12 +31,14 @@ import {
   Operation,
   Paperclip,
   Plus,
+  Rank,
   RefreshLeft,
   Search,
   Setting,
   Share,
   Sort,
   SwitchButton,
+  Top,
   Warning,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
@@ -81,6 +86,13 @@ const REGISTRY: Record<string, Component> = {
   fork: Sort,
   pin: Paperclip,
   tabs: Grid,
+  // The firewall screen (#36): the section, a drag handle, the two arrows of a
+  // move, and "change" — the pen is already "draft".
+  filter: Filter,
+  grip: Rank,
+  up: Top,
+  down: Bottom,
+  edit: Edit,
   // Ours: Element Plus has no counterpart.
   globe: VbGlobe,
   wifi: VbWiFi,

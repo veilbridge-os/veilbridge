@@ -50,6 +50,23 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   panel does not show a local network section there at all
   ([#34](https://github.com/veilbridge-os/veilbridge/issues/34)).
 
+- **The firewall screen** (menu: Network rules → Firewall). What is open
+  from the internet, first and in one sentence; port forwards with the device
+  picked from the devices on the network; your own rules, numbered as the
+  device runs them, switched on and off, moved by dragging or with arrows;
+  firmware rules folded, read-only; zones as a reference. A rule that could
+  never act where it would land is refused next to "Place in the list", with a
+  one-click "Put it before …". Every change goes through the apply bar under
+  the confirmation window
+  ([#36](https://github.com/veilbridge-os/veilbridge/issues/36)). Verified on
+  the router through the screen itself: a forwarded port answered from outside
+  and closed again when removed; a rule blocking the panel was put in front of
+  the rule allowing it and came back by itself when nobody confirmed.
+- Settings search finds sections by the words people use for them: "port
+  forwarding", "проброс портов", "NAT" find the firewall, "DHCP" the local
+  network, "PPPoE" the internet connection — and says which word matched
+  ([#32](https://github.com/veilbridge-os/veilbridge/issues/32)).
+
 ### Changed
 - The panel uses the words router owners already know: **DNS servers**
   instead of "Resolvers", and **MAC address** instead of "Hardware address",

@@ -27,6 +27,12 @@ export type AddressHandout = components['schemas']['AddressHandout']
 export type AddressLease = components['schemas']['AddressLease']
 export type ReservedAddress = components['schemas']['ReservedAddress']
 export type ConfigChange = components['schemas']['ConfigChange']
+export type FirewallStatus = components['schemas']['FirewallStatus']
+export type FirewallZone = components['schemas']['FirewallZone']
+export type FirewallRule = components['schemas']['FirewallRule']
+export type FirewallRuleConfig = components['schemas']['FirewallRuleConfig']
+export type PortForward = components['schemas']['PortForward']
+export type PortForwardConfig = components['schemas']['PortForwardConfig']
 export type MetricSample = components['schemas']['Sample']
 
 /** What the device will change if the draft is applied, described in the
@@ -167,6 +173,22 @@ export const api = {
     request<StagedChanges>('PUT', '/network/lan/reservations', cfg),
   removeReservation: (id: string) =>
     request<StagedChanges>('DELETE', `/network/lan/reservations/${encodeURIComponent(id)}`),
+  // The firewall (#35, #46). Every change here is dangerous (D-69): the apply
+  // bar will run it under the confirmation window.
+  firewall: () => request<FirewallStatus>('GET', '/firewall'),
+  stagePortForward: (cfg: PortForwardConfig) =>
+    request<StagedChanges>('PUT', '/firewall/port-forwards', cfg),
+  removePortForward: (id: string) =>
+    request<StagedChanges>('DELETE', `/firewall/port-forwards/${encodeURIComponent(id)}`),
+  stageRule: (cfg: FirewallRuleConfig) => request<StagedChanges>('PUT', '/firewall/rules', cfg),
+  removeRule: (id: string) =>
+    request<StagedChanges>('DELETE', `/firewall/rules/${encodeURIComponent(id)}`),
+  moveRule: (id: string, before: string) =>
+    request<StagedChanges>(
+      'POST',
+      `/firewall/rules/${encodeURIComponent(id)}/move`,
+      before ? { before } : {},
+    ),
   stagedChanges: () => request<StagedChanges>('GET', '/apply/changes'),
   discardStaged: () => request<void>('DELETE', '/apply/changes'),
 

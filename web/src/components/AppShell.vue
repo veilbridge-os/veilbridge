@@ -42,6 +42,9 @@ const NAV: NavItem[] = [
   { key: 'network', path: '/network', group: 'groupLan', needs: 'dhcp-server', ready: true },
   { key: 'wifi', path: '/wifi', group: 'groupLan', needs: 'wifi', ready: false },
   { key: 'devices', path: '/devices', group: 'groupLan', ready: false },
+  // Keenetic's own word for the group ("Сетевые правила"): port forwarding
+  // and the firewall are where people look for "open a port".
+  { key: 'firewall', path: '/firewall', group: 'groupRules', ready: true },
   { key: 'rules', path: '/rules', group: 'groupRouting', ready: true },
   { key: 'system', path: '/system', group: 'groupDevice', ready: false },
 ]
@@ -58,6 +61,7 @@ const NAV_ICON: Record<string, string> = {
   wifi: 'wifi',
   devices: 'dev',
   rules: 'rule',
+  firewall: 'filter',
   system: 'sys',
 }
 
@@ -67,7 +71,7 @@ const PATH_OVERRIDE: Record<string, string> = { rules: '/routes' }
 
 const route = useRoute()
 const router = useRouter()
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 // `reachable`, not `connected`: a link that dies under the stream leaves its
 // socket open, so the dot stayed green on a device that was gone (measured on
 // the stand while an uplink change was live).
@@ -89,10 +93,40 @@ const groups = computed(() => {
   return out
 })
 
-const searchResults = computed(() => {
+interface SearchHit {
+  item: NavItem
+  /** the synonym that matched, when the section's own name did not (#32). */
+  via: string
+}
+
+/** Words a section is also looked for by. A missing entry is no synonyms. */
+function synonymsOf(key: string): string[] {
+  const path = `shell.also.${key}`
+  return te(path)
+    ? t(path)
+        .split(',')
+        .map((w) => w.trim())
+        .filter(Boolean)
+    : []
+}
+
+// A section matches by its own name first; failing that, by one of the words
+// people actually type for it — "проброс портов" for the firewall, "DHCP" for
+// the local network — and the result says which word found it, so landing on
+// a section with another name is not a surprise.
+const searchResults = computed<SearchHit[]>(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return visibleNav.value
-  return visibleNav.value.filter((i) => t(`shell.${i.key}`).toLowerCase().includes(q))
+  if (!q) return visibleNav.value.map((item) => ({ item, via: '' }))
+  const hits: SearchHit[] = []
+  for (const item of visibleNav.value) {
+    if (t(`shell.${item.key}`).toLowerCase().includes(q)) {
+      hits.push({ item, via: '' })
+      continue
+    }
+    const word = synonymsOf(item.key).find((w) => w.toLowerCase().includes(q))
+    if (word) hits.push({ item, via: word })
+  }
+  return hits
 })
 
 const freshness = computed(() => {
@@ -333,10 +367,11 @@ const activePath = computed(() => route.path)
     <el-dialog v-model="searchOpen" :title="t('shell.search')" width="min(520px, 92vw)" top="10vh">
       <el-input v-model="query" autofocus :placeholder="t('shell.search')" clearable />
       <ul class="vb-search">
-        <li v-for="item in searchResults" :key="item.key">
+        <li v-for="{ item, via } in searchResults" :key="item.key">
           <button type="button" :disabled="!item.ready" @click="go(item)">
             {{ t(`shell.${item.key}`) }}
-            <small v-if="item.group">{{ t(`shell.${item.group}`) }}</small>
+            <small v-if="via">{{ t('shell.foundBy', { word: via }) }}</small>
+            <small v-else-if="item.group">{{ t(`shell.${item.group}`) }}</small>
             <el-tag v-if="!item.ready" size="small" type="info" round>{{ t('shell.soon') }}</el-tag>
           </button>
         </li>
