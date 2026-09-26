@@ -713,15 +713,6 @@ const discard = () => run('discard', () => api.discardStaged())
 .vb-rt__fix {
   margin: -6px 0 16px;
 }
-/* Element Plus positions a field's error absolutely, below the field: a
-   two-line refusal then lies over whatever comes next — here, over the
-   one-click "Set metric 10" button, which could not be pressed (measured in
-   a browser on the router). The firewall screen hit the same (#36). */
-.vb-rt__form :deep(.el-form-item__error) {
-  position: static;
-  padding-top: 4px;
-  line-height: 1.4;
-}
 
 /* A tablet: gateway, connection and metric fold into one line under the
    destination; their own columns go away, headers included. */

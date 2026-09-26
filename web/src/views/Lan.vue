@@ -208,6 +208,11 @@ const rows = computed<Row[]>(() => {
 
 const onlineCount = computed(() => leases.value.length)
 
+/** A lease the device lists with no time left: it was handed out, and the
+ * device has not renewed it since — most likely it is gone (#33). Shown as
+ * such rather than as a dash, which read like missing data. */
+const expired = (row: Row) => row.online && !row.reservation && row.expiresSec === 0
+
 /** The far end of the pool, shortened to the part that differs "192.168.1.100
  * \u2013 .249", as the artboard writes it. The shared part is on screen one
  * centimetre to the left, so repeating it costs a line break and buys
@@ -510,9 +515,11 @@ async function discard() {
           />
           <strong>
             {{
-              handingOut
-                ? t('lan.summaryOn', { n: onlineCount }, onlineCount)
-                : t('lan.summaryOff')
+              !handingOut
+                ? t('lan.summaryOff')
+                : onlineCount
+                  ? t('lan.summaryOn', { n: onlineCount }, onlineCount)
+                  : t('lan.summaryNone')
             }}
           </strong>
           <el-tag v-if="stale" size="small" type="info">
@@ -597,45 +604,44 @@ async function discard() {
           <p class="vb-lan__hint">{{ t('lan.noDevicesHint') }}</p>
         </el-empty>
 
-        <el-table v-else :data="rows" size="small" row-key="mac">
-          <el-table-column :label="t('lan.device')" min-width="200">
-            <template #default="{ row }">
-              <div class="vb-lan__dev">
+        <!-- A grid of rows, not el-table: on a phone the same markup becomes
+             cards, with the pin button kept (artboards Lan-360, #33); a table
+             scrolled sideways put the button past the edge. -->
+        <div v-else class="vb-lan__list" role="table">
+          <div class="vb-lan__row vb-lan__row--th" role="row">
+            <span>{{ t('lan.device') }}</span>
+            <span>{{ t('lan.address') }}</span>
+            <span>{{ t('lan.hardware') }}</span>
+            <span>{{ t('lan.leaseLeftCol') }}</span>
+            <span />
+          </div>
+          <div
+            v-for="row in rows"
+            :key="row.mac"
+            class="vb-lan__row"
+            :class="{ 'is-off': expired(row) || !row.online }"
+            role="row"
+          >
+            <span class="vb-lan__cell--dev">
+              <span class="vb-lan__dev">
                 <VbIcon name="dev" size="sm" class="vb-lan__muted" />
                 <strong v-if="row.name">{{ row.name }}</strong>
                 <span v-else class="vb-lan__muted">{{ t('lan.noName') }}</span>
                 <el-tag v-if="row.reservation" size="small">{{ t('lan.pinned') }}</el-tag>
-                <el-tag v-if="!row.online" size="small" type="info">
-                  {{ t('lan.offline') }}
-                </el-tag>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('lan.address')" min-width="150">
-            <template #default="{ row }">
-              <span class="vb-mono">{{ row.ip }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('lan.hardware')" min-width="160">
-            <template #default="{ row }">
-              <span class="vb-mono vb-lan__muted">{{ row.mac }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('lan.leaseLeftCol')" min-width="150">
-            <template #default="{ row }">
-              <span class="vb-lan__muted">
-                {{
-                  row.reservation
-                    ? t('lan.forever')
-                    : row.expiresSec
-                      ? t('lan.leaseLeft', { d: fmtDuration(row.expiresSec) })
-                      : '—'
-                }}
+                <el-tag v-if="!row.online" size="small" type="info">{{ t('lan.offline') }}</el-tag>
               </span>
-            </template>
-          </el-table-column>
-          <el-table-column align="right" min-width="190">
-            <template #default="{ row }">
+              <span class="vb-mono vb-lan__muted vb-lan__macunder">{{ row.mac }}</span>
+            </span>
+            <span class="vb-mono vb-lan__cell--ip">{{ row.ip }}</span>
+            <span class="vb-mono vb-lan__muted vb-lan__cell--mac">{{ row.mac }}</span>
+            <span class="vb-lan__muted vb-lan__cell--left">
+              <span class="vb-lan__label">{{ t('lan.leaseLeftCol') }}: </span>
+              <template v-if="row.reservation">{{ t('lan.forever') }}</template>
+              <el-tag v-else-if="expired(row)" size="small" type="info">{{ t('lan.expired') }}</el-tag>
+              <template v-else-if="row.expiresSec">{{ t('lan.leaseLeft', { d: fmtDuration(row.expiresSec) }) }}</template>
+              <template v-else>—</template>
+            </span>
+            <span class="vb-lan__acts">
               <el-button
                 v-if="row.reservation"
                 size="small"
@@ -660,9 +666,9 @@ async function discard() {
               <div v-if="rowError[row.mac]" class="vb-lan__rowerr">
                 {{ t('lan.deviceSaid', { detail: rowError[row.mac] }) }}
               </div>
-            </template>
-          </el-table-column>
-        </el-table>
+            </span>
+          </div>
+        </div>
         <p class="vb-lan__hint">{{ t('lan.devicesHint') }}</p>
       </el-card>
 
@@ -931,6 +937,78 @@ async function discard() {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+.vb-lan__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -20px;
+  font-size: 13px;
+}
+.vb-lan__row {
+  display: grid;
+  /* Fixed widths where content varies per row: each row is its own grid. */
+  grid-template-columns: minmax(200px, 1.6fr) 150px 170px 150px 200px;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.vb-lan__row--th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vb-muted);
+}
+.vb-lan__row.is-off {
+  color: var(--vb-muted);
+}
+.vb-lan__cell--dev {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vb-lan__macunder,
+.vb-lan__label {
+  display: none;
+}
+.vb-lan__acts {
+  text-align: right;
+}
+/* A tablet: the MAC address folds under the name (artboard Lan-768). */
+@media (width <= 1100px) {
+  .vb-lan__row {
+    grid-template-columns: minmax(0, 1.6fr) 140px 140px 190px;
+  }
+  .vb-lan__row > :nth-child(3) {
+    display: none;
+  }
+  .vb-lan__macunder {
+    display: block;
+  }
+}
+/* A phone: every device a card, the button kept (artboard Lan-360). */
+@media (width <= 700px) {
+  .vb-lan__list {
+    gap: 10px;
+    margin: 0;
+  }
+  .vb-lan__list .vb-lan__row.vb-lan__row--th {
+    display: none;
+  }
+  .vb-lan__row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 10px;
+  }
+  .vb-lan__label {
+    display: inline;
+  }
 }
 .vb-lan__rowerr {
   margin-top: 4px;

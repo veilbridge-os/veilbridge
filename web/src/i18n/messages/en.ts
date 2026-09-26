@@ -423,6 +423,7 @@ const en = {
     summaryOn:
       'The router hands out addresses — {n} device in the network | The router hands out addresses — {n} device in the network | The router hands out addresses — {n} devices in the network',
     summaryOff: 'The router does not hand out addresses here',
+    summaryNone: 'The router hands out addresses — no devices yet',
     // Never a green tick on its own: the claim "it works" is backed by an
     // address that was actually handed out, and when there is no such
     // evidence the screen says so instead (D-5, NFR-5).
@@ -458,6 +459,7 @@ const en = {
     noName: 'no name announced',
     pinned: 'pinned',
     offline: 'not in the network',
+    expired: 'expired',
     pin: 'Pin this address',
     unpin: 'Unpin',
     handoutTitle: 'Address handout',

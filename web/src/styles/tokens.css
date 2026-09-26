@@ -327,3 +327,17 @@ h1 {
 .vb-facts dd.vb-mono {
   font-weight: 400;
 }
+
+/* Element Plus positions a field's error absolutely, under the field. Every
+   refusal in this panel is two lines — our sentence and the device's own
+   words — so an absolute error lies over whatever comes next: the next
+   label (local network, #33), a one-click fix button (static routes, #48),
+   the next field (firewall, #36). Three screens hit it one by one; this is
+   the one place that fixes it for every form, the ones not written yet
+   included. Two classes: the component CSS is auto-imported AFTER this file,
+   and at equal specificity its `position: absolute` won (measured). */
+.el-form-item .el-form-item__error {
+  position: static;
+  padding-top: 4px;
+  line-height: 1.4;
+}

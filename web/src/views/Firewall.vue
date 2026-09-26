@@ -1217,15 +1217,6 @@ const discard = () => run('discard', () => api.discardStaged())
 .vb-fw__fix {
   margin-top: 8px;
 }
-/* A refusal is two sentences — ours and the device's — and Element Plus
-   positions the error absolutely, so it ran over the next field (seen on the
-   router: the switch under the address was covered). In the flow it pushes
-   the next field down instead. */
-.vb-fw__form :deep(.el-form-item__error) {
-  position: static;
-  padding-top: 4px;
-  line-height: 1.4;
-}
 .vb-fw__err {
   width: 100%;
   padding-top: 4px;
