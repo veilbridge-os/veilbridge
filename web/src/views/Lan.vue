@@ -669,7 +669,7 @@ async function discard() {
             </span>
           </div>
         </div>
-        <p class="vb-lan__hint">{{ t('lan.devicesHint') }}</p>
+        <p v-if="rows.length" class="vb-lan__hint">{{ t('lan.devicesHint') }}</p>
       </el-card>
 
       <!-- 6. The handout. Deliberately without a warning and without a
