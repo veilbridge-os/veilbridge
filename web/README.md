@@ -47,7 +47,11 @@ as a diff with the confirmation timer.
 - **Internet** (`Wan.vue`) — uplink type and addresses, staged through the
   apply bar.
 - **Local network** (`Lan.vue`) — router address, address handout, clients and
-  reserved addresses.
+  reserved addresses; devices as cards on a phone, expired leases said.
+- **Static routes** (`StaticRoutes.vue`, menu group *Network rules*) — each
+  route's real state first (working, off, not working with the reason, not
+  checked), add to a network or a host, one-click fix when a network is
+  already routed, IPv6 read-only.
 - **Firewall** (`Firewall.vue`, menu group *Network rules*) — what is open from
   the internet, port forwards (the device picked from the devices on the
   network), own rules in the order the device runs them (switch, change,

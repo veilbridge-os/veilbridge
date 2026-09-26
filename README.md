@@ -88,13 +88,17 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   rules in the order the router runs them; firmware rules read-only
 - **Settings search** — finds a section by the words people use for it
   ("port forwarding", "NAT", "DHCP", "PPPoE")
+- **Static routes screen** (on `main`) — each route's real state, taken from
+  the router's routing table, and why a route is not working
+- **Emergency command** (on `main`) — `veilbridged -restore-network` undoes a
+  confirmed network change that cut you off ([how](docs/emergency-access.md))
 
 ## Roadmap
 
 | Version | Highlights | Status |
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha2`: platform layer, panel, uplink, local network/DHCP and firewall done; static routes and emergency access in progress |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha2`; on `main` the whole version is done — uplink, local network/DHCP, firewall, static routes, emergency access; `v0.2.0-beta1` next |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover | planned |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |

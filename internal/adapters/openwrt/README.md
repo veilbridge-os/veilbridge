@@ -30,6 +30,15 @@ Files:
   one less than the target's place), and a rule an earlier one would always
   pre-empt is refused. A move is read back from `uci changes` (`cfg…='N'`)
   as the rule's number in the list, before and after. Fixtures of both OpenWrt branches are in `testdata/`
+- `routes.go` / `routes_write.go` — static routes (M3.4, #37): `route`
+  sections read from uci, and whether each is active read from the kernel
+  (`/proc/net/route`, in the CPU's byte order) — never from netifd's status,
+  which lists routes the kernel refused. Staging refuses a gateway off the
+  connection's network and a network and metric the kernel already routes
+  (netifd would take that route over and remove it with this one)
+- `restore.go` — the emergency command (M3.5, #38): `veilbridged
+  -restore-network` puts `network`, `firewall` and `dhcp` back from the newest
+  snapshot that differs from them, with no panel and no network needed
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon
