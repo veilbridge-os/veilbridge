@@ -48,9 +48,18 @@ as a diff with the confirmation timer.
   apply bar.
 - **Local network** (`Lan.vue`) — router address, address handout, clients and
   reserved addresses.
+- **Firewall** (`Firewall.vue`, menu group *Network rules*) — what is open from
+  the internet, port forwards (the device picked from the devices on the
+  network), own rules in the order the device runs them (switch, change,
+  remove, move by dragging or with arrows), firmware rules read-only, zones as a
+  reference.
 - **Nodes** — import `.conf`, activate (switches egress), remove; handshake age.
 - **Routing** — add/delete domain|subnet → tunnel|direct rules, Apply, and Probe
   (egress-comparing path check, D-5).
+
+Settings search (`Ctrl + K`) matches a section by its name and by the words
+people use for it (`shell.also.*` in the message bundles: "port forwarding",
+"NAT", "DHCP", …), and says which word matched.
 
 Nodes and Routing are the v0.1 screens moved into the new shell without a
 redesign; they are replaced in the policies milestone.
