@@ -51,6 +51,21 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   program's route that survived its removal, and a route cutting the panel off
   that came back by itself with the screen saying so.
 
+### Changed
+- The local network screen on a phone lists devices as cards, with the pin
+  button kept on screen — a table scrolled sideways put it past the edge. A
+  device whose lease has run out says "expired" instead of a dash, and an
+  empty network reads "no devices yet" instead of "0 devices"
+  ([#33](https://github.com/veilbridge-os/veilbridge/issues/33)). Checked in
+  every state (loading, no local network, handout off, no devices, 16 devices,
+  an expired lease, a refused field, a change being confirmed, device
+  unreachable) at 360, 768 and 1440 px, light and dark.
+
+### Fixed
+- A refusal at a field no longer lies over the next field or button: two-line
+  refusals (the panel's sentence and the device's words) overlapped the next
+  label on the local network screen at 360 px. Fixed once for every form.
+
 ### Known issues
 - Subnet rules "through the tunnel" (since v0.1) mark the traffic, but nothing
   routes the mark, so the traffic does not go through the tunnel
