@@ -206,6 +206,11 @@ roadmap.
 Tested on real hardware: a Cudy WR3000S v1 (MediaTek MT7981B, 256 MB RAM,
 aarch64) running OpenWrt 24.10.8 (`opkg`) and 25.12.5 (`apk`).
 
+**Locked yourself out?** A network change you did not confirm undoes itself.
+For one you did confirm, `veilbridged -restore-network` puts the network
+settings back from before it — over ssh, on a console, or from OpenWrt's
+failsafe mode: [getting back into a router](docs/emergency-access.md).
+
 ## Building
 
 Requires **Go 1.26+** (the toolchain directive in `go.mod` pulls the exact

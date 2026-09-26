@@ -9,6 +9,20 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 ## [Unreleased]
 
 ### Added
+- **A way back after a network change that stuck**
+  ([#38](https://github.com/veilbridge-os/veilbridge/issues/38)):
+  `veilbridged -restore-network` puts the network, firewall and
+  address-handout settings back from before the last change that stuck —
+  changes the router undid by itself are skipped — and leaves everything else
+  alone. `-list-restore-points` shows what each restore point would change,
+  `-restore-point <id>` goes further back, and the settings being replaced
+  become a restore point themselves, so a restore can be undone. While a change
+  still waits for confirmation it refuses and says when the router will undo
+  it (`-force` to override). Works with no network: over ssh, on a console,
+  in OpenWrt's failsafe mode after `mount_root`. Instructions:
+  [`docs/emergency-access.md`](./docs/emergency-access.md). Verified on the
+  router over ssh and on the VM from its console and from failsafe mode, each
+  time after a confirmed change that had cut the way in.
 - Static routes through the API (`GET`/`PUT /network/routes`,
   `DELETE /network/routes/{id}`): add, edit, switch off and remove, staged and
   applied under the confirmation window. Each route says whether the kernel is
