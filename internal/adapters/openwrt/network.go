@@ -48,6 +48,9 @@ type networkManager struct {
 	// bus; tests replace it the same way they replace command execution, so
 	// the pool arithmetic can be exercised without a ubus connection.
 	lookupInterfaces func() ([]core.NetworkInterface, error)
+	// procFile is the seam kernel state is read through (/proc/net/route):
+	// nil reads the real file, tests hand in captured ones.
+	procFile func(path string) ([]byte, error)
 }
 
 func newNetworkManager(bus *ubus.Client) networkManager {

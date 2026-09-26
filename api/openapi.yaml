@@ -862,6 +862,24 @@ components:
         - mac
         - ip
       type: object
+    RouteInterface:
+      additionalProperties: false
+      properties:
+        ipv4:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        name:
+          type: string
+        up:
+          type: boolean
+      required:
+        - name
+        - up
+        - ipv4
+      type: object
     RouteRule:
       additionalProperties: false
       properties:
@@ -887,6 +905,32 @@ components:
         - kind
         - value
         - target
+      type: object
+    RoutesStatus:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/RoutesStatus.json
+          format: uri
+          readOnly: true
+          type: string
+        interfaces:
+          items:
+            $ref: "#/components/schemas/RouteInterface"
+          type:
+            - array
+            - "null"
+        routes:
+          items:
+            $ref: "#/components/schemas/StaticRoute"
+          type:
+            - array
+            - "null"
+      required:
+        - routes
+        - interfaces
       type: object
     RuleBody:
       additionalProperties: false
@@ -945,6 +989,81 @@ components:
         - memUsed
         - memTotal
         - storageUsed
+      type: object
+    StaticRoute:
+      additionalProperties: false
+      properties:
+        active:
+          type: boolean
+        enabled:
+          type: boolean
+        family:
+          type: string
+        gateway:
+          type: string
+        id:
+          type: string
+        interface:
+          type: string
+        metric:
+          format: int64
+          type: integer
+        name:
+          type: string
+        target:
+          type: string
+        unsupported:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      required:
+        - id
+        - enabled
+        - family
+        - target
+        - interface
+        - metric
+        - active
+        - unsupported
+      type: object
+    StaticRouteConfig:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/StaticRouteConfig.json
+          format: uri
+          readOnly: true
+          type: string
+        enabled:
+          type: boolean
+        gateway:
+          description: Next hop on the chosen connection's network; empty for a network reached directly
+          type: string
+        id:
+          description: Route to edit, as reported by GET /network/routes; empty adds a new one
+          type: string
+        interface:
+          description: Connection to leave through (GET /network/routes lists them); empty picks the one whose network holds the gateway
+          type: string
+        metric:
+          description: Lower wins between routes to the same network
+          format: int64
+          maximum: 65535
+          minimum: 0
+          type: integer
+        name:
+          maxLength: 64
+          type: string
+        target:
+          description: IPv4 network (10.8.0.0/24) or a single address; host bits are cleared the way the device clears them
+          type: string
+      required:
+        - enabled
+        - target
       type: object
     SystemEvent:
       additionalProperties: false
@@ -1733,6 +1852,82 @@ paths:
       security:
         - bearerAuth: []
       summary: Stage the removal of a reserved address (does not apply it)
+      tags:
+        - network
+  /network/routes:
+    get:
+      operationId: getStaticRoutes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoutesStatus"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Static routes, each with whether the kernel is using it, and the connections a route can use
+      tags:
+        - network
+    put:
+      operationId: stageStaticRoute
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaticRouteConfig"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage an IPv4 static route, new or edited (does not apply it)
+      tags:
+        - network
+  /network/routes/{id}:
+    delete:
+      operationId: removeStaticRoute
+      parameters:
+        - description: Route as reported by GET /network/routes
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Route as reported by GET /network/routes
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage the removal of a static route (does not apply it)
       tags:
         - network
   /network/wan:

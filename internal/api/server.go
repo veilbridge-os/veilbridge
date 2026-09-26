@@ -338,6 +338,22 @@ func (s *Server) register() {
 		Summary: "Stage the removal of a reserved address (does not apply it)",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
 	}, s.removeReservation)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "getStaticRoutes", Method: http.MethodGet, Path: "/network/routes",
+		Summary: "Static routes, each with whether the kernel is using it, and the connections a route can use",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.getStaticRoutes)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stageStaticRoute", Method: http.MethodPut, Path: "/network/routes",
+		Summary: "Stage an IPv4 static route, new or edited (does not apply it)",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.stageStaticRoute)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "removeStaticRoute", Method: http.MethodDelete,
+		Path:    "/network/routes/{id}",
+		Summary: "Stage the removal of a static route (does not apply it)",
+		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
+	}, s.removeStaticRoute)
 
 	// --- system ---
 	huma.Register(s.api, huma.Operation{
@@ -756,6 +772,47 @@ func (s *Server) moveFirewallRule(_ context.Context, in *MoveFirewallRuleInput) 
 	}
 	changes, err := w.MoveRule(in.ID, in.Body.Before)
 	return stagedOr("moving a firewall rule", changes, err)
+}
+
+// getStaticRoutes answers the routes screen (#37). Optional like the firewall:
+// 501 says "this build cannot read routes", not "there are none".
+func (s *Server) getStaticRoutes(_ context.Context, _ *struct{}) (*StaticRoutesOutput, error) {
+	reader, ok := s.adapter.Network().(core.RouteReader)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot read static routes")
+	}
+	st, err := reader.StaticRoutes()
+	switch {
+	case errors.Is(err, core.ErrNotImplemented):
+		return nil, huma.Error501NotImplemented("static routes", err)
+	case err != nil:
+		return nil, huma.Error502BadGateway("static routes", err)
+	}
+	return &StaticRoutesOutput{Body: st}, nil
+}
+
+func (s *Server) stageStaticRoute(_ context.Context, in *StageStaticRouteInput) (*ChangesOutput, error) {
+	w, ok := s.adapter.Network().(core.RouteWriter)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change static routes")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StageStaticRoute(in.Body)
+	return stagedOr("staging a static route", changes, err)
+}
+
+func (s *Server) removeStaticRoute(_ context.Context, in *RemoveStaticRouteInput) (*ChangesOutput, error) {
+	w, ok := s.adapter.Network().(core.RouteWriter)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change static routes")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.RemoveStaticRoute(in.ID)
+	return stagedOr("removing a static route", changes, err)
 }
 
 // lanWriter is the local-network half of the writer. Like LANReader it is an

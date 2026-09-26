@@ -405,3 +405,45 @@ func TestFirewallEndpointSpeaksThePanelsLanguage(t *testing.T) {
 		}
 	}
 }
+
+// GET /network/routes answers with the routes and the connections a form can
+// offer; a build that cannot change routes says 501, not "done" (#37).
+func TestStaticRoutesEndpoint(t *testing.T) {
+	ts, base := setup(t)
+	defer ts.Close()
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/network/routes", "", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("unauthenticated status = %d, want 401", resp.StatusCode)
+	}
+
+	resp = do(t, http.MethodGet, base+"/network/routes", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var st struct {
+		Routes []struct {
+			Target string `json:"target"`
+			Active bool   `json:"active"`
+		} `json:"routes"`
+		Interfaces []struct {
+			Name string `json:"name"`
+		} `json:"interfaces"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Routes) == 0 || len(st.Interfaces) == 0 {
+		t.Fatalf("demo routes are missing a part: %+v", st)
+	}
+
+	put := do(t, http.MethodPut, base+"/network/routes", token,
+		map[string]any{"target": "10.8.0.0/24", "interface": "lan", "enabled": true})
+	put.Body.Close()
+	if put.StatusCode != http.StatusNotImplemented {
+		t.Errorf("staging on the demo adapter = %d, want 501", put.StatusCode)
+	}
+}

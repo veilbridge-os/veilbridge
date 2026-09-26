@@ -200,6 +200,22 @@ type RemoveFirewallRuleInput struct {
 	ID string `path:"id" doc:"Rule as reported by GET /firewall"`
 }
 
+// StaticRoutesOutput is the routes screen in one answer (#37).
+type StaticRoutesOutput struct {
+	Body core.RoutesStatus
+}
+
+// StageStaticRouteInput adds (no id) or edits (an id from GET
+// /network/routes) one IPv4 static route.
+type StageStaticRouteInput struct {
+	Body core.StaticRouteConfig
+}
+
+// RemoveStaticRouteInput names the route to drop as the device reported it.
+type RemoveStaticRouteInput struct {
+	ID string `path:"id" doc:"Route as reported by GET /network/routes"`
+}
+
 // StageWANInput is a requested uplink configuration. Staging is deliberately
 // a separate call from applying: the operator sees the diff first, and the
 // change only reaches the device through the watchdogged transaction.

@@ -97,6 +97,15 @@ var optionLabels = map[string]string{
 	// Not an option on the device: a rule's number in the list, which is
 	// what a move changes (#46).
 	"firewall.rule.position": "Place in the list",
+
+	// A static route edited field by field (#37).
+	"network.route.name":      "Route name",
+	"network.route.disabled":  "Route is on",
+	"network.route.target":    "Destination",
+	"network.route.netmask":   "Destination mask",
+	"network.route.gateway":   "Gateway",
+	"network.route.interface": "Connection",
+	"network.route.metric":    "Metric",
 }
 
 // entryRoles are the kinds of section that appear and disappear as ONE thing
@@ -107,7 +116,8 @@ var entryRoles = map[string]phrase{
 	rolePortForward: {"firewall.redirect.section", "Port forward"},
 	// The general words, for a rule that neither allows nor blocks; any
 	// other rule is named by what it does, see rulePhrases.
-	roleRule: {"firewall.rule.section", "Firewall rule"},
+	roleRule:  {"firewall.rule.section", "Firewall rule"},
+	roleRoute: {"network.route.section", "Static route"},
 }
 
 // rulePhrases name a whole rule appearing or going away by what it does, so
@@ -760,6 +770,8 @@ func roleOf(config, section, sectionType, uplink string) string {
 		return rolePortForward
 	case config == "firewall" && sectionType == "rule":
 		return roleRule
+	case config == "network" && (sectionType == "route" || sectionType == "route6"):
+		return roleRoute
 	case section == lanSection:
 		return roleLAN
 	case config == "network" && uplink != "" && section == uplink:
@@ -842,6 +854,13 @@ func entryWords(e stagedEdit, values map[string]string) string {
 		return ruleWords(values[e.key+".src"], values[e.key+".dest"],
 			values[e.key+".proto"], values[e.key+".dest_port"], values[e.key+".family"])
 	}
+	if e.config == "network" && (values[e.key] == "route" || values[e.key] == "route6") {
+		target := values[e.key+".target"]
+		if p, _ := routeTarget(target, values[e.key+".netmask"], ""); p.IsValid() {
+			target = p.String()
+		}
+		return routeWords(target, values[e.key+".gateway"], values[e.key+".interface"])
+	}
 	if e.config == "firewall" && values[e.key+".src_dport"] != "" {
 		return portForwardWords(values[e.key+".proto"], values[e.key+".src_dport"],
 			values[e.key+".dest_ip"], values[e.key+".dest_port"])
@@ -892,6 +911,14 @@ var wholeEntryOptions = map[string][]string{
 	},
 }
 
+// routeEntryOptions are asked for only for anonymous `network` sections
+// (`cfg0a1b2c` in `uci changes`), which is what a route is: asking every
+// named connection (`wan`, `lan`) for a gateway it has as an interface option
+// would describe an uplink edit in the words of a route.
+var routeEntryOptions = []string{"name", "target", "netmask", "gateway", "interface"}
+
+var anonInternalRe = regexp.MustCompile(`^cfg[0-9a-f]{6}$`)
+
 func keysOf(edits []stagedEdit, config string) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -925,6 +952,11 @@ func keysOf(edits []stagedEdit, config string) []string {
 			// is about (ConfigChange.Subject), by the same words.
 			for _, option := range wholeEntryOptions[e.config] {
 				add(e.config + "." + e.section + "." + option)
+			}
+			if e.config == "network" && anonInternalRe.MatchString(e.section) {
+				for _, option := range routeEntryOptions {
+					add(e.config + "." + e.section + "." + option)
+				}
 			}
 		}
 	}

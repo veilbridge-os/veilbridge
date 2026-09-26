@@ -92,6 +92,7 @@ const en = {
     mayCutAccess: 'may cut access to the panel',
     flagOn: 'yes',
     flagOff: 'no',
+    routeDirect: 'directly, no gateway',
     fwAccept: 'allow',
     fwReject: 'block',
     fwDrop: 'block without answering',
@@ -252,6 +253,17 @@ const en = {
         ipaddr: 'Address of this router on the local network',
         netmask: 'Local network mask',
         dns: 'DNS servers for the local network',
+      },
+      // A static route (#37); the words of the router owners' own manuals.
+      route: {
+        section: 'Static route',
+        name: 'Route name',
+        disabled: 'Route is on',
+        target: 'Destination',
+        netmask: 'Destination mask',
+        gateway: 'Gateway',
+        interface: 'Connection',
+        metric: 'Metric',
       },
     },
     firewall: {

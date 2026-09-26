@@ -38,6 +38,8 @@ function labelOf(c: ConfigChange): string {
 function shownValue(c: ConfigChange, value: string): string {
   const fw = firewallValue(c.labelKey ?? '', value)
   if (fw !== null) return fw
+  const route = routeValue(c.labelKey ?? '', value)
+  if (route !== null) return route
   if (!value) return ''
   const option = (c.labelKey ?? '').split('.').at(-1)
   if (option === 'proto') {
@@ -93,6 +95,23 @@ function firewallValue(key: string, value: string): string | null {
     case 'position':
       // A rule's number in the list, as the screen numbers it (#46).
       return value ? t('apply.fwPlace', { n: value }) : ''
+  }
+  return null
+}
+
+/** routeValue says a static route setting in words (#37). As with the
+ * firewall an absent value means something: no `disabled` is on, no metric is
+ * 0, no gateway is a network reached directly. The option is `disabled` but the
+ * row asks "is the route on", so the flag reads the other way round. */
+function routeValue(key: string, value: string): string | null {
+  if (!key.startsWith('network.route.')) return null
+  switch (key.split('.').at(-1)) {
+    case 'disabled':
+      return value === '1' ? t('apply.flagOff') : t('apply.flagOn')
+    case 'metric':
+      return value || '0'
+    case 'gateway':
+      return value || t('apply.routeDirect')
   }
   return null
 }

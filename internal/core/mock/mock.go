@@ -226,6 +226,30 @@ func (m Network) FirewallInfo() (core.FirewallStatus, error) {
 	}, nil
 }
 
+// StaticRoutes shows the three states the routes screen has to draw: a route
+// the kernel is using, a switched-off one, and one that is on but not in the
+// kernel (its gateway is not on the connection's network — D-75 refuses that
+// today, but a route written by hand or by LuCI can still be like this).
+func (m Network) StaticRoutes() (core.RoutesStatus, error) {
+	return core.RoutesStatus{
+		Routes: []core.StaticRoute{
+			{ID: "@route[0]", Name: "Office", Enabled: true, Family: "ipv4",
+				Target: "10.20.0.0/16", Gateway: "192.168.1.2", Interface: "lan",
+				Active: true, Unsupported: []string{}},
+			{ID: "@route[1]", Name: "Lab", Enabled: false, Family: "ipv4",
+				Target: "172.16.5.0/24", Gateway: "192.168.1.3", Interface: "lan",
+				Metric: 10, Unsupported: []string{}},
+			{ID: "@route[2]", Enabled: true, Family: "ipv4",
+				Target: "203.0.113.0/24", Gateway: "10.99.99.1", Interface: "wan",
+				Unsupported: []string{}},
+		},
+		Interfaces: []core.RouteInterface{
+			{Name: "lan", Up: true, IPv4: []string{"192.168.1.1/24"}},
+			{Name: "wan", Up: true, IPv4: []string{"198.51.100.42/24"}},
+		},
+	}, nil
+}
+
 // LANInfo describes a plausible home network: a handout that is on, four
 // clients and two addresses pinned by hand. It exists so the local-network
 // screen can be seen and photographed without a router underneath — and so
@@ -384,6 +408,7 @@ var (
 	_ core.NetworkManager  = Network{}
 	_ core.LANReader       = Network{}
 	_ core.FirewallReader  = Network{}
+	_ core.RouteReader     = Network{}
 	_ core.DeviceManager   = Device{}
 	_ core.Adapter         = (*Adapter)(nil)
 	_ core.CapabilityProbe = (*Adapter)(nil)

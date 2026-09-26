@@ -96,6 +96,7 @@ const ru: MessageSchema = {
     mayCutAccess: 'может оборвать доступ к панели',
     flagOn: 'да',
     flagOff: 'нет',
+    routeDirect: 'напрямую, без шлюза',
     fwAccept: 'разрешить',
     fwReject: 'запретить',
     fwDrop: 'запретить без ответа',
@@ -240,6 +241,17 @@ const ru: MessageSchema = {
         ipaddr: 'Адрес роутера в локальной сети',
         netmask: 'Маска локальной сети',
         dns: 'DNS-серверы для локальной сети',
+      },
+      // Статический маршрут (#37) — слова из инструкций Keenetic.
+      route: {
+        section: 'Статический маршрут',
+        name: 'Название маршрута',
+        disabled: 'Маршрут включён',
+        target: 'Адрес назначения',
+        netmask: 'Маска назначения',
+        gateway: 'Шлюз',
+        interface: 'Соединение',
+        metric: 'Метрика',
       },
     },
     firewall: {
