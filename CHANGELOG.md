@@ -8,6 +8,27 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 
 ## [Unreleased]
 
+### Added
+- Static routes through the API (`GET`/`PUT /network/routes`,
+  `DELETE /network/routes/{id}`): add, edit, switch off and remove, staged and
+  applied under the confirmation window. Each route says whether the kernel is
+  actually using it — the router's own status lists routes the kernel refused.
+  Refused before they reach the router: a gateway outside the chosen
+  connection's network (the router would accept the route and never use it),
+  and a network and metric the router already routes — a connection's own
+  network, another route, or a route of the tunnel — because the network
+  service would take that route over and remove it together with the new one.
+  A route written in the older address-plus-mask form keeps its form when
+  edited ([#37](https://github.com/veilbridge-os/veilbridge/issues/37)).
+  Verified on both stands: a route that cut the panel off came back by itself
+  when nobody confirmed; an unrelated route of somebody else's survived adding,
+  editing, switching off and removing ours.
+
+### Known issues
+- Subnet rules "through the tunnel" (since v0.1) mark the traffic, but nothing
+  routes the mark, so the traffic does not go through the tunnel
+  ([#47](https://github.com/veilbridge-os/veilbridge/issues/47)).
+
 ## [0.2.0-alpha2] — 2026-09-26 — pre-release
 
 The second build of the `v0.2` line, still a **pre-release**: static routes

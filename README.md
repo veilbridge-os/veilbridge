@@ -46,8 +46,13 @@ act where it would land is refused, naming the rule in the way.
 
 ![VeilBridge firewall screen](docs/img/firewall.png)
 
-VeilBridge does **not** yet manage static routes, Wi-Fi or clients — keep
-LuCI around for those. See [Install](#install)
+On `main`, not yet in a release: static routes through the API — each shown as
+the kernel actually has it, and refused where the router's network service would
+accept the route and then silently not use it, or take over a route that is
+somebody else's. The screen for them comes next.
+
+VeilBridge does **not** yet manage Wi-Fi or clients — keep LuCI around for
+those. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
@@ -56,7 +61,10 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **Exit node list** — your gateways with live handshake status
 - **One-click exit switch** — change the active exit node from the UI
 - **Dashboard** — WAN IP, tunnel egress IP, tunnel status, CPU / RAM / uptime
-- **Routing control** — choose which domains/subnets go through the tunnel vs direct (nftables)
+- **Routing control** — choose which domains/subnets go through the tunnel vs direct (nftables).
+  ⚠️ Known defect: a subnet rule marks the traffic but nothing routes the mark,
+  so it does not actually go through the tunnel —
+  [#47](https://github.com/veilbridge-os/veilbridge/issues/47)
 - **Path-aware checks** — verify traffic *actually* egresses through the tunnel, by comparing the egress IP, not by trusting `200 OK`
 - **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
