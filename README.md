@@ -17,7 +17,7 @@ and proof of where your traffic actually leaves.
 ## Status
 
 🧪 **Stable: [`v0.1.2`](https://github.com/veilbridge-os/veilbridge/releases/latest).
-Pre-release for testers: [`v0.2.0-alpha1`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-alpha1).**
+Pre-release for testers: [`v0.2.0-alpha2`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-alpha2).**
 Everything below is verified on real hardware — an x86 OpenWrt VM and a Cudy
 WR3000S router — not on a developer's laptop. What changed in each version:
 [`CHANGELOG.md`](./CHANGELOG.md).
@@ -26,23 +26,28 @@ WR3000S router — not on a developer's laptop. What changed in each version:
 engine, `awg0` appears, and the dashboard confirms traffic egresses through it
 by comparing egress IPs rather than trusting a `200 OK`.
 
-**In `v0.2.0-alpha1` and on `main`:** the platform layer — configuration changes go
+**In `v0.2.0-alpha2` and on `main`:** the platform layer — configuration changes go
 through a transaction that undoes itself if nobody confirms (proven by
 deliberately cutting the router's own management link and watching it come
 back), device capabilities the UI branches on, a live update stream, and a
 rebuilt panel with a dashboard that reports model, firmware, memory and the
 flash space that actually runs out first.
 
-The first router-network screens are on `main` too: the uplink (connection
+The router-network screens are in it too: the uplink (connection
 type, addresses, DNS servers) and the local network (router address, address
 handout, lease time, and reserving an address for a device straight from the
 client table). Every change is staged, shown as a before/after diff and applied
 through the self-reverting transaction.
 
-On `main`, not yet in a release: the firewall has its own screen — what is
-open from the internet, port forwards, and your own rules, added, changed,
-switched off, reordered and removed through the same self-reverting
-transaction. VeilBridge does **not** yet manage static routes, Wi-Fi or clients — keep LuCI around for those. See [Install](#install)
+And the firewall has its own screen — what is open from the internet, port
+forwards, and your own rules, added, changed, switched off, reordered and
+removed through the same self-reverting transaction; a rule that could never
+act where it would land is refused, naming the rule in the way.
+
+![VeilBridge firewall screen](docs/img/firewall.png)
+
+VeilBridge does **not** yet manage static routes, Wi-Fi or clients — keep
+LuCI around for those. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
@@ -55,7 +60,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **Path-aware checks** — verify traffic *actually* egresses through the tunnel, by comparing the egress IP, not by trusting `200 OK`
 - **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
-### Added in the `v0.2` line (pre-release `v0.2.0-alpha1`)
+### Added in the `v0.2` line (pre-release `v0.2.0-alpha2`)
 
 - **Safe apply** — a dangerous change is applied with a confirmation window; no
   confirmation, and the device restores the previous settings by itself
@@ -69,13 +74,17 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   panel stops answering mid-change, it says so instead of waiting silently
 - **Local network screen** — router address, address handout and lease time,
   the clients currently holding an address, and reserved addresses
+- **Firewall screen** — what is open from the internet, port forwards, your own
+  rules in the order the router runs them; firmware rules read-only
+- **Settings search** — finds a section by the words people use for it
+  ("port forwarding", "NAT", "DHCP", "PPPoE")
 
 ## Roadmap
 
 | Version | Highlights | Status |
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha1`: platform layer, panel, uplink and local network/DHCP done; on `main`: the firewall screen (port forwards, own rules, their order); static routes in progress |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha2`: platform layer, panel, uplink, local network/DHCP and firewall done; static routes and emergency access in progress |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover | planned |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |
@@ -135,7 +144,7 @@ It installs the latest **stable** release. To try a pre-release, or to go back
 to an older version on purpose:
 
 ```sh
-wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-alpha1 sh
+wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-alpha2 sh
 wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.1.2 VB_ALLOW_DOWNGRADE=1 sh
 ```
 

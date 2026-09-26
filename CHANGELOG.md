@@ -8,6 +8,12 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 
 ## [Unreleased]
 
+## [0.2.0-alpha2] — 2026-09-26 — pre-release
+
+The second build of the `v0.2` line, still a **pre-release**: static routes
+and emergency access are to come, and it is never offered as the latest
+release. The firewall is in; so are fixes for three defects of `alpha1`.
+
 ### Added
 - `GET /firewall`: zones with their role (internet side, local network —
   derived from what a zone does, not from its name), which zone may reach
@@ -117,6 +123,14 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   screen in Russian, and the "pin an address by hand" dialog is no longer cut
   off at the right edge.
 
+### Known issues
+- Static routes, emergency access, Wi-Fi and clients are not managed yet.
+- The panel speaks plain HTTP.
+- Firewall rules with conditions the panel does not show (source address,
+  schedule, rate limit) can be switched on and off or removed, not edited.
+- Switching an existing rule back on is not checked against the rules above
+  it; a rule an earlier one already decides stays inert.
+
 ## [0.2.0-alpha1] — 2026-09-25 — pre-release
 
 The first public build of the `v0.2` line. It is a **pre-release**: the version
@@ -194,7 +208,8 @@ First public release.
 - 13 interface languages (English and Russian complete).
 - `-demo` mode, `-version`, static binaries for amd64 and arm64 with the UI embedded.
 
-[Unreleased]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha1...HEAD
+[Unreleased]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha2...HEAD
+[0.2.0-alpha2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha1...v0.2.0-alpha2
 [0.2.0-alpha1]: https://github.com/veilbridge-os/veilbridge/compare/v0.1.2...v0.2.0-alpha1
 [0.1.2]: https://github.com/veilbridge-os/veilbridge/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/veilbridge-os/veilbridge/compare/v0.1.0...v0.1.1

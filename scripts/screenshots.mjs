@@ -36,7 +36,10 @@ const SHOTS = [
   // The ready marker is a string the finished screen contains and a spinner
   // does not, so a slow load can never be photographed as an empty panel.
   { hash: '#/', file: 'dashboard.png', ready: 'Coming later', height: 840 },
-  { hash: '#/nodes', file: 'nodes.png', ready: 'Endpoint', height: 420 },
+  // Markers are demo data, not labels: headers are uppercased by CSS, and
+  // innerText returns them as rendered ("ENDPOINT"), so a label never matches.
+  { hash: '#/nodes', file: 'nodes.png', ready: '203.0.113.10', height: 420 },
+  { hash: '#/firewall', file: 'firewall.png', ready: 'Block game console', height: 1100 },
 ]
 
 class CDP {
