@@ -84,7 +84,7 @@ func (m networkManager) StageRule(cfg core.FirewallRuleConfig) ([]core.ConfigCha
 		}
 	} else {
 		if strings.TrimSpace(cfg.Before) != "" {
-			return nil, core.Refuse("before", fmt.Errorf("openwrt: an existing rule cannot be moved yet"))
+			return nil, core.Refuse("before", fmt.Errorf("openwrt: an existing rule is moved on its own, not while editing it"))
 		}
 		if !sectionNameRe.MatchString(section) && !anonSectionRe.MatchString(section) {
 			return nil, core.Refuse("id", fmt.Errorf("openwrt: %q is not an entry on this device", section))
@@ -217,6 +217,124 @@ func (m networkManager) RemoveRule(id string) ([]core.ConfigChange, error) {
 		Dangerous: dangerousConfig("firewall"),
 		Detail:    "firewall." + id,
 	}}, nil
+}
+
+// MoveRule stages moving one of the owner's rules in front of another, or to
+// the end of the list when before is empty (#46). The order is what decides
+// which rule acts, so a move is as dangerous as any other firewall change and
+// gets its own row in the list of changes.
+func (m networkManager) MoveRule(id, before string) ([]core.ConfigChange, error) {
+	if m.run == nil {
+		return nil, core.ErrNotImplemented
+	}
+	if !sectionNameRe.MatchString(id) && !anonSectionRe.MatchString(id) {
+		return nil, fmt.Errorf("openwrt: %q is not an entry on this device", id)
+	}
+	fw, err := m.FirewallInfo()
+	if err != nil {
+		return nil, err
+	}
+	at := ruleIndex(fw, id)
+	if at < 0 {
+		return nil, fmt.Errorf("openwrt: no rule %q on this device", id)
+	}
+	r := fw.Rules[at]
+	if r.System {
+		return nil, errSystemRule(r)
+	}
+
+	// Where it lands in the list of rules, 0-based, once it has left its
+	// old place.
+	before = strings.TrimSpace(before)
+	rest := append(append([]core.FirewallRule{}, fw.Rules[:at]...), fw.Rules[at+1:]...)
+	land := len(rest)
+	if before != "" {
+		if before == id {
+			return nil, core.Refuse("before", fmt.Errorf("openwrt: a rule cannot be placed in front of itself"))
+		}
+		bt := ruleIndex(fw, before)
+		if bt < 0 {
+			return nil, core.Refuse("before", fmt.Errorf("openwrt: no rule %q on this device", before))
+		}
+		land = bt
+		if bt > at {
+			land = bt - 1
+		}
+	}
+	if land == at {
+		return []core.ConfigChange{}, nil // already there: nothing to stage
+	}
+	if want, ok := ruleAsConfig(r); ok {
+		if cover := shadowedBy(rest[:land], want); cover != nil {
+			return nil, core.Refuse("before", fmt.Errorf(
+				"openwrt: the rule %s above already decides this traffic, so this one would never act there; place it before that rule",
+				ruleName(*cover)))
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)
+	defer cancel()
+	// `uci reorder` takes the place in the WHOLE file that the section ends
+	// up at (measured). Moving up, that is the place the rule in front of
+	// which it goes has now; moving down, one less, because the moved rule's
+	// own place closes up first. The end of the list is past every section.
+	place := 1 << 16
+	if before != "" {
+		if place, err = m.sectionPosition(ctx, before); err != nil {
+			return nil, err
+		}
+		if land >= at {
+			place--
+		}
+	}
+	baseline := m.fw4Warnings(ctx)
+	if _, err := m.run(ctx, "uci", "reorder", "firewall."+id+"="+strconv.Itoa(place)); err != nil {
+		_ = m.discardConfig(ctx, "firewall")
+		return nil, fmt.Errorf("openwrt: move the rule: %w", err)
+	}
+	if err := m.fw4Accepts(ctx, baseline); err != nil {
+		_ = m.discardConfig(ctx, "firewall")
+		return nil, err
+	}
+	said := describe("firewall", roleRule, "position")
+	return []core.ConfigChange{{
+		Label:     said.words,
+		LabelKey:  said.key,
+		From:      strconv.Itoa(at + 1),
+		To:        strconv.Itoa(land + 1),
+		Dangerous: dangerousConfig("firewall"),
+		Detail:    "firewall." + id,
+		Subject:   entrySubject(r.Name, ruleWords(r.From, r.To, strings.Join(r.Protocols, " "), r.Ports, r.Family)),
+	}}, nil
+}
+
+// ruleAsConfig is a rule read from the device in the form the shadow check
+// takes. A rule the panel cannot fully state (a protocol it does not write, an
+// action that decides nothing) is not checked: only certainty refuses.
+func ruleAsConfig(r core.FirewallRule) (core.FirewallRuleConfig, bool) {
+	if _, ok := ruleTargets[r.Action]; !ok {
+		return core.FirewallRuleConfig{}, false
+	}
+	protos, err := ruleProtocols(r.Protocols)
+	if err != nil {
+		return core.FirewallRuleConfig{}, false
+	}
+	ports := ""
+	if r.Ports != "" {
+		p, _, ok := parsePortList(r.Ports)
+		if !ok {
+			return core.FirewallRuleConfig{}, false
+		}
+		ports = p
+	}
+	family := r.Family
+	if family == "any" {
+		family = ""
+	}
+	return core.FirewallRuleConfig{
+		Name: r.Name, Enabled: r.Enabled, From: r.From, To: r.To,
+		Protocols: protos, Ports: ports, Action: r.Action, Family: family,
+	}, true
 }
 
 // normalizeRule checks everything that can be checked without the device and

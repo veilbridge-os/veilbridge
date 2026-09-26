@@ -187,6 +187,14 @@ type StageFirewallRuleInput struct {
 	Body core.FirewallRuleConfig
 }
 
+// MoveFirewallRuleInput places one of the owner's rules elsewhere in the list.
+type MoveFirewallRuleInput struct {
+	ID   string `path:"id" doc:"Rule to move, as reported by GET /firewall"`
+	Body struct {
+		Before string `json:"before,omitempty" doc:"Rule (id from GET /firewall) to place it in front of; empty moves it to the end. The first matching rule wins."`
+	}
+}
+
 // RemoveFirewallRuleInput names the rule to drop as the device reported it.
 type RemoveFirewallRuleInput struct {
 	ID string `path:"id" doc:"Rule as reported by GET /firewall"`

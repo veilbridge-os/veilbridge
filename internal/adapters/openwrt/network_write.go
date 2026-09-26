@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,6 +94,9 @@ var optionLabels = map[string]string{
 	"firewall.rule.dest_port": "Ports",
 	"firewall.rule.target":    "Action",
 	"firewall.rule.family":    "IP version",
+	// Not an option on the device: a rule's number in the list, which is
+	// what a move changes (#46).
+	"firewall.rule.position": "Place in the list",
 }
 
 // entryRoles are the kinds of section that appear and disappear as ONE thing
@@ -572,6 +576,16 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 		}
 		seen[e.key] = true
 
+		if e.reorder {
+			// A rule moved in the list. Without its own row a move was
+			// "rule → rule", dropped as no change: a dangerous edit the
+			// operator would confirm without seeing it (#46). A section the
+			// draft creates is placed as it is added, and its one row says so.
+			if row, ok := m.moveRow(ctx, e, before, after); ok {
+				changes = append(changes, row)
+			}
+			continue
+		}
 		if wholeEntries[e.config+"."+e.section] && e.option != "" {
 			// A reservation that is appearing or disappearing as a whole is
 			// one thing to the operator — a device and the address kept for
@@ -643,6 +657,65 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 	return changes, nil
 }
 
+// moveRow describes a rule moved in the list: which rule, and its number
+// before and after, counted the way the screen numbers rules — the firmware's
+// own included, so "10 → 9" is the number the person sees next to it.
+func (m networkManager) moveRow(ctx context.Context, e stagedEdit, before, after map[string]string) (core.ConfigChange, bool) {
+	sec := e.config + "." + e.section
+	if e.config != "firewall" || before[sec] != "rule" {
+		// Only rules have an order that decides anything. A move of anything
+		// else (a port forward, a reservation) changes nothing on the device.
+		return core.ConfigChange{}, false
+	}
+	was, now := m.rulePlaces(ctx, true), m.rulePlaces(ctx, false)
+	from, to := was[e.section], now[e.section]
+	if from == 0 || to == 0 || from == to {
+		return core.ConfigChange{}, false
+	}
+	said := describe("firewall", roleRule, "position")
+	return core.ConfigChange{
+		Label:     said.words,
+		LabelKey:  said.key,
+		From:      strconv.Itoa(from),
+		To:        strconv.Itoa(to),
+		Dangerous: dangerousConfig("firewall"),
+		Detail:    sec,
+		Subject: entrySubject(before[sec+".name"],
+			entryWords(stagedEdit{key: sec, config: e.config, section: e.section}, before)),
+	}, true
+}
+
+// rulePlaces numbers the firewall's rules 1, 2, … in the order they run,
+// keyed by the section's internal name — the name `uci changes` uses. `-X`
+// is what makes uci print that name instead of the position, and the names
+// are the same in the committed file and in the draft (measured: a draft that
+// deletes a rule leaves the others' names alone).
+func (m networkManager) rulePlaces(ctx context.Context, committed bool) map[string]int {
+	var out []byte
+	var err error
+	if committed {
+		err = m.withCommitted("firewall", func(dir, alias string) error {
+			var e error
+			out, e = m.run(ctx, "uci", "-q", "-c", dir, "-X", "show", alias)
+			return e
+		})
+	} else {
+		out, err = m.run(ctx, "uci", "-q", "-X", "show", "firewall")
+	}
+	places := map[string]int{}
+	if err != nil {
+		return places
+	}
+	n := 0
+	for _, sec := range parseUCISections(string(out)) {
+		if sec.kind == "rule" {
+			n++
+			places[sec.id] = n
+		}
+	}
+	return places
+}
+
 // entrySubject names one of several entries for a row about one of its
 // fields: by the name it was given, else by what it is. Staging and reading
 // the draft back both go through here, so the two paths say the same.
@@ -669,6 +742,10 @@ type stagedEdit struct {
 	config  string // network
 	section string // wan
 	option  string // proto
+	// reorder marks `firewall.cfg0692bd='8'`: the section was moved to place
+	// 8 of the file. Measured: it has the same shape as the line that adds a
+	// section, only the value is a number instead of the section's type.
+	reorder bool
 }
 
 // roleOf says what a section is to the panel. sectionType is what `uci show`
@@ -720,7 +797,7 @@ func parseStagedEdits(out string) []stagedEdit {
 		line = strings.TrimPrefix(line, "-")
 		line = strings.TrimPrefix(line, "+")
 
-		key, _, hasValue := strings.Cut(line, "=")
+		key, value, hasValue := strings.Cut(line, "=")
 		if !hasValue && !removal {
 			// Not a shape we know. Guessing at it would put an invented row
 			// in front of somebody about to press a button.
@@ -738,9 +815,22 @@ func parseStagedEdits(out string) []stagedEdit {
 		if len(parts) >= 3 {
 			e.option = parts[len(parts)-1]
 		}
+		e.reorder = e.option == "" && !removal && isDigits(unquoteUCI(value))
 		edits = append(edits, e)
 	}
 	return edits
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // entryWords describes a whole reservation in the panel's words, for the row
@@ -956,40 +1046,54 @@ func (m networkManager) committedValues(
 	if !sectionNameRe.MatchString(config) {
 		return nil, fmt.Errorf("openwrt: %q is not a configuration name", config)
 	}
+	var values map[string]string
+	err := m.withCommitted(config, func(linkDir, alias string) error {
+		out, err := m.run(ctx, "uci", "-q", "-c", linkDir, "show", alias)
+		if err != nil {
+			return err
+		}
+		values = parseUCIShow(config, string(out))
+		// Same asymmetry as in stagedValues, and it matters more here: without
+		// this, an edit to an anonymous section that already existed would read
+		// "was nothing → 0" when it was really "1 → 0".
+		for _, key := range missingKeys(values, want) {
+			rest := strings.TrimPrefix(key, config+".")
+			if rest == key {
+				continue
+			}
+			if v, ok := m.getOne(ctx, "-q", "-c", linkDir, "get", alias+"."+rest); ok {
+				values[key] = v
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("openwrt: read committed %s: %w", config, err)
+	}
+	return values, nil
+}
+
+// withCommitted runs fn against the configuration as it is on disk, without
+// the draft: the file is linked into a directory of its own under another
+// package name, which uci has no staged changes for.
+func (m networkManager) withCommitted(config string, fn func(dir, alias string) error) error {
+	if !sectionNameRe.MatchString(config) {
+		return fmt.Errorf("openwrt: %q is not a configuration name", config)
+	}
 	dir := m.configDir
 	if dir == "" {
 		dir = "/etc/config"
 	}
-
 	linkDir, err := os.MkdirTemp("", "veilbridge-committed-")
 	if err != nil {
-		return nil, fmt.Errorf("openwrt: read committed %s: %w", config, err)
+		return err
 	}
 	defer func() { _ = os.RemoveAll(linkDir) }()
-
 	alias := committedPrefix + config
 	if err := os.Symlink(filepath.Join(dir, config), filepath.Join(linkDir, alias)); err != nil {
-		return nil, fmt.Errorf("openwrt: read committed %s: %w", config, err)
+		return err
 	}
-
-	out, err := m.run(ctx, "uci", "-q", "-c", linkDir, "show", alias)
-	if err != nil {
-		return nil, fmt.Errorf("openwrt: read committed %s: %w", config, err)
-	}
-	values := parseUCIShow(config, string(out))
-	// Same asymmetry as in stagedValues, and it matters more here: without
-	// this, an edit to an anonymous section that already existed would read
-	// "was nothing → 0" when it was really "1 → 0".
-	for _, key := range missingKeys(values, want) {
-		rest := strings.TrimPrefix(key, config+".")
-		if rest == key {
-			continue
-		}
-		if v, ok := m.getOne(ctx, "-q", "-c", linkDir, "get", alias+"."+rest); ok {
-			values[key] = v
-		}
-	}
-	return values, nil
+	return fn(linkDir, alias)
 }
 
 // parseUCIShow reads `uci show` output and re-addresses it to the real

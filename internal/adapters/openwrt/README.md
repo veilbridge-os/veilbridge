@@ -25,9 +25,11 @@ Files:
   rules marked as the firewall package ships them and named by the conditions
   the panel does not show; staging port forwards and the owner's rules, with
   `fw4 check` as the last word, since it exits 0 on an entry it will skip. A
-  new rule can be placed in front of another (`uci reorder` counts every
-  section of the file), and one an earlier rule would always pre-empt is
-  refused. Fixtures of both OpenWrt branches are in `testdata/`
+  new rule can be placed in front of another and an existing one moved
+  (`uci reorder` takes the final place in the WHOLE file: moving down it is
+  one less than the target's place), and a rule an earlier one would always
+  pre-empt is refused. A move is read back from `uci changes` (`cfg…='N'`)
+  as the rule's number in the list, before and after. Fixtures of both OpenWrt branches are in `testdata/`
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon

@@ -90,6 +90,9 @@ function firewallValue(key: string, value: string): string | null {
       return value === 'ipv6' ? 'IPv6' : 'IPv4'
     case 'dest_port':
       return value ? value.split(/\s+/).join(', ') : t('apply.fwAnyPort')
+    case 'position':
+      // A rule's number in the list, as the screen numbers it (#46).
+      return value ? t('apply.fwPlace', { n: value }) : ''
   }
   return null
 }

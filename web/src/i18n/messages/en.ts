@@ -81,6 +81,7 @@ const en = {
     fwBothFamilies: 'IPv4 and IPv6',
     fwAnyPort: 'any',
     fwAllProtocols: 'all protocols',
+    fwPlace: 'No. {n}',
     wasUnset: 'was not set',
     nowNothing: 'removed',
     showTechnical: 'Technical details — for the log and for support',
@@ -267,6 +268,7 @@ const en = {
         dest_port: 'Ports',
         target: 'Action',
         family: 'IP version',
+        position: 'Place in the list',
       },
     },
     // The local network keeps two different things in one configuration, so

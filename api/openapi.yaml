@@ -592,6 +592,20 @@ components:
         - day
         - bufferBytes
       type: object
+    MoveFirewallRuleInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/MoveFirewallRuleInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        before:
+          description: Rule (id from GET /firewall) to place it in front of; empty moves it to the end. The first matching rule wins.
+          type: string
+      type: object
     NetworkInterface:
       additionalProperties: false
       properties:
@@ -1529,6 +1543,41 @@ paths:
       security:
         - bearerAuth: []
       summary: Stage the removal of a traffic rule of the owner's (does not apply it)
+      tags:
+        - firewall
+  /firewall/rules/{id}/move:
+    post:
+      operationId: moveFirewallRule
+      parameters:
+        - description: Rule to move, as reported by GET /firewall
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule to move, as reported by GET /firewall
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveFirewallRuleInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage moving a traffic rule of the owner's in the list (does not apply it)
       tags:
         - firewall
   /network/interfaces:

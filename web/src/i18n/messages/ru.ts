@@ -84,6 +84,7 @@ const ru: MessageSchema = {
     fwBothFamilies: 'IPv4 и IPv6',
     fwAnyPort: 'любые',
     fwAllProtocols: 'все протоколы',
+    fwPlace: '№ {n}',
     wasUnset: 'не задавалась',
     nowNothing: 'убрано',
     showTechnical: 'Технические подробности — для журнала и поддержки',
@@ -254,6 +255,7 @@ const ru: MessageSchema = {
         dest_port: 'Порты',
         target: 'Действие',
         family: 'Версия IP',
+        position: 'Место в списке',
       },
     },
     // Локальная сеть держит в одной конфигурации две разные вещи, поэтому

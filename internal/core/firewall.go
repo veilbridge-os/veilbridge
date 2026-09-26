@@ -155,6 +155,9 @@ type FirewallWriter interface {
 	RemovePortForward(id string) ([]ConfigChange, error)
 	StageRule(cfg FirewallRuleConfig) ([]ConfigChange, error)
 	RemoveRule(id string) ([]ConfigChange, error)
+	// MoveRule places a rule of the owner's in front of another, or at the
+	// end of the list when before is empty (#46, D-70).
+	MoveRule(id, before string) ([]ConfigChange, error)
 }
 
 // FirewallRuleConfig is a requested traffic rule of the owner's. An empty ID

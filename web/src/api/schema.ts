@@ -244,6 +244,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/firewall/rules/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stage moving a traffic rule of the owner's in the list (does not apply it) */
+        post: operations["moveFirewallRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/network/interfaces": {
         parameters: {
             query?: never;
@@ -856,6 +873,16 @@ export interface components {
             bufferBytes: number;
             day: components["schemas"]["Sample"][] | null;
             live: components["schemas"]["Sample"][] | null;
+        };
+        MoveFirewallRuleInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/MoveFirewallRuleInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Rule (id from GET /firewall) to place it in front of; empty moves it to the end. The first matching rule wins. */
+            before?: string;
         };
         NetworkInterface: {
             device?: string;
@@ -1599,6 +1626,42 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    moveFirewallRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Rule to move, as reported by GET /firewall */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveFirewallRuleInputBody"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

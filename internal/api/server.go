@@ -312,6 +312,12 @@ func (s *Server) register() {
 		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
 	}, s.removeFirewallRule)
 	huma.Register(s.api, huma.Operation{
+		OperationID: "moveFirewallRule", Method: http.MethodPost,
+		Path:    "/firewall/rules/{id}/move",
+		Summary: "Stage moving a traffic rule of the owner's in the list (does not apply it)",
+		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
+	}, s.moveFirewallRule)
+	huma.Register(s.api, huma.Operation{
 		OperationID: "stageLAN", Method: http.MethodPut, Path: "/network/lan",
 		Summary: "Stage this router's own address on the local network (does not apply it)",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
@@ -738,6 +744,18 @@ func (s *Server) removeFirewallRule(_ context.Context, in *RemoveFirewallRuleInp
 	}
 	changes, err := w.RemoveRule(in.ID)
 	return stagedOr("removing a firewall rule", changes, err)
+}
+
+func (s *Server) moveFirewallRule(_ context.Context, in *MoveFirewallRuleInput) (*ChangesOutput, error) {
+	w, ok := s.firewallWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the firewall")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.MoveRule(in.ID, in.Body.Before)
+	return stagedOr("moving a firewall rule", changes, err)
 }
 
 // lanWriter is the local-network half of the writer. Like LANReader it is an

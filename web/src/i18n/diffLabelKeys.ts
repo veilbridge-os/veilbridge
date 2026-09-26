@@ -32,6 +32,7 @@ export const DIFF_LABEL_KEYS = [
   'firewall.rule.enabled',
   'firewall.rule.family',
   'firewall.rule.name',
+  'firewall.rule.position',
   'firewall.rule.proto',
   'firewall.rule.rejectForward',
   'firewall.rule.rejectInput',

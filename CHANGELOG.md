@@ -35,6 +35,16 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   the router: a rule blocking the panel from outside, placed in front of the
   rule that allows it, closed the panel and the settings came back by
   themselves when nobody confirmed.
+- Move one of your own rules in the list (`POST /firewall/rules/{id}/move`):
+  in front of another rule, or to the end. The move is its own row in the
+  list of changes — "Place in the list — Game console: No. 11 → No. 10" —
+  both right away and after a reload; before, a reorder would have been an
+  invisible change. A move that would put the rule where an earlier rule
+  always decides first is refused, naming that rule. Firmware rules do not
+  move, but your rule can go above them
+  ([#46](https://github.com/veilbridge-os/veilbridge/issues/46)). Verified on
+  the router: moving a block of the panel in front of the rule that allows it
+  closed the panel, and the order came back by itself when nobody confirmed.
 - A `dhcp-server` capability: a device with one network port and no Wi-Fi has
   no local network to hand addresses out on, says so with a reason, and the
   panel does not show a local network section there at all

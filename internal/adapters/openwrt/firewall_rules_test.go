@@ -1,6 +1,7 @@
 package openwrt
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -397,5 +398,198 @@ func TestRulesNeedARunner(t *testing.T) {
 	}
 	if _, err := (networkManager{}).RemoveRule("x"); !errors.Is(err, core.ErrNotImplemented) {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// #46: moving an existing rule. The router's own list plus two rules of the
+// owner's after VB-temp-wan-mgmt, so moves up, down and to the end all exist.
+func showWithOwnRules(t *testing.T) string {
+	return fixture(t, routerFirewall) + `firewall.@rule[10]=rule
+firewall.@rule[10].name='Game console'
+firewall.@rule[10].src='lan'
+firewall.@rule[10].dest='wan'
+firewall.@rule[10].proto='udp'
+firewall.@rule[10].dest_port='3074'
+firewall.@rule[10].target='DROP'
+firewall.@rule[11]=rule
+firewall.@rule[11].name='No panel from outside'
+firewall.@rule[11].src='wan'
+firewall.@rule[11].proto='tcp'
+firewall.@rule[11].dest_port='8080'
+firewall.@rule[11].target='REJECT'
+firewall.@rule[11].enabled='0'
+`
+}
+
+func TestMovingARuleUpLandsInFrontOfTheOtherRule(t *testing.T) {
+	m, f := firewallWriter(t, showWithOwnRules(t))
+	cs, err := m.MoveRule("@rule[10]", "@rule[9]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// @rule[9] is section 13 of the file; moving up, the index is its place.
+	if !f.called("uci reorder firewall.@rule[10]=13") {
+		t.Errorf("calls = %v", f.uci.calls)
+	}
+	if len(cs) != 1 || cs[0].LabelKey != "firewall.rule.position" || cs[0].From != "11" || cs[0].To != "10" ||
+		cs[0].Subject != "Game console" || !cs[0].Dangerous {
+		t.Errorf("rows = %+v", cs)
+	}
+	if !f.called(fw4Program + " check") {
+		t.Error("the firewall was not asked about the moved draft (D-66)")
+	}
+}
+
+// Moving down, the index is one less: the moved rule's own place closes up
+// before it is put back (measured with uci reorder on 23.05.5).
+func TestMovingARuleDownLandsInFrontOfTheOtherRuleNotBehindIt(t *testing.T) {
+	m, f := firewallWriter(t, showWithOwnRules(t))
+	cs, err := m.MoveRule("@rule[9]", "@rule[11]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f.called("uci reorder firewall.@rule[9]=14") {
+		t.Errorf("calls = %v, want section 14: in front of @rule[11] (15) once @rule[9] has left", f.uci.calls)
+	}
+	if len(cs) != 1 || cs[0].From != "10" || cs[0].To != "11" || cs[0].Subject != "VB-temp-wan-mgmt" {
+		t.Errorf("rows = %+v", cs)
+	}
+}
+
+func TestMovingARuleToTheEnd(t *testing.T) {
+	m, f := firewallWriter(t, showWithOwnRules(t))
+	cs, err := m.MoveRule("@rule[9]", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f.called("uci reorder firewall.@rule[9]=65536") {
+		t.Errorf("calls = %v", f.uci.calls)
+	}
+	if len(cs) != 1 || cs[0].From != "10" || cs[0].To != "12" {
+		t.Errorf("rows = %+v", cs)
+	}
+}
+
+// D-71 at the new place: an enabled block of 8080 moved below the rule that
+// allows 8080 would never act there.
+func TestAMoveThatSilencesTheRuleIsRefused(t *testing.T) {
+	show := strings.Replace(showWithOwnRules(t), "firewall.@rule[11].enabled='0'\n", "", 1)
+	// Put the block first, then try to move it back under VB-temp-wan-mgmt.
+	show = strings.Replace(show, "firewall.@rule[9]=rule\nfirewall.@rule[9].name='VB-temp-wan-mgmt'", "firewall.@rule[99]=rule\nfirewall.@rule[99].name='VB-temp-wan-mgmt'", 1)
+	show = strings.ReplaceAll(show, "firewall.@rule[9].", "firewall.@rule[99].")
+	block := "firewall.@rule[9]=rule\nfirewall.@rule[9].name='No panel from outside'\nfirewall.@rule[9].src='wan'\nfirewall.@rule[9].proto='tcp'\nfirewall.@rule[9].dest_port='8080'\nfirewall.@rule[9].target='REJECT'\n"
+	show = strings.Replace(show, "firewall.@rule[99]=rule", block+"firewall.@rule[99]=rule", 1)
+	m, f := firewallWriter(t, show)
+	_, err := m.MoveRule("@rule[9]", "")
+	assertRefusedField(t, err, "before")
+	if !strings.Contains(err.Error(), "VB-temp-wan-mgmt") {
+		t.Errorf("err = %v, want it to name the rule in the way", err)
+	}
+	if f.called("uci reorder") {
+		t.Error("the refused move was staged")
+	}
+}
+
+func TestMoveRefusals(t *testing.T) {
+	cases := map[string][2]string{
+		"a stock rule":             {"@rule[1]", ""},
+		"a rule that is not there": {"@rule[42]", ""},
+		"an id that is not one":    {"wan;reboot", ""},
+		"in front of itself":       {"@rule[10]", "@rule[10]"},
+		"in front of nothing":      {"@rule[10]", "@rule[42]"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			m, f := firewallWriter(t, showWithOwnRules(t))
+			if _, err := m.MoveRule(c[0], c[1]); err == nil {
+				t.Fatal("accepted")
+			}
+			if f.called("uci reorder") {
+				t.Error("staged anyway")
+			}
+		})
+	}
+	// Already in that place: nothing to stage and nothing to show.
+	m, f := firewallWriter(t, showWithOwnRules(t))
+	cs, err := m.MoveRule("@rule[10]", "@rule[11]")
+	if err != nil || len(cs) != 0 || f.called("uci reorder") {
+		t.Errorf("a move to where it already is: rows %+v, err %v, calls %v", cs, err, f.uci.calls)
+	}
+}
+
+// orderRunner answers `uci -X show` — the rule order with internal names —
+// for the committed file and for the draft, and leaves the rest to the fake.
+type orderRunner struct {
+	*recordingRunner
+	committed, staged []string
+}
+
+func (o orderRunner) run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if slices.Contains(args, "-X") {
+		list, pkg := o.staged, "firewall"
+		if slices.Contains(args, "-c") {
+			list, pkg = o.committed, args[len(args)-1]
+		}
+		var b strings.Builder
+		for _, id := range list {
+			b.WriteString(pkg + "." + id + "=rule\n")
+		}
+		return []byte(b.String()), nil
+	}
+	return o.recordingRunner.run(ctx, name, args...)
+}
+
+// A move read back after a reload is one row, the same as when it was staged.
+// Before #46 it was "rule → rule", dropped as no change: a dangerous edit the
+// operator would have confirmed without seeing it.
+func TestAMovedRuleReadsBackAsItsPlaceInTheList(t *testing.T) {
+	values := map[string]string{
+		"firewall.cfg0192bd": "rule", "firewall.cfg0192bd.name": "VB-temp-wan-mgmt",
+		"firewall.cfg0292bd": "rule", "firewall.cfg0292bd.name": "Game console",
+	}
+	committed := map[string]string{}
+	for k, v := range values {
+		committed[k] = v
+	}
+	o := orderRunner{
+		recordingRunner: &recordingRunner{
+			values: values, committed: committed, sectionType: "rule",
+			anonymous:   map[string]string{"cfg0192bd": "@rule[0]", "cfg0292bd": "@rule[1]"},
+			stagedLines: []string{"firewall.cfg0292bd='4'"},
+		},
+		committed: []string{"cfg0192bd", "cfg0292bd"},
+		staged:    []string{"cfg0292bd", "cfg0192bd"},
+	}
+	cs, err := (networkManager{run: o.run, configDir: t.TempDir()}).StagedChanges()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cs) != 1 || cs[0].LabelKey != "firewall.rule.position" || cs[0].From != "2" || cs[0].To != "1" ||
+		cs[0].Subject != "Game console" || !cs[0].Dangerous {
+		t.Fatalf("rows = %+v, want one: Game console moved from 2 to 1", cs)
+	}
+	assertKnownKeys(t, "a move read back", cs)
+}
+
+func TestAReorderLineIsToldApartFromASectionLine(t *testing.T) {
+	edits := parseStagedEdits("firewall.cfg0f92bd='rule'\nfirewall.cfg0f92bd.name='x'\nfirewall.cfg0f92bd='13'\n-firewall.cfg0592bd\n")
+	got := []bool{}
+	for _, e := range edits {
+		got = append(got, e.reorder)
+	}
+	if !slices.Equal(got, []bool{false, false, true, false}) {
+		t.Errorf("reorder flags = %v", got)
+	}
+}
+
+// D-66 holds for a move as for any draft: a warning the move caused drops it.
+func TestAMoveTheFirewallWouldNotRunIsDropped(t *testing.T) {
+	skipped := "Ruleset passes nftables check.\n[!] Section @rule[9] (Game console) skipped\n"
+	m, f := firewallWriter(t, showWithOwnRules(t), "Ruleset passes nftables check.\n", skipped)
+	if _, err := m.MoveRule("@rule[10]", "@rule[9]"); err == nil || !strings.Contains(err.Error(), "would skip") {
+		t.Fatalf("err = %v, want a refusal quoting the firewall", err)
+	}
+	if !f.called("uci revert firewall") {
+		t.Error("the refused move was left on the device")
 	}
 }
