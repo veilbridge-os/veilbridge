@@ -23,6 +23,19 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   Verified on both stands: a route that cut the panel off came back by itself
   when nobody confirmed; an unrelated route of somebody else's survived adding,
   editing, switching off and removing ours.
+- **The static routes screen** (menu: Network rules → Static routes). Every
+  route's state comes first: working, off, not working — with the reason when
+  it can be told ("the gateway is outside the network of the connection") —
+  or not checked, for a route in its own table. Add a route to a network or to
+  a single host; the connection is picked by the gateway. A network the router
+  already routes is refused with a one-click "Set metric 10"; a route with
+  settings the panel does not show can only be switched on and off or removed;
+  IPv6 routes are listed read-only
+  ([#48](https://github.com/veilbridge-os/veilbridge/issues/48)). Verified on
+  the router through the screen itself: both refusals at their fields, the
+  one-click fix, a route confirmed and working in the kernel next to another
+  program's route that survived its removal, and a route cutting the panel off
+  that came back by itself with the screen saying so.
 
 ### Known issues
 - Subnet rules "through the tunnel" (since v0.1) mark the traffic, but nothing

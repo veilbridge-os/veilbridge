@@ -46,10 +46,12 @@ act where it would land is refused, naming the rule in the way.
 
 ![VeilBridge firewall screen](docs/img/firewall.png)
 
-On `main`, not yet in a release: static routes through the API — each shown as
-the kernel actually has it, and refused where the router's network service would
-accept the route and then silently not use it, or take over a route that is
-somebody else's. The screen for them comes next.
+On `main`, not yet in a release: static routes, with their own screen (menu:
+Network rules → Static routes). Each route says whether it is working — by the
+device's routing table, not by its settings — and why not, when that can be
+told. A route the router's network service would accept and then silently not
+use, or one that would take over somebody else's route, is refused at its
+field, with a one-click fix where there is one.
 
 VeilBridge does **not** yet manage Wi-Fi or clients — keep LuCI around for
 those. See [Install](#install)
