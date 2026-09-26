@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/veilbridge-os/veilbridge/internal/adapters"
+	"github.com/veilbridge-os/veilbridge/internal/adapters/openwrt"
 	"github.com/veilbridge-os/veilbridge/internal/api"
 	"github.com/veilbridge-os/veilbridge/internal/buildinfo"
 	"github.com/veilbridge-os/veilbridge/internal/config"
@@ -32,6 +34,13 @@ func main() {
 		dumpOpenAPI = flag.Bool("dump-openapi", false, "print the generated OpenAPI YAML and exit (CI snapshot)")
 		demo        = flag.Bool("demo", false, "serve sample data from an in-memory adapter: no OS access, no tunnels (UI development, screenshots, trying the panel without hardware)")
 		showVersion = flag.Bool("version", false, "print the build version and exit")
+		// Emergency access (#38, D-77): a way back when a network change
+		// stuck and took the panel with it. They work without the panel's
+		// own configuration and never start the server.
+		restoreNet   = flag.Bool("restore-network", false, "put back the network, firewall and address-handout settings from before the last change that stuck, and exit")
+		restorePoint = flag.String("restore-point", "", "like -restore-network, from this restore point (see -list-restore-points)")
+		listPoints   = flag.Bool("list-restore-points", false, "list the restore points and what differs in each from the settings now, and exit")
+		force        = flag.Bool("force", false, "with -restore-network: restore even while a change waits for confirmation")
 	)
 	flag.Parse()
 
@@ -44,6 +53,10 @@ func main() {
 			log.Fatalf("version: %v", err)
 		}
 		return
+	}
+
+	if *restoreNet || *restorePoint != "" || *listPoints {
+		os.Exit(emergencyRestore(*listPoints, *restorePoint, *force))
 	}
 
 	store := config.NewStore(*configPath)
@@ -187,4 +200,20 @@ func setPassword(store *config.Store, pw string) error {
 		return err
 	}
 	return store.Save(doc)
+}
+
+// emergencyRestore runs the emergency command (#38) and returns the exit
+// code: 0 done or nothing to do, 2 a change is waiting for confirmation (the
+// device undoes it by itself), 1 anything else.
+func emergencyRestore(list bool, point string, force bool) int {
+	err := openwrt.EmergencyRestore(openwrt.RestoreOptions{List: list, Point: point, Force: force}, os.Stdout)
+	switch {
+	case err == nil:
+		return 0
+	case errors.Is(err, openwrt.ErrChangePending):
+		return 2
+	default:
+		fmt.Fprintf(os.Stderr, "restore: %v\n", err)
+		return 1
+	}
 }
