@@ -10,6 +10,11 @@ const (
 	ActionAccept = "accept"
 	ActionReject = "reject"
 	ActionDrop   = "drop"
+	// ActionOther is a rule that neither lets traffic through nor blocks it:
+	// it marks it, or hands it to a helper. Reading such a rule as "accept"
+	// would put a false line on the one screen people open to find out what
+	// is allowed.
+	ActionOther = "other"
 )
 
 // Zone roles (D-68). They are derived from what a zone does, never from its
@@ -83,12 +88,33 @@ type FirewallRule struct {
 	From      string   `json:"from,omitempty"`
 	To        string   `json:"to,omitempty"`
 	Protocols []string `json:"protocols"`
-	// Ports is the destination port or range, empty for any.
+	// Ports are the destination ports: one, a first-last range, or several
+	// of those separated by spaces. Empty for any.
 	Ports  string `json:"ports,omitempty"`
 	Action string `json:"action"`
 	// Family limits the rule to "ipv4" or "ipv6"; empty means both.
 	Family string `json:"family,omitempty"`
+	// Unsupported names the conditions this rule has that the panel does not
+	// show yet (RuleSourceAddress, RuleSchedule, ...). A rule with any of them
+	// matches less traffic than its other fields say, so the panel names them
+	// and lets such a rule be switched on and off or removed, but not edited:
+	// editing what you cannot see is how a rule ends up doing something
+	// nobody meant.
+	Unsupported []string `json:"unsupported"`
 }
+
+// Conditions a rule can have that the panel does not model yet.
+const (
+	RuleSourceAddress      = "sourceAddress"
+	RuleSourcePort         = "sourcePort"
+	RuleDestinationAddress = "destinationAddress"
+	RuleICMPTypes          = "icmpTypes"
+	RuleSchedule           = "schedule"
+	RuleRateLimit          = "rateLimit"
+	RuleLogging            = "logging"
+	// RuleOther is any remaining option: marks, helpers, raw extras.
+	RuleOther = "other"
+)
 
 // FirewallStatus is the whole firewall in one answer, for the same reason as
 // D-45: a screen assembled from four requests shows a rule whose zone has not
@@ -127,4 +153,24 @@ type PortForwardConfig struct {
 type FirewallWriter interface {
 	StagePortForward(cfg PortForwardConfig) ([]ConfigChange, error)
 	RemovePortForward(id string) ([]ConfigChange, error)
+	StageRule(cfg FirewallRuleConfig) ([]ConfigChange, error)
+	RemoveRule(id string) ([]ConfigChange, error)
+}
+
+// FirewallRuleConfig is a requested traffic rule of the owner's. An empty ID
+// adds a new one; an ID from FirewallStatus edits that rule in place.
+type FirewallRuleConfig struct {
+	ID      string `json:"id,omitempty" doc:"Rule to edit, as reported by GET /firewall; empty adds a new one"`
+	Name    string `json:"name,omitempty" maxLength:"64"`
+	Enabled bool   `json:"enabled"`
+	From    string `json:"from" doc:"Zone the traffic comes from, as reported by GET /firewall, or * for any"`
+	To      string `json:"to,omitempty" doc:"Zone the traffic goes to; empty for the router itself, * for any zone"`
+	// Protocols: any of "tcp", "udp", "icmp", or just "all".
+	Protocols []string `json:"protocols" minItems:"1" maxItems:"3"`
+	Ports     string   `json:"ports,omitempty" doc:"Destination ports for TCP/UDP: one, first-last, or several separated by spaces or commas; empty for any"`
+	Action    string   `json:"action" doc:"accept, reject (the sender is told) or drop (silently)"`
+	Family    string   `json:"family,omitempty" doc:"ipv4 or ipv6 to limit the rule to one; empty for both"`
+	// Before places a NEW rule in front of an existing one. Order matters:
+	// the firewall acts on the first rule that matches (D-70).
+	Before string `json:"before,omitempty" doc:"For a new rule: the rule (id from GET /firewall) to place it in front of; empty puts it last. The first matching rule wins."`
 }

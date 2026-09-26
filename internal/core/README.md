@@ -25,7 +25,8 @@ Layout:
   assertion and answers 501 when the adapter lacks them, which is not the same
   as "this device has no local network" (404).
 - `firewall.go` — the firewall in the panel's words: zones and their role,
-  forwardings, port forwards, rules; `FirewallReader`/`FirewallWriter` are
+  forwardings, port forwards, rules (with the conditions the panel does not
+  show yet named in `unsupported`); `FirewallReader`/`FirewallWriter` are
   optional capabilities of an adapter, like `LANReader`.
 - `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
   field it is about, returned by the API as `errors[].location`.

@@ -268,6 +268,12 @@ type ConfigChange struct {
 	Dangerous bool `json:"dangerous"`
 	// Detail is the underlying key, for the "technical details" disclosure.
 	Detail string `json:"detail,omitempty"`
+	// Subject names WHICH entry a row is about, when the setting belongs to
+	// one of several: a rule, a port forward, a reserved address. Without
+	// it, switching off the one rule that keeps the panel reachable read
+	// "Rule is on: yes → no" next to another rule, and nothing said which.
+	// It is the entry's name, or its description when it has none.
+	Subject string `json:"subject,omitempty" doc:"Which entry the row is about when the setting belongs to one of several (a rule, a port forward, a reserved address): its name, or a description of it. Empty for a setting that exists once, and for a row that adds or removes a whole entry, whose value already describes it."`
 }
 
 // LANConfig is a requested local-network address: an intent on its way to the

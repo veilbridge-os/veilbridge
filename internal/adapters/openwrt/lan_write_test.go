@@ -384,8 +384,20 @@ func TestADevicePinnedByThePanelCanBePinnedToAnotherAddress(t *testing.T) {
 	r.sectionType = "host"
 	r.anonymous = map[string]string{"cfg05fe63": "@host[0]"}
 
-	if _, err := m.StageReservation(core.ReservationConfig{MAC: "1a:a6:05:03:d4:9c", IP: "192.168.1.30"}); err != nil {
+	cs, err := m.StageReservation(core.ReservationConfig{MAC: "1a:a6:05:03:d4:9c", IP: "192.168.1.30"})
+	if err != nil {
 		t.Fatalf("re-pinning refused: %v", err)
+	}
+	// One of several reservations: the row says whose address moves, by the
+	// same words the whole entry is shown with.
+	want := reservationWords(core.ReservedAddress{MAC: "1a:a6:05:03:d4:9c", IP: "192.168.1.222"})
+	if len(cs) == 0 {
+		t.Fatal("nothing staged")
+	}
+	for _, c := range cs {
+		if c.Subject != want {
+			t.Errorf("row %+v, want it to be about %q", c, want)
+		}
 	}
 	if got := strings.Join(r.sets(), "|"); !strings.Contains(got, "dhcp.@host[0].ip=192.168.1.30") {
 		t.Errorf("staged %q, want the existing entry's address changed", got)

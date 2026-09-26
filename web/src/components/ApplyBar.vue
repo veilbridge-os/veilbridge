@@ -36,6 +36,8 @@ function labelOf(c: ConfigChange): string {
  * puts the operating system back on screen through the side door (D-3). Only
  * known enumerations are translated; an address stays exactly as measured. */
 function shownValue(c: ConfigChange, value: string): string {
+  const fw = firewallValue(c.labelKey ?? '', value)
+  if (fw !== null) return fw
   if (!value) return ''
   const option = (c.labelKey ?? '').split('.').at(-1)
   if (option === 'proto') {
@@ -53,6 +55,43 @@ function shownValue(c: ConfigChange, value: string): string {
   // A flag the panel words as a question: \u201cuse the provider\u2019s resolvers\u201d.
   if (option === 'peerdns') return value === '0' ? t('apply.flagOff') : t('apply.flagOn')
   return value
+}
+
+/** firewallValue says a firewall setting in words. Here an ABSENT value has a
+ * meaning of its own — a rule with no destination is about the router itself,
+ * no family is both, no ports is any, no `enabled` is on — so “was not set → no”
+ * would be the wrong sentence. Returns null for anything it has no words for. */
+function firewallValue(key: string, value: string): string | null {
+  if (!key.startsWith('firewall.')) return null
+  const option = key.split('.').at(-1)
+  const rule = key.startsWith('firewall.rule.')
+  switch (option) {
+    case 'enabled':
+      return value === '0' ? t('apply.flagOff') : t('apply.flagOn')
+    case 'proto':
+      if (value === 'all') return t('apply.fwAllProtocols')
+      if (!value || value === 'tcpudp') return 'TCP+UDP'
+      return value
+        .split(/\s+/)
+        .map((p) => p.toUpperCase())
+        .join('+')
+  }
+  if (!rule) return null
+  switch (option) {
+    case 'target':
+      if (!value || value === 'ACCEPT') return t('apply.fwAccept')
+      if (value === 'REJECT') return t('apply.fwReject')
+      if (value === 'DROP') return t('apply.fwDrop')
+      return value
+    case 'dest':
+      return value === '' ? t('apply.fwRouter') : value === '*' ? t('apply.fwAnyZone') : value
+    case 'family':
+      if (!value || value === 'any') return t('apply.fwBothFamilies')
+      return value === 'ipv6' ? 'IPv6' : 'IPv4'
+    case 'dest_port':
+      return value ? value.split(/\s+/).join(', ') : t('apply.fwAnyPort')
+  }
+  return null
 }
 
 // applying is true between pressing Apply and learning any outcome. It is a
@@ -236,9 +275,15 @@ function dismiss() {
         </div>
         <dl class="vb-applybar__diff">
           <template v-for="c in draft" :key="c.detail || c.label">
-            <dt>{{ labelOf(c) }}</dt>
+            <!-- subject: WHICH of several entries a field belongs to. Without
+                 it, switching off the rule that keeps the panel reachable
+                 read "Rule is on: yes → no" and nothing said which rule. -->
+            <dt>
+              {{ labelOf(c) }}
+              <span v-if="c.subject" class="vb-applybar__subject">{{ c.subject }}</span>
+            </dt>
             <dd>
-              <s v-if="c.from">{{ shownValue(c, c.from) }}</s>
+              <s v-if="shownValue(c, c.from)">{{ shownValue(c, c.from) }}</s>
               <span v-else class="vb-applybar__unset">{{ t('apply.wasUnset') }}</span>
               <strong>{{ shownValue(c, c.to) || t('apply.nowNothing') }}</strong>
             </dd>
@@ -427,6 +472,11 @@ function dismiss() {
 .vb-applybar__diff s,
 .vb-applybar__unset {
   color: var(--el-text-color-secondary);
+}
+.vb-applybar__subject {
+  display: block;
+  color: var(--el-text-color-primary);
+  overflow-wrap: anywhere;
 }
 .vb-applybar__tech {
   font-family: var(--el-font-family-mono, monospace);

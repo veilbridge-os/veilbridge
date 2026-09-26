@@ -107,12 +107,19 @@ func (m networkManager) StagePortForward(cfg core.PortForwardConfig) ([]core.Con
 
 	section := strings.TrimSpace(cfg.ID)
 	fresh := section == ""
+	subject := "" // which forward an edit is about, as it is now
 	if !fresh {
 		if !sectionNameRe.MatchString(section) && !anonSectionRe.MatchString(section) {
 			return nil, core.Refuse("id", fmt.Errorf("openwrt: %q is not an entry on this device", section))
 		}
 		if !hasPortForward(fw, section) {
 			return nil, core.Refuse("id", fmt.Errorf("openwrt: no port forward %q on this device", section))
+		}
+		for _, pf := range fw.PortForwards {
+			if pf.ID == section {
+				subject = entrySubject(pf.Name, portForwardWords(
+					strings.Join(pf.Protocols, " "), pf.ExternalPort, pf.ToAddress, pf.ToPort))
+			}
 		}
 	}
 
@@ -164,7 +171,7 @@ func (m networkManager) StagePortForward(cfg core.PortForwardConfig) ([]core.Con
 		return nil, err
 	}
 	if !fresh {
-		return changes, nil
+		return withSubject(changes, subject), nil
 	}
 	said := describe("firewall", rolePortForward, "")
 	return []core.ConfigChange{{

@@ -210,11 +210,18 @@ func (m Network) FirewallInfo() (core.FirewallStatus, error) {
 		},
 		Rules: []core.FirewallRule{
 			{ID: "@rule[0]", Name: "Allow-DHCP-Renew", Enabled: true, System: true, From: "wan",
-				Protocols: []string{"udp"}, Ports: "68", Action: core.ActionAccept, Family: "ipv4"},
+				Protocols: []string{"udp"}, Ports: "68", Action: core.ActionAccept, Family: "ipv4",
+				Unsupported: []string{}},
 			{ID: "@rule[1]", Name: "Allow-Ping", Enabled: true, System: true, From: "wan",
-				Protocols: []string{"icmp"}, Action: core.ActionAccept, Family: "ipv4"},
+				Protocols: []string{"icmp"}, Action: core.ActionAccept, Family: "ipv4",
+				Unsupported: []string{core.RuleICMPTypes}},
 			{ID: "@rule[9]", Name: "Block game console", Enabled: true, From: "lan", To: "wan",
-				Protocols: []string{"tcp", "udp"}, Action: core.ActionReject},
+				Protocols: []string{"tcp", "udp"}, Action: core.ActionReject, Unsupported: []string{}},
+			// A rule made in LuCI with a condition the panel does not show: the
+			// screen has to name it, and offer only on/off and removal.
+			{ID: "@rule[10]", Name: "Kids bedtime", Enabled: false, From: "lan", To: "wan",
+				Protocols: []string{"tcp", "udp"}, Action: core.ActionReject,
+				Unsupported: []string{core.RuleSchedule, core.RuleSourceAddress}},
 		},
 	}, nil
 }

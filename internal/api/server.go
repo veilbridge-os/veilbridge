@@ -301,6 +301,17 @@ func (s *Server) register() {
 		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
 	}, s.removePortForward)
 	huma.Register(s.api, huma.Operation{
+		OperationID: "stageFirewallRule", Method: http.MethodPut, Path: "/firewall/rules",
+		Summary: "Stage a traffic rule of the owner's, new or edited (does not apply it)",
+		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
+	}, s.stageFirewallRule)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "removeFirewallRule", Method: http.MethodDelete,
+		Path:    "/firewall/rules/{id}",
+		Summary: "Stage the removal of a traffic rule of the owner's (does not apply it)",
+		Tags:    []string{"firewall"}, Middlewares: authed, Security: authSec,
+	}, s.removeFirewallRule)
+	huma.Register(s.api, huma.Operation{
 		OperationID: "stageLAN", Method: http.MethodPut, Path: "/network/lan",
 		Summary: "Stage this router's own address on the local network (does not apply it)",
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
@@ -703,6 +714,30 @@ func (s *Server) removePortForward(_ context.Context, in *RemovePortForwardInput
 	}
 	changes, err := w.RemovePortForward(in.ID)
 	return stagedOr("removing a port forward", changes, err)
+}
+
+func (s *Server) stageFirewallRule(_ context.Context, in *StageFirewallRuleInput) (*ChangesOutput, error) {
+	w, ok := s.firewallWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the firewall")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StageRule(in.Body)
+	return stagedOr("staging a firewall rule", changes, err)
+}
+
+func (s *Server) removeFirewallRule(_ context.Context, in *RemoveFirewallRuleInput) (*ChangesOutput, error) {
+	w, ok := s.firewallWriter()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot change the firewall")
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.RemoveRule(in.ID)
+	return stagedOr("removing a firewall rule", changes, err)
 }
 
 // lanWriter is the local-network half of the writer. Like LANReader it is an

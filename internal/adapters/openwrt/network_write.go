@@ -83,6 +83,16 @@ var optionLabels = map[string]string{
 	"firewall.redirect.dest_ip":   "Device address",
 	"firewall.redirect.dest_port": "Port on the device",
 	"firewall.redirect.target":    "Kind of forward",
+
+	// A traffic rule edited field by field.
+	"firewall.rule.name":      "Rule name",
+	"firewall.rule.enabled":   "Rule is on",
+	"firewall.rule.src":       "Traffic from",
+	"firewall.rule.dest":      "Traffic to",
+	"firewall.rule.proto":     "Protocols",
+	"firewall.rule.dest_port": "Ports",
+	"firewall.rule.target":    "Action",
+	"firewall.rule.family":    "IP version",
 }
 
 // entryRoles are the kinds of section that appear and disappear as ONE thing
@@ -91,6 +101,36 @@ var optionLabels = map[string]string{
 var entryRoles = map[string]phrase{
 	roleHost:        {"dhcp.host.section", "Reserved address"},
 	rolePortForward: {"firewall.redirect.section", "Port forward"},
+	// The general words, for a rule that neither allows nor blocks; any
+	// other rule is named by what it does, see rulePhrases.
+	roleRule: {"firewall.rule.section", "Firewall rule"},
+}
+
+// rulePhrases name a whole rule appearing or going away by what it does, so
+// the row reads "Block access to the router: wan · tcp 8080" rather than
+// "Firewall rule: wan tcp 8080 reject". The action is the part a person
+// has to see, and a verb from the firewall's own vocabulary cannot be
+// translated once it is inside the value.
+var rulePhrases = map[string]phrase{
+	core.ActionAccept + "/router":  {"firewall.rule.acceptInput", "Allow access to the router"},
+	core.ActionReject + "/router":  {"firewall.rule.rejectInput", "Block access to the router"},
+	core.ActionDrop + "/router":    {"firewall.rule.dropInput", "Block access to the router without answering"},
+	core.ActionAccept + "/through": {"firewall.rule.acceptForward", "Allow traffic through the router"},
+	core.ActionReject + "/through": {"firewall.rule.rejectForward", "Block traffic through the router"},
+	core.ActionDrop + "/through":   {"firewall.rule.dropForward", "Block traffic through the router without answering"},
+}
+
+// rulePhrase picks the words for a whole rule from its stored target and
+// destination: no destination is traffic to the router itself.
+func rulePhrase(target, dest string) phrase {
+	way := "through"
+	if dest == "" {
+		way = "router"
+	}
+	if p, ok := rulePhrases[ruleAction(target)+"/"+way]; ok {
+		return p
+	}
+	return entryRoles[roleRule]
 }
 
 // Section roles: what the panel means by a section, as opposed to what the
@@ -102,6 +142,8 @@ const (
 	roleHost   = "host"
 	// rolePortForward is a firewall `redirect` section of the DNAT kind.
 	rolePortForward = "redirect"
+	// roleRule is a firewall traffic rule.
+	roleRule = "rule"
 )
 
 // configLabels name a whole configuration file in domain words, for a key we
@@ -171,6 +213,9 @@ func labelFor(config, role, option string) string {
 func LabelKeys() []string {
 	keys := []string{"section", "setting"}
 	for _, p := range entryRoles {
+		keys = append(keys, p.key)
+	}
+	for _, p := range rulePhrases {
 		keys = append(keys, p.key)
 	}
 	for k := range optionLabels {
@@ -563,6 +608,28 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 		role := roleOf(e.config, e.section, firstNonEmpty(
 			after[e.config+"."+e.section], before[e.config+"."+e.section]), uplink)
 		said := describe(e.config, role, e.option)
+		if role == roleRule && e.option == "" {
+			// A whole rule is named by what it does, read from whichever
+			// side still has it: a removed rule exists only "before".
+			values := after
+			if to == "" {
+				values = before
+			}
+			said = rulePhrase(values[e.key+".target"], values[e.key+".dest"])
+		}
+		subject := ""
+		if _, many := entryRoles[role]; many && e.option != "" {
+			// One field of one of several entries: say which entry, as it is
+			// before the draft, which is how the person knows it. A field of
+			// an entry the draft creates never gets here (folded above).
+			sec := e.config + "." + e.section
+			values := before
+			if values[sec] == "" {
+				values = after
+			}
+			subject = entrySubject(values[sec+".name"],
+				entryWords(stagedEdit{key: sec, config: e.config, section: e.section}, values))
+		}
 		changes = append(changes, core.ConfigChange{
 			Label:     said.words,
 			LabelKey:  said.key,
@@ -570,9 +637,28 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 			To:        redact(secret, to),
 			Dangerous: dangerousConfig(e.config),
 			Detail:    e.key,
+			Subject:   subject,
 		})
 	}
 	return changes, nil
+}
+
+// entrySubject names one of several entries for a row about one of its
+// fields: by the name it was given, else by what it is. Staging and reading
+// the draft back both go through here, so the two paths say the same.
+func entrySubject(name, words string) string {
+	if name != "" {
+		return name
+	}
+	return words
+}
+
+// withSubject marks every row as being about one entry.
+func withSubject(changes []core.ConfigChange, subject string) []core.ConfigChange {
+	for i := range changes {
+		changes[i].Subject = subject
+	}
+	return changes
 }
 
 // stagedEdit is one line of `uci changes`, taken apart. It says WHICH key the
@@ -595,6 +681,8 @@ func roleOf(config, section, sectionType, uplink string) string {
 		return roleHost
 	case config == "firewall" && sectionType == "redirect":
 		return rolePortForward
+	case config == "firewall" && sectionType == "rule":
+		return roleRule
 	case section == lanSection:
 		return roleLAN
 	case config == "network" && uplink != "" && section == uplink:
@@ -660,6 +748,10 @@ func parseStagedEdits(out string) []stagedEdit {
 // inventing a description of a section we have no words for would be worse
 // than leaving the column as the device put it.
 func entryWords(e stagedEdit, values map[string]string) string {
+	if e.config == "firewall" && values[e.key] == "rule" {
+		return ruleWords(values[e.key+".src"], values[e.key+".dest"],
+			values[e.key+".proto"], values[e.key+".dest_port"], values[e.key+".family"])
+	}
 	if e.config == "firewall" && values[e.key+".src_dport"] != "" {
 		return portForwardWords(values[e.key+".proto"], values[e.key+".src_dport"],
 			values[e.key+".dest_ip"], values[e.key+".dest_port"])
@@ -701,6 +793,15 @@ func firstNonEmpty(values ...string) string {
 // was" and was dropped: the panel said "draft is empty" while the device held
 // a staged reservation. An invisible draft is the worst kind on this product,
 // because the next apply commits it.
+// wholeEntryOptions are the fields entryWords describes a whole entry by.
+var wholeEntryOptions = map[string][]string{
+	"dhcp": {"mac", "ip", "name"},
+	"firewall": {
+		"name", "src", "dest", "proto", "dest_port", "target", "family", // rule
+		"src_dport", "dest_ip", // port forward
+	},
+}
+
 func keysOf(edits []stagedEdit, config string) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -717,15 +818,23 @@ func keysOf(edits []stagedEdit, config string) []string {
 		}
 		add(e.key)
 		add(e.config + "." + e.section)
-		if e.config == "dhcp" && e.option == "" {
+		{
 			// A whole entry appearing or disappearing: `uci changes` names
 			// the section and nothing else, so its fields have to be asked
 			// for by name or the row has nothing to describe the entry with
 			// — it would fall back to printing the section's TYPE. The names
-			// are the ones a reservation has; a section that turns out not to
+			// are the ones such an entry has; a section that turns out not to
 			// be one simply has no such keys and nothing is added.
-			for _, option := range []string{"mac", "ip", "name"} {
-				add(e.key + "." + option)
+			//
+			// The firewall was missing here: a removed port forward is named
+			// `-firewall.cfg0592bd` by `uci changes` while the committed file
+			// prints `@redirect[0]`, so its fields were never found and the
+			// row fell back to the section's type after a reload (#35).
+			//
+			// A field edit needs them as well: the row says which entry it
+			// is about (ConfigChange.Subject), by the same words.
+			for _, option := range wholeEntryOptions[e.config] {
+				add(e.config + "." + e.section + "." + option)
 			}
 		}
 	}

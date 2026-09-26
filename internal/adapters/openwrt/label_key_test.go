@@ -52,6 +52,11 @@ func describeKey(key string) string {
 			return p.words
 		}
 	}
+	for _, p := range rulePhrases {
+		if p.key == key {
+			return p.words
+		}
+	}
 	if l, ok := optionLabels[key]; ok {
 		return l
 	}

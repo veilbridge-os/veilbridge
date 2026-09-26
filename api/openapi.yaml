@@ -169,6 +169,9 @@ components:
         labelKey:
           description: Stable key of the label, for translating it in the UI (e.g. network.uplink.proto). The set of keys is fixed by the device; empty when there are no words for this setting yet and label is all there is.
           type: string
+        subject:
+          description: "Which entry the row is about when the setting belongs to one of several (a rule, a port forward, a reserved address): its name, or a description of it. Empty for a setting that exists once, and for a row that adds or removes a whole entry, whose value already describes it."
+          type: string
         to:
           type: string
       required:
@@ -292,10 +295,67 @@ components:
           type: boolean
         to:
           type: string
+        unsupported:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
       required:
         - id
         - enabled
         - system
+        - protocols
+        - action
+        - unsupported
+      type: object
+    FirewallRuleConfig:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/FirewallRuleConfig.json
+          format: uri
+          readOnly: true
+          type: string
+        action:
+          description: accept, reject (the sender is told) or drop (silently)
+          type: string
+        before:
+          description: "For a new rule: the rule (id from GET /firewall) to place it in front of; empty puts it last. The first matching rule wins."
+          type: string
+        enabled:
+          type: boolean
+        family:
+          description: ipv4 or ipv6 to limit the rule to one; empty for both
+          type: string
+        from:
+          description: Zone the traffic comes from, as reported by GET /firewall, or * for any
+          type: string
+        id:
+          description: Rule to edit, as reported by GET /firewall; empty adds a new one
+          type: string
+        name:
+          maxLength: 64
+          type: string
+        ports:
+          description: "Destination ports for TCP/UDP: one, first-last, or several separated by spaces or commas; empty for any"
+          type: string
+        protocols:
+          items:
+            type: string
+          maxItems: 3
+          minItems: 1
+          type:
+            - array
+            - "null"
+        to:
+          description: Zone the traffic goes to; empty for the router itself, * for any zone
+          type: string
+      required:
+        - enabled
+        - from
         - protocols
         - action
       type: object
@@ -1413,6 +1473,62 @@ paths:
       security:
         - bearerAuth: []
       summary: Stage the removal of a port forward (does not apply it)
+      tags:
+        - firewall
+  /firewall/rules:
+    put:
+      operationId: stageFirewallRule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FirewallRuleConfig"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage a traffic rule of the owner's, new or edited (does not apply it)
+      tags:
+        - firewall
+  /firewall/rules/{id}:
+    delete:
+      operationId: removeFirewallRule
+      parameters:
+        - description: Rule as reported by GET /firewall
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule as reported by GET /firewall
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Stage the removal of a traffic rule of the owner's (does not apply it)
       tags:
         - firewall
   /network/interfaces:

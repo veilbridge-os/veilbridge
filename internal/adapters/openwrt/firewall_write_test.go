@@ -205,7 +205,7 @@ func TestEditingAForwardStagesOnlyWhatChanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cs) != 1 || cs[0].LabelKey != "firewall.redirect.enabled" || cs[0].To != "0" {
+	if len(cs) != 1 || cs[0].LabelKey != "firewall.redirect.enabled" || cs[0].To != "0" || cs[0].Subject != "NAS" {
 		t.Errorf("rows = %+v, want one row: the forward switched off", cs)
 	}
 	if f.called("uci add") {

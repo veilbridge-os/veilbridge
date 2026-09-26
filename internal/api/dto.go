@@ -181,6 +181,17 @@ type RemovePortForwardInput struct {
 	ID string `path:"id" doc:"Port forward entry as reported by GET /firewall"`
 }
 
+// StageFirewallRuleInput adds (no id) or edits (an id from GET /firewall) one
+// of the owner's traffic rules.
+type StageFirewallRuleInput struct {
+	Body core.FirewallRuleConfig
+}
+
+// RemoveFirewallRuleInput names the rule to drop as the device reported it.
+type RemoveFirewallRuleInput struct {
+	ID string `path:"id" doc:"Rule as reported by GET /firewall"`
+}
+
 // StageWANInput is a requested uplink configuration. Staging is deliberately
 // a separate call from applying: the operator sees the diff first, and the
 // change only reaches the device through the watchdogged transaction.

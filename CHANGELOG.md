@@ -20,6 +20,21 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   skips an entry it cannot use, so its warnings are treated as a refusal.
   Verified on the router: a forwarded port answers from outside, closes by
   itself when nobody confirms, and closes again when removed.
+- Your own firewall rules through the API (`PUT /firewall/rules`,
+  `DELETE /firewall/rules/{id}`): allow or block traffic to the router or
+  through it, by zone, protocol, ports (one, a range, or a list) and IP
+  version; add, edit, switch off, remove. The rules the firewall ships stay
+  read-only. **Order matters** — the first matching rule wins — so a new rule
+  can be placed in front of an existing one, and a rule that could never act
+  where it would land (an earlier rule already decides the same traffic the
+  other way) is refused with that rule's name instead of being accepted and
+  silently doing nothing. A rule with conditions the panel does not show yet
+  (source address, schedule, …) names them, and can be switched on and off or
+  removed but not edited here
+  ([#35](https://github.com/veilbridge-os/veilbridge/issues/35)). Verified on
+  the router: a rule blocking the panel from outside, placed in front of the
+  rule that allows it, closed the panel and the settings came back by
+  themselves when nobody confirmed.
 - A `dhcp-server` capability: a device with one network port and no Wi-Fi has
   no local network to hand addresses out on, says so with a reason, and the
   panel does not show a local network section there at all
@@ -32,6 +47,14 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   ([#26](https://github.com/veilbridge-os/veilbridge/issues/26)).
 
 ### Fixed
+- A change to one of several entries — a rule, a port forward, a reserved
+  address — now says **which** entry it is about. Switching off the rule that
+  keeps the panel reachable was listed as just "Rule is on: yes → no", next to
+  other changes, with nothing to say which rule.
+- A port forward being removed was listed, after reloading the page, with the
+  word `redirect` instead of the forward itself ("tcp 8443 → 192.168.1.50:443"),
+  exactly when the operator was about to confirm it. Present in
+  `v0.2.0-alpha1`.
 - The address kept for a device can be changed again: pinning a device the
   panel had already pinned to another address was refused with "not a valid
   section name", because the panel creates entries without a name and then

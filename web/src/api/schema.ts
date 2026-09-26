@@ -210,6 +210,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/firewall/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Stage a traffic rule of the owner's, new or edited (does not apply it) */
+        put: operations["stageFirewallRule"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/firewall/rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stage the removal of a traffic rule of the owner's (does not apply it) */
+        delete: operations["removeFirewallRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/network/interfaces": {
         parameters: {
             query?: never;
@@ -612,6 +646,8 @@ export interface components {
             label: string;
             /** @description Stable key of the label, for translating it in the UI (e.g. network.uplink.proto). The set of keys is fixed by the device; empty when there are no words for this setting yet and label is all there is. */
             labelKey?: string;
+            /** @description Which entry the row is about when the setting belongs to one of several (a rule, a port forward, a reserved address): its name, or a description of it. Empty for a setting that exists once, and for a row that adds or removes a whole entry, whose value already describes it. */
+            subject?: string;
             to: string;
         };
         DiagnosticsOutputBody: {
@@ -685,6 +721,32 @@ export interface components {
             ports?: string;
             protocols: string[] | null;
             system: boolean;
+            to?: string;
+            unsupported: string[] | null;
+        };
+        FirewallRuleConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/FirewallRuleConfig.json
+             */
+            readonly $schema?: string;
+            /** @description accept, reject (the sender is told) or drop (silently) */
+            action: string;
+            /** @description For a new rule: the rule (id from GET /firewall) to place it in front of; empty puts it last. The first matching rule wins. */
+            before?: string;
+            enabled: boolean;
+            /** @description ipv4 or ipv6 to limit the rule to one; empty for both */
+            family?: string;
+            /** @description Zone the traffic comes from, as reported by GET /firewall, or * for any */
+            from: string;
+            /** @description Rule to edit, as reported by GET /firewall; empty adds a new one */
+            id?: string;
+            name?: string;
+            /** @description Destination ports for TCP/UDP: one, first-last, or several separated by spaces or commas; empty for any */
+            ports?: string;
+            protocols: string[] | null;
+            /** @description Zone the traffic goes to; empty for the router itself, * for any zone */
             to?: string;
         };
         FirewallStatus: {
@@ -1467,6 +1529,71 @@ export interface operations {
             header?: never;
             path: {
                 /** @description Port forward entry as reported by GET /firewall */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageFirewallRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirewallRuleConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removeFirewallRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Rule as reported by GET /firewall */
                 id: string;
             };
             cookie?: never;

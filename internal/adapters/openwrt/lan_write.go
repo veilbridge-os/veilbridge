@@ -256,10 +256,11 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 		return nil, core.Refuse("ip", fmt.Errorf("openwrt: %s is outside the local network %s", cfg.IP, network))
 	}
 
-	section := ""
+	section, subject := "", ""
 	for _, r := range m.reserved(ctx) {
 		if strings.EqualFold(r.MAC, mac.String()) {
 			section = r.ID
+			subject = entrySubject(r.Name, reservationWords(r))
 			break
 		}
 	}
@@ -288,8 +289,8 @@ func (m networkManager) StageReservation(cfg core.ReservationConfig) ([]core.Con
 	changes, err := m.stage(ctx, "dhcp", section, roleHost, sets)
 	if err != nil || !fresh {
 		// An edit to an entry that already exists is described field by
-		// field: what changed is the field.
-		return changes, err
+		// field: what changed is the field, and Subject says whose.
+		return withSubject(changes, subject), err
 	}
 	// A new entry is ONE thing to the person confirming it, and the path that
 	// reads the draft back off the device describes it that way too (M3.1a).

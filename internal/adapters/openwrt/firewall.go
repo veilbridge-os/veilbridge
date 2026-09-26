@@ -149,20 +149,80 @@ func parseFirewall(show string, up map[string]bool) core.FirewallStatus {
 			st.PortForwards = append(st.PortForwards, pf)
 		case "rule":
 			st.Rules = append(st.Rules, core.FirewallRule{
-				ID:        s.id,
-				Name:      o["name"],
-				Enabled:   o["enabled"] != "0",
-				System:    system[canonical(o)],
-				From:      o["src"],
-				To:        o["dest"],
-				Protocols: protocols(o["proto"]),
-				Ports:     o["dest_port"],
-				Action:    action(o["target"]),
-				Family:    o["family"],
+				ID:          s.id,
+				Name:        o["name"],
+				Enabled:     o["enabled"] != "0",
+				System:      system[canonical(o)],
+				From:        o["src"],
+				To:          o["dest"],
+				Protocols:   protocols(o["proto"]),
+				Ports:       o["dest_port"],
+				Action:      ruleAction(o["target"]),
+				Family:      o["family"],
+				Unsupported: unsupportedConditions(o),
 			})
 		}
 	}
 	return st
+}
+
+// ruleAction is action() for a rule, where a target can also be something
+// that decides nothing (MARK, NOTRACK, HELPER, DSCP). Zone policies cannot.
+func ruleAction(target string) string {
+	switch strings.ToUpper(target) {
+	case "", "ACCEPT", "REJECT", "DROP":
+		return action(target)
+	}
+	return core.ActionOther
+}
+
+// ruleOptionsShown are the rule options the panel models. Everything else a
+// rule may carry narrows or changes what it does, and is named instead.
+var ruleOptionsShown = map[string]bool{
+	"name": true, "enabled": true, "src": true, "dest": true, "proto": true,
+	"dest_port": true, "target": true, "family": true,
+}
+
+// ruleConditions groups the options the panel does not show into conditions
+// a person would recognise. Anything missing here is "other".
+var ruleConditions = map[string]string{
+	"src_ip": core.RuleSourceAddress, "src_mac": core.RuleSourceAddress,
+	"src_port":   core.RuleSourcePort,
+	"dest_ip":    core.RuleDestinationAddress,
+	"icmp_type":  core.RuleICMPTypes,
+	"start_date": core.RuleSchedule, "stop_date": core.RuleSchedule,
+	"start_time": core.RuleSchedule, "stop_time": core.RuleSchedule,
+	"weekdays": core.RuleSchedule, "monthdays": core.RuleSchedule, "utc_time": core.RuleSchedule,
+	"limit": core.RuleRateLimit, "limit_burst": core.RuleRateLimit,
+	"log": core.RuleLogging, "log_limit": core.RuleLogging,
+}
+
+// unsupportedConditions lists, once each and in a stable order, the
+// conditions a rule has beyond what the panel shows.
+func unsupportedConditions(o map[string]string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	add := func(c string) {
+		if !seen[c] {
+			seen[c] = true
+			out = append(out, c)
+		}
+	}
+	for k := range o {
+		if ruleOptionsShown[k] {
+			continue
+		}
+		if c, ok := ruleConditions[k]; ok {
+			add(c)
+		} else {
+			add(core.RuleOther)
+		}
+	}
+	if ruleAction(o["target"]) == core.ActionOther {
+		add(core.RuleOther)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // action turns ACCEPT/REJECT/DROP into the panel's words. An empty target on
