@@ -347,6 +347,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/network/routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Static routes, each with whether the kernel is using it, and the connections a route can use */
+        get: operations["getStaticRoutes"];
+        /** Stage an IPv4 static route, new or edited (does not apply it) */
+        put: operations["stageStaticRoute"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/network/routes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stage the removal of a static route (does not apply it) */
+        delete: operations["removeStaticRoute"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/network/wan": {
         parameters: {
             query?: never;
@@ -998,6 +1033,11 @@ export interface components {
             mac: string;
             name?: string;
         };
+        RouteInterface: {
+            ipv4: string[] | null;
+            name: string;
+            up: boolean;
+        };
         RouteRule: {
             /**
              * Format: uri
@@ -1010,6 +1050,16 @@ export interface components {
             note?: string;
             target: string;
             value: string;
+        };
+        RoutesStatus: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/RoutesStatus.json
+             */
+            readonly $schema?: string;
+            interfaces: components["schemas"]["RouteInterface"][] | null;
+            routes: components["schemas"]["StaticRoute"][] | null;
         };
         RuleBody: {
             /**
@@ -1044,6 +1094,42 @@ export interface components {
             memUsed: number;
             /** Format: int64 */
             storageUsed: number;
+        };
+        StaticRoute: {
+            active: boolean;
+            enabled: boolean;
+            family: string;
+            gateway?: string;
+            id: string;
+            interface: string;
+            /** Format: int64 */
+            metric: number;
+            name?: string;
+            target: string;
+            unsupported: string[] | null;
+        };
+        StaticRouteConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/StaticRouteConfig.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+            /** @description Next hop on the chosen connection's network; empty for a network reached directly */
+            gateway?: string;
+            /** @description Route to edit, as reported by GET /network/routes; empty adds a new one */
+            id?: string;
+            /** @description Connection to leave through (GET /network/routes lists them); empty picks the one whose network holds the gateway */
+            interface?: string;
+            /**
+             * Format: int64
+             * @description Lower wins between routes to the same network
+             */
+            metric?: number;
+            name?: string;
+            /** @description IPv4 network (10.8.0.0/24) or a single address; host bits are cleared the way the device clears them */
+            target: string;
         };
         SystemEvent: {
             sample: components["schemas"]["Sample"];
@@ -1846,6 +1932,100 @@ export interface operations {
             header?: never;
             path: {
                 /** @description Reservation entry as reported by GET /network/lan */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getStaticRoutes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutesStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageStaticRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaticRouteConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removeStaticRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Route as reported by GET /network/routes */
                 id: string;
             };
             cookie?: never;

@@ -15,6 +15,7 @@ import Lan from '@/views/Lan.vue'
 import Login from '@/views/Login.vue'
 import Nodes from '@/views/Nodes.vue'
 import Routes from '@/views/Routes.vue'
+import StaticRoutes from '@/views/StaticRoutes.vue'
 import Wan from '@/views/Wan.vue'
 import App from './App.vue'
 
@@ -26,6 +27,7 @@ const router = createRouter({
     { path: '/internet', component: Wan, meta: { auth: true } },
     { path: '/network', component: Lan, meta: { auth: true } },
     { path: '/firewall', component: Firewall, meta: { auth: true } },
+    { path: '/static-routes', component: StaticRoutes, meta: { auth: true } },
     { path: '/nodes', component: Nodes, meta: { auth: true } },
     { path: '/routes', component: Routes, meta: { auth: true } },
   ],

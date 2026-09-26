@@ -242,6 +242,13 @@ func (m Network) StaticRoutes() (core.RoutesStatus, error) {
 			{ID: "@route[2]", Enabled: true, Family: "ipv4",
 				Target: "203.0.113.0/24", Gateway: "10.99.99.1", Interface: "wan",
 				Unsupported: []string{}},
+			// Made in LuCI with its own table: named, not checked, on/off only.
+			{ID: "@route[3]", Name: "Cameras", Enabled: true, Family: "ipv4",
+				Target: "172.16.9.0/24", Gateway: "192.168.1.4", Interface: "lan",
+				Unsupported: []string{core.RouteTable}},
+			{ID: "@route6[0]", Enabled: true, Family: "ipv6",
+				Target: "2001:db8:10::/48", Gateway: "fe80::2", Interface: "lan",
+				Metric: 1024, Active: true, Unsupported: []string{}},
 		},
 		Interfaces: []core.RouteInterface{
 			{Name: "lan", Up: true, IPv4: []string{"192.168.1.1/24"}},

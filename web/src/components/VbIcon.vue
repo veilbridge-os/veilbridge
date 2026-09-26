@@ -14,6 +14,7 @@ import {
   CircleCheck,
   Clock,
   Close,
+  Connection,
   Cpu,
   Delete,
   Edit,
@@ -93,6 +94,8 @@ const REGISTRY: Record<string, Component> = {
   up: Top,
   down: Bottom,
   edit: Edit,
+  // Static routes (#48): a path between two points.
+  route: Connection,
   // Ours: Element Plus has no counterpart.
   globe: VbGlobe,
   wifi: VbWiFi,

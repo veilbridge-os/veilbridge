@@ -410,12 +410,13 @@ func sortedKeys(set map[string]bool) []string {
 	return out
 }
 
-// routeWords names a route the way a person reads it: "10.8.0.0/24 via
-// 192.168.1.2 (lan)", or "10.8.0.0/24 (lan)" for a network reached directly.
+// routeWords names a route the way a person reads it, in no language:
+// "10.8.0.0/24 → 192.168.1.2 (lan)", or "10.8.0.0/24 (lan)" for a network
+// reached directly. An English "via" landed in the Russian apply bar.
 func routeWords(target, gateway, iface string) string {
 	s := target
 	if gateway != "" {
-		s += " via " + gateway
+		s += " → " + gateway
 	}
 	if iface != "" {
 		s += fmt.Sprintf(" (%s)", iface)

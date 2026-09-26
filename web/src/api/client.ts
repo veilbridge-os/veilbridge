@@ -34,6 +34,10 @@ export type FirewallRuleConfig = components['schemas']['FirewallRuleConfig']
 export type PortForward = components['schemas']['PortForward']
 export type PortForwardConfig = components['schemas']['PortForwardConfig']
 export type MetricSample = components['schemas']['Sample']
+export type RoutesStatus = components['schemas']['RoutesStatus']
+export type StaticRoute = components['schemas']['StaticRoute']
+export type StaticRouteConfig = components['schemas']['StaticRouteConfig']
+export type RouteInterface = components['schemas']['RouteInterface']
 
 /** What the device will change if the draft is applied, described in the
  * panel's own words rather than in configuration keys (M3.1a). */
@@ -189,6 +193,13 @@ export const api = {
       `/firewall/rules/${encodeURIComponent(id)}/move`,
       before ? { before } : {},
     ),
+  // Static routes (#37, #48). Every change can take the panel's own address
+  // away, so the apply bar runs it under the confirmation window.
+  staticRoutes: () => request<RoutesStatus>('GET', '/network/routes'),
+  stageStaticRoute: (cfg: StaticRouteConfig) =>
+    request<StagedChanges>('PUT', '/network/routes', cfg),
+  removeStaticRoute: (id: string) =>
+    request<StagedChanges>('DELETE', `/network/routes/${encodeURIComponent(id)}`),
   stagedChanges: () => request<StagedChanges>('GET', '/apply/changes'),
   discardStaged: () => request<void>('DELETE', '/apply/changes'),
 

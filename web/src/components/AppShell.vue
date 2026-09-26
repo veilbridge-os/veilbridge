@@ -45,6 +45,8 @@ const NAV: NavItem[] = [
   // Keenetic's own word for the group ("Сетевые правила"): port forwarding
   // and the firewall are where people look for "open a port".
   { key: 'firewall', path: '/firewall', group: 'groupRules', ready: true },
+  // Keenetic keeps static routes in the same group (#48).
+  { key: 'staticRoutes', path: '/static-routes', group: 'groupRules', ready: true },
   { key: 'rules', path: '/rules', group: 'groupRouting', ready: true },
   { key: 'system', path: '/system', group: 'groupDevice', ready: false },
 ]
@@ -62,6 +64,7 @@ const NAV_ICON: Record<string, string> = {
   devices: 'dev',
   rules: 'rule',
   firewall: 'filter',
+  staticRoutes: 'route',
   system: 'sys',
 }
 

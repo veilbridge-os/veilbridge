@@ -255,7 +255,7 @@ func TestANewRouteIsOneRowWithTheNetworkTheKernelWillGet(t *testing.T) {
 		t.Errorf("staged %q: an on route with metric 0 needs neither option", staged)
 	}
 	if len(cs) != 1 || cs[0].LabelKey != "network.route.section" ||
-		cs[0].To != "10.8.0.0/24 via 192.168.1.2 (lan)" || !cs[0].Dangerous {
+		cs[0].To != "10.8.0.0/24 → 192.168.1.2 (lan)" || !cs[0].Dangerous {
 		t.Errorf("rows = %+v", cs)
 	}
 	if r.called("uci commit") || r.called("/sbin/reload_config") {
@@ -449,7 +449,7 @@ func TestRemovingARouteIsOneRowInWords(t *testing.T) {
 	if !r.called("uci delete network.@route[0]") {
 		t.Errorf("calls = %v", r.uci.calls)
 	}
-	if len(cs) != 1 || cs[0].From != "10.20.0.0/16 via 192.168.1.2 (lan)" || cs[0].To != "" ||
+	if len(cs) != 1 || cs[0].From != "10.20.0.0/16 → 192.168.1.2 (lan)" || cs[0].To != "" ||
 		cs[0].LabelKey != "network.route.section" || !cs[0].Dangerous {
 		t.Errorf("rows = %+v", cs)
 	}
@@ -486,7 +486,7 @@ func TestAStagedRouteReadsBackAsOneRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(cs) != 1 || cs[0].LabelKey != "network.route.section" ||
-		cs[0].To != "10.8.0.0/24 via 192.168.1.2 (lan)" {
+		cs[0].To != "10.8.0.0/24 → 192.168.1.2 (lan)" {
 		t.Errorf("rows = %+v", cs)
 	}
 }
@@ -513,7 +513,7 @@ func TestARemovedRouteReadsBackInWords(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(cs) != 1 || cs[0].LabelKey != "network.route.section" ||
-		cs[0].From != "10.8.0.0/24 via 192.168.1.2 (lan)" || cs[0].To != "" {
+		cs[0].From != "10.8.0.0/24 → 192.168.1.2 (lan)" || cs[0].To != "" {
 		t.Errorf("rows = %+v", cs)
 	}
 }
