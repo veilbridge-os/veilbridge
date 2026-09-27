@@ -160,12 +160,15 @@ async function checkPath() {
       </el-button>
     </div>
 
+    <!-- The check measures the tunnel itself (a socket bound to its
+         interface), not the path of the local network's traffic — so its
+         verdict is said about the tunnel and nothing more (#49, D-79/D-83). -->
     <el-alert
       v-if="probe"
       class="vb-dash__probe-result"
-      :type="probe.ok ? 'success' : 'warning'"
+      :type="probe.actualVia === 'tunnel' ? 'success' : 'warning'"
       :closable="true"
-      :title="probe.ok ? t('routes.probeOk') : t('routes.probeMismatch')"
+      :title="probe.actualVia === 'tunnel' ? t('tiles.probeViaTunnel') : t('tiles.probeNotViaTunnel')"
       :description="probe.detail"
       show-icon
     />
@@ -215,9 +218,29 @@ async function checkPath() {
             :description="t('tiles.pastTunnelHint', { node: activeNode?.node.name })"
             show-icon
           />
+          <!-- The exit above is measured from the tunnel itself; the devices
+               on the network do not take it until routing is fixed (#47).
+               Said here, next to the address, because this is where people
+               read "am I protected" (#49). -->
+          <el-alert
+            class="vb-tile__proof"
+            type="warning"
+            :closable="false"
+            :description="t('tiles.devicesDirect')"
+            show-icon
+          />
+          <el-button link type="primary" class="vb-tile__link" @click="router.push('/routes')">
+            {{ t('tiles.devicesDirectLink') }} →
+          </el-button>
 
           <div class="vb-tile__foot">
-            <span>{{ t('tiles.handshakeAgo', { ago: fmtAgo(activeNode?.status?.handshakeAgeSec) }) }}</span>
+            <!-- "never" is a sentence of its own: wrapped in "handshake {ago}" it
+                 read "handshake no handshake yet". -->
+            <span>{{
+              (activeNode?.status?.handshakeAgeSec ?? -1) < 0
+                ? t('tiles.handshakeNever')
+                : t('tiles.handshakeAgo', { ago: fmtAgo(activeNode?.status?.handshakeAgeSec) })
+            }}</span>
             <span>{{ engineUserspace ? t('tiles.engineUserspace') : t('tiles.engineKernel') }}</span>
             <span v-if="activeNode?.status">
               {{

@@ -52,6 +52,19 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   that came back by itself with the screen saying so.
 
 ### Changed
+- **The panel no longer says your traffic goes through the tunnel when it
+  does not** ([#49](https://github.com/veilbridge-os/veilbridge/issues/49)).
+  The routing rules screen says at the top that the rules do not change where
+  traffic goes yet, marks every rule "not in effect" with the reason (a subnet
+  rule marks traffic that nothing routes, #47; a domain rule is only written
+  down), turns adding off and drops the "Check" button, which measured the
+  tunnel itself and answered "OK" for any rule. The dashboard calls its
+  address the *tunnel exit* — how sites see traffic sent into the tunnel —
+  instead of "the address sites see … so traffic really does leave through
+  the tunnel", and says next to it that the devices on the network still go
+  out directly. Its button is "Check the tunnel" and answers about the
+  tunnel only. Existing rules stay visible and can be deleted. Checked in
+  demo mode at 360 and 1440 px, light and dark, in English and Russian.
 - The local network screen on a phone lists devices as cards, with the pin
   button kept on screen — a table scrolled sideways put it past the edge. A
   device whose lease has run out says "expired" instead of a dash, and an
@@ -62,6 +75,8 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   unreachable) at 360, 768 and 1440 px, light and dark.
 
 ### Fixed
+- The dashboard no longer reads "handshake no handshake yet" when the tunnel
+  has never shaken hands.
 - A refusal at a field no longer lies over the next field or button: two-line
   refusals (the panel's sentence and the device's words) overlapped the next
   label on the local network screen at 360 px. Fixed once for every form.
