@@ -69,7 +69,13 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 ### Known issues
 - Subnet rules "through the tunnel" (since v0.1) mark the traffic, but nothing
   routes the mark, so the traffic does not go through the tunnel
-  ([#47](https://github.com/veilbridge-os/veilbridge/issues/47)).
+  ([#47](https://github.com/veilbridge-os/veilbridge/issues/47), planned for
+  `v0.3`). Domain rules are only recorded and are not enforced until DNS
+  interception (`v0.4`). The path check on a rule and the dashboard's egress
+  address measure the tunnel itself, so they look right while the traffic of
+  the devices on the local network goes out directly; the panel stops saying
+  otherwise before `v0.2.0-beta1`
+  ([#49](https://github.com/veilbridge-os/veilbridge/issues/49)).
 
 ## [0.2.0-alpha2] — 2026-09-26 — pre-release
 
