@@ -117,21 +117,29 @@ Measured on the reference device (Cudy WR3000S v1, OpenWrt 25.12.5, aarch64 — 
 RAM, 46 MB writable overlay). Numbers, not adjectives: this panel is stored on the
 device's flash and parsed by whatever phone the operator happens to hold.
 
-| What | Before on-demand imports | At M2.6 | + internet screen | + visual layer, icons | Now (+ local network) |
-| --- | --- | --- | --- | --- | --- |
-| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | 659 kB (212 gzip) | **692 kB (220 gzip)** |
-| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | 149 kB (22 gzip) | **155 kB (23 gzip)** |
-| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | 874 kB | **946 kB** |
+| What | Before on-demand imports | At M2.6 | + internet screen | + visual layer, icons | + local network | + firewall | Now (+ static routes) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | 659 kB (212 gzip) | 692 kB (220 gzip) | 746 kB (234 gzip) | **780 kB (243 gzip)** |
+| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | 149 kB (22 gzip) | 155 kB (23 gzip) | 162 kB (24 gzip) | **172 kB (25 gzip)** |
+| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | 874 kB | 946 kB | — | **~1.1 MB** |
 
 The internet screen cost +34 kB of JS and +9 kB of CSS: it is the first screen
 with a form, so it pulls in the form, radio-group and skeleton components. The
-visual layer and the icon set cost another +16 kB of JS and +5 kB of CSS \u2014 the
+visual layer and the icon set cost another +16 kB of JS and +5 kB of CSS — the
 icons are Element Plus glyphs, imported per name, plus nine of our own. The local
 network screen cost +33 kB of JS and +6 kB of CSS: it is the first screen with
 a table, a switch and a dialog, so it pays for those components once. All of
 it is recorded rather than rounded away: the next screen that reuses these
 components should cost close to nothing, and if it does not, this table is
 where that shows up.
+
+It did show up: the firewall screen, together with the smaller changes that
+landed alongside it (#26–#34), cost +54 kB of JS and +7 kB of CSS, and the
+static routes screen another +33 kB and +8 kB, so the forecast above did not
+hold. What those kilobytes are made of has not been broken down yet. The last
+two columns were measured on 2026-09-27 with `vite build` at `0278c97` and
+`065cbd3`; the binary figure is the difference between `-tags ui` and plain
+linux/arm64 builds with `-trimpath -ldflags '-s -w'`.
 
 Element Plus is registered per component (`unplugin-vue-components`) rather than
 globally: the global registration shipped every component the panel never renders.

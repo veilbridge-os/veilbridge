@@ -7,9 +7,8 @@
 // artboards use (a 1.25 stroke on a 20 grid is the 64/1024 of Element Plus's
 // own grid) and coloured by the surrounding text.
 //
-// The path data is copied verbatim from the artboards in
-// _internal/design/system/source, so the product and the mockups draw the same
-// shape. It is static markup authored here, not input — hence innerHTML.
+// The path data is copied verbatim from the design artboards, so the product
+// and the mockups draw the same shape. It is static markup authored here, not input — hence innerHTML.
 import { defineComponent, h } from 'vue'
 
 function strokeIcon(name: string, body: string) {
