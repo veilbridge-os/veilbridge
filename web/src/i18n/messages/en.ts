@@ -152,7 +152,7 @@ const en = {
     nodesTitle: 'Nodes',
     nodesCount: '{n} configured',
     active: 'active',
-    standby: 'standby',
+    standby: 'off',
     handshakeAgo: 'handshake {ago}',
     handshakeNever: 'no handshake yet',
     engineKernel: 'tunnel mode: in the kernel',

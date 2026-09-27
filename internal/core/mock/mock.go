@@ -76,9 +76,15 @@ func (m *VPN) Status(id string) (core.NodeStatus, error) {
 	defer m.mu.Unlock()
 	for _, n := range m.nodes {
 		if n.ID == id {
+			// Only the node that is on has a tunnel, so only it has shaken
+			// hands and moved bytes. A node that is off with a fresh handshake
+			// contradicted itself on the README screenshot.
+			if m.active != id {
+				return core.NodeStatus{NodeID: id, HandshakeAgeSec: -1}, nil
+			}
 			return core.NodeStatus{
 				NodeID:          id,
-				Active:          m.active == id,
+				Active:          true,
 				HandshakeAgeSec: 5,
 				RxBytes:         1024,
 				TxBytes:         512,

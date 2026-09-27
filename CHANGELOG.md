@@ -63,7 +63,9 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   instead of "the address sites see … so traffic really does leave through
   the tunnel", and says next to it that the devices on the network still go
   out directly. Its button is "Check the tunnel" and answers about the
-  tunnel only. Existing rules stay visible and can be deleted. Checked in
+  tunnel only. A node that is not on is no longer called "standby": nothing
+  takes over from it until failover exists. Existing rules stay visible and
+  can be deleted. Checked in
   demo mode at 360 and 1440 px, light and dark, in English and Russian.
 - The local network screen on a phone lists devices as cards, with the pin
   button kept on screen — a table scrolled sideways put it past the edge. A

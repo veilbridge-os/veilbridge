@@ -154,7 +154,7 @@ const ru: MessageSchema = {
     nodesTitle: 'Узлы',
     nodesCount: '{n} настроено',
     active: 'активен',
-    standby: 'запасной',
+    standby: 'не включён',
     handshakeAgo: 'рукопожатие {ago}',
     handshakeNever: 'рукопожатия ещё не было',
     engineKernel: 'режим туннеля: в ядре',
