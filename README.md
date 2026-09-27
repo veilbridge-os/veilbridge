@@ -17,7 +17,7 @@ and proof of where your traffic actually leaves.
 ## Status
 
 🧪 **Stable: [`v0.1.2`](https://github.com/veilbridge-os/veilbridge/releases/latest).
-Pre-release for testers: [`v0.2.0-alpha2`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-alpha2).**
+Pre-release for testers: [`v0.2.0-beta1`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-beta1).**
 Everything below is verified on real hardware — an x86 OpenWrt VM and a Cudy
 WR3000S router — not on a developer's laptop. What changed in each version:
 [`CHANGELOG.md`](./CHANGELOG.md).
@@ -26,7 +26,7 @@ WR3000S router — not on a developer's laptop. What changed in each version:
 engine, `awg0` appears, and the dashboard confirms traffic egresses through it
 by comparing egress IPs rather than trusting a `200 OK`.
 
-**In `v0.2.0-alpha2` and on `main`:** the platform layer — configuration changes go
+**In `v0.2.0-beta1`:** the platform layer — configuration changes go
 through a transaction that undoes itself if nobody confirms (proven by
 deliberately cutting the router's own management link and watching it come
 back), device capabilities the UI branches on, a live update stream, and a
@@ -46,12 +46,18 @@ act where it would land is refused, naming the rule in the way.
 
 ![VeilBridge firewall screen](docs/img/firewall.png)
 
-On `main`, not yet in a release: static routes, with their own screen (menu:
-Network rules → Static routes). Each route says whether it is working — by the
-device's routing table, not by its settings — and why not, when that can be
-told. A route the router's network service would accept and then silently not
-use, or one that would take over somebody else's route, is refused at its
-field, with a one-click fix where there is one.
+Static routes have their own screen too (menu: Network rules → Static routes).
+Each route says whether it is working — by the device's routing table, not by
+its settings — and why not, when that can be told. A route the router's
+network service would accept and then silently not use, or one that would take
+over somebody else's route, is refused at its field, with a one-click fix
+where there is one.
+
+![VeilBridge static routes screen](docs/img/routes.png)
+
+And if a confirmed change still cuts you off, `veilbridged -restore-network`
+puts the network settings back from ssh, a console or failsafe mode:
+[getting back into a router](docs/emergency-access.md).
 
 VeilBridge does **not** yet manage Wi-Fi or clients — keep LuCI around for
 those. See [Install](#install)
@@ -74,7 +80,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **Path-aware checks** — verify traffic *actually* egresses through the tunnel, by comparing the egress IP, not by trusting `200 OK`
 - **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
-### Added in the `v0.2` line (pre-release `v0.2.0-alpha2`)
+### Added in the `v0.2` line (pre-release `v0.2.0-beta1`)
 
 - **Safe apply** — a dangerous change is applied with a confirmation window; no
   confirmation, and the device restores the previous settings by itself
@@ -92,9 +98,9 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   rules in the order the router runs them; firmware rules read-only
 - **Settings search** — finds a section by the words people use for it
   ("port forwarding", "NAT", "DHCP", "PPPoE")
-- **Static routes screen** (on `main`) — each route's real state, taken from
+- **Static routes screen** — each route's real state, taken from
   the router's routing table, and why a route is not working
-- **Emergency command** (on `main`) — `veilbridged -restore-network` undoes a
+- **Emergency command** — `veilbridged -restore-network` undoes a
   confirmed network change that cut you off ([how](docs/emergency-access.md))
 
 ## Roadmap
@@ -102,7 +108,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 | Version | Highlights | Status |
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-alpha2`; on `main` the whole version is done — uplink, local network/DHCP, firewall, static routes, emergency access; `v0.2.0-beta1` next |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-beta1`: the whole version — uplink, local network/DHCP, firewall, static routes, emergency access; stable `v0.2.0` after testing |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover; VPN connections for two purposes — an internet exit, or access to a network such as your workplace's (WireGuard, OpenVPN), several at once; rules that really send traffic into the tunnel | planned |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |
@@ -162,7 +168,7 @@ It installs the latest **stable** release. To try a pre-release, or to go back
 to an older version on purpose:
 
 ```sh
-wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-alpha2 sh
+wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-beta1 sh
 wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.1.2 VB_ALLOW_DOWNGRADE=1 sh
 ```
 

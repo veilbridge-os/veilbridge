@@ -8,6 +8,14 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 
 ## [Unreleased]
 
+## [0.2.0-beta1] — 2026-09-27 — pre-release
+
+The first build with the whole `v0.2` scope — uplink, local network, firewall,
+static routes and a way back in after a change that stuck — still a
+**pre-release**: for testing on routers people can reach by cable, never
+offered as the latest release. The API of this version is frozen from here;
+only fixes until `v0.2.0`.
+
 ### Added
 - **A way back after a network change that stuck**
   ([#38](https://github.com/veilbridge-os/veilbridge/issues/38)):
@@ -294,7 +302,8 @@ First public release.
 - 13 interface languages (English and Russian complete).
 - `-demo` mode, `-version`, static binaries for amd64 and arm64 with the UI embedded.
 
-[Unreleased]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha2...HEAD
+[Unreleased]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta1...HEAD
+[0.2.0-beta1]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha2...v0.2.0-beta1
 [0.2.0-alpha2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha1...v0.2.0-alpha2
 [0.2.0-alpha1]: https://github.com/veilbridge-os/veilbridge/compare/v0.1.2...v0.2.0-alpha1
 [0.1.2]: https://github.com/veilbridge-os/veilbridge/compare/v0.1.1...v0.1.2

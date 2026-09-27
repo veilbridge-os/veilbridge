@@ -40,6 +40,7 @@ const SHOTS = [
   // innerText returns them as rendered ("ENDPOINT"), so a label never matches.
   { hash: '#/nodes', file: 'nodes.png', ready: '203.0.113.10', height: 420 },
   { hash: '#/firewall', file: 'firewall.png', ready: 'Block game console', height: 1100 },
+  { hash: '#/static-routes', file: 'routes.png', ready: '172.16.9.0/24', height: 760 },
 ]
 
 class CDP {
