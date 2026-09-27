@@ -21,7 +21,7 @@ bar is "proven on hardware", not "the build is green".
 | --- | --- |
 | `v0.1` | ✅ AmneziaWG engine, own routing, dashboard, OpenWrt adapter |
 | `v0.2.0` | platform layer with self-reverting apply, rebuilt panel, router network (uplink, LAN/DHCP, firewall, routes, emergency access) |
-| `v0.3.0` | devices and Wi-Fi, exit policies and failover, VPN client protocols; first firmware image; signed feed |
+| `v0.3.0` | devices and Wi-Fi, exit policies and failover, VPN client protocols (WireGuard and OpenVPN first) with connections either as an internet exit or for access to a network such as a workplace's, routing rules that really send traffic into the tunnel; first firmware image; signed feed |
 | `v0.4.0` | DNS interception, FakeIP and domain routing, filters |
 | `v0.5.0` | app platform, SDK and market; VPN features as apps |
 | `v0.6.0` | parity apps: VPN servers, USB, storage, modems, IPTV, QoS |
