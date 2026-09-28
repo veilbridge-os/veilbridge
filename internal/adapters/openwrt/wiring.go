@@ -23,7 +23,7 @@ type Adapter struct {
 	routing  *routingManager
 	system   *systemManager
 	network  networkManager
-	device   deviceManager
+	device   *deviceManager
 	applier  *uciApplier
 	platform string
 	// caps is detected once, when the adapter is built: the probes walk /sys,
@@ -44,11 +44,13 @@ func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapt
 	bus := ubus.New()
 	s := newSystemManager(v, bus)
 	s.platform = platform
+	n := newNetworkManager(bus)
 	return &Adapter{
 		vpn:      v,
 		routing:  newRoutingManager(store),
 		system:   s,
-		network:  newNetworkManager(bus),
+		network:  n,
+		device:   newDeviceManager(n, bus),
 		applier:  newUCIApplier(),
 		platform: platform,
 		caps:     newSysProbe().Capabilities(),
@@ -71,13 +73,6 @@ func (a *Adapter) Capabilities() core.Capabilities { return a.caps }
 // Applier exposes the uci-backed transaction. See uci.go for why a snapshot is
 // a tarball of /etc/config and not a `uci export`.
 func (a *Adapter) Applier() core.ConfigApplier { return a.applier }
-
-// deviceManager is a roadmap stub (M4).
-type deviceManager struct{}
-
-func (deviceManager) ListDevices() ([]core.Device, error) {
-	return nil, core.ErrNotImplemented
-}
 
 // defaultName derives a node name from a .conf. AmneziaWG configs carry no name,
 // so we look for a leading "# Name = ..." comment (some panels emit one); failing
@@ -105,5 +100,6 @@ var (
 	_ core.Adapter         = (*Adapter)(nil)
 	_ core.CapabilityProbe = (*Adapter)(nil)
 	_ core.NetworkManager  = networkManager{}
-	_ core.DeviceManager   = deviceManager{}
+	_ core.DeviceManager   = (*deviceManager)(nil)
+	_ core.DeviceObserver  = (*deviceManager)(nil)
 )

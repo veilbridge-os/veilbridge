@@ -395,11 +395,3 @@ type ReservedAddress struct {
 	// without guessing which one was meant.
 	ID string `json:"id,omitempty"`
 }
-
-// Device is a LAN client. v0.1 only ever returns these from a stub; full device
-// management (Wi-Fi, PBR binding) is roadmap M4. See DESIGN §4, D-1.
-type Device struct {
-	MAC      string `json:"mac"`
-	IP       string `json:"ip"`
-	Hostname string `json:"hostname,omitempty"`
-}

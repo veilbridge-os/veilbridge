@@ -78,10 +78,21 @@ type LANReader interface {
 	LANInfo() (LANStatus, error)
 }
 
-// DeviceManager is a roadmap stub (clients/Wi-Fi/PBR binding — M4). Its v0.1
-// implementations return ErrNotImplemented. See DESIGN §4, D-1.
+// DeviceManager answers "who is on my network" (M4, #51): the devices the
+// router sees on its local network, from every place it keeps them. It reports
+// what the router observes and nothing the panel remembers — names and "I know
+// this one" are the panel's own and are merged in by MergeDevices. It returns
+// ErrNoLAN on a box without a local network (D-20).
 type DeviceManager interface {
-	ListDevices() ([]Device, error)
+	ListDevices() (DeviceList, error)
+}
+
+// DeviceObserver is a DeviceManager that can take a look without being asked
+// for a list. The daemon calls it on a timer, so "was here 40 minutes ago"
+// is known even when nobody had the panel open 40 minutes ago — the same
+// reason the vitals are sampled without a watcher (D-13).
+type DeviceObserver interface {
+	ObserveDevices()
 }
 
 // Adapter is the per-platform bundle of managers. cmd/veilbridged detects the

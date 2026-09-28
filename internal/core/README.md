@@ -1,8 +1,8 @@
 # internal/core
 
 Abstract manager interfaces: VPNManager, RoutingManager, SystemManager and
-NetworkManager (reads) — plus DeviceManager, still a roadmap stub until clients
-and Wi-Fi arrive. Adapters implement these per platform. The API layer depends
+NetworkManager (reads) and DeviceManager (the devices on the local network,
+M4). Adapters implement these per platform. The API layer depends
 only on these interfaces, never on a concrete adapter. See the architecture
 notes in CONTRIBUTING.md
 
@@ -28,6 +28,11 @@ Layout:
   forwardings, port forwards, rules (with the conditions the panel does not
   show yet named in `unsupported`); `FirewallReader`/`FirewallWriter` are
   optional capabilities of an adapter, like `LANReader`.
+- `devices.go` — a device on the local network (keyed by its hardware
+  address), `MergeDevices` (what the router observes plus what the owner said:
+  a name, "known"), and the private-address test. `DeviceObserver` is optional:
+  an adapter that has it is asked to look on a timer, so "last seen" does not
+  depend on somebody watching.
 - `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
   field it is about, returned by the API as `errors[].location`.
 - `capabilities.go` — what a device can do, and why not when it cannot. The

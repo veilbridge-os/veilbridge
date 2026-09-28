@@ -142,6 +142,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Devices on the local network: who is here now, who is new, how each is connected
+         * @description 404 means this device has no local network — a fact about the hardware, not an error.
+         */
+        get: operations["listDevices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/known": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark devices as known, taking their "new" mark off */
+        post: operations["markDevicesKnown"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/{mac}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget what the panel remembers about a device (its name and "known") */
+        delete: operations["forgetDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/{mac}/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Give a device a name in the panel (takes effect at once; changes nothing on the network) */
+        put: operations["nameDevice"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -702,6 +773,61 @@ export interface components {
             subject?: string;
             to: string;
         };
+        Device: {
+            /** @description Addresses the router knows for the device (the last known ones if it is not online); IPv4 first, then IPv6, no link-local */
+            ips: string[] | null;
+            /**
+             * Format: int64
+             * @description Seconds since the router last heard a device that is not online; absent if not heard since the panel started watching
+             */
+            lastSeenSec?: number;
+            link: components["schemas"]["DeviceLink"];
+            /** @description Hardware address, lower case; the key of the device (D-85) */
+            mac: string;
+            /** @description Name given in the panel; kept in the panel's settings, not published in DNS */
+            name?: string;
+            /** @description Not named and not marked as known yet */
+            new: boolean;
+            /** @description Connected now: associated with an access point, or heard on the cable recently */
+            online: boolean;
+            /** @description The device uses a private (randomised) hardware address and may change it */
+            privateAddress: boolean;
+            /** @description What the device called itself when it asked for an address */
+            reportedName?: string;
+            /** @description Address reserved for this device on the local network */
+            reservedIp?: string;
+        };
+        DeviceLink: {
+            /**
+             * @description Wi-Fi band in GHz, while associated
+             * @enum {string}
+             */
+            band?: "2.4" | "5" | "6";
+            /**
+             * @description How the device reaches the router
+             * @enum {string}
+             */
+            kind: "cable" | "wifi" | "unknown";
+            /**
+             * Format: int64
+             * @description Signal the access point hears from the device, while associated
+             */
+            signalDbm?: number;
+        };
+        DeviceList: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/DeviceList.json
+             */
+            readonly $schema?: string;
+            devices: components["schemas"]["Device"][] | null;
+            /**
+             * Format: int64
+             * @description How long the panel has been watching the network; last-seen times cannot go further back
+             */
+            watchingSec: number;
+        };
         DiagnosticsOutputBody: {
             /**
              * Format: uri
@@ -897,6 +1023,16 @@ export interface components {
             /** @description JWT bearer token */
             token: string;
         };
+        MarkKnownInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/MarkKnownInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Devices the owner knows; their "new" mark goes away */
+            macs: string[] | null;
+        };
         MetricsOutputBody: {
             /**
              * Format: uri
@@ -918,6 +1054,16 @@ export interface components {
             readonly $schema?: string;
             /** @description Rule (id from GET /firewall) to place it in front of; empty moves it to the end. The first matching rule wins. */
             before?: string;
+        };
+        NameDeviceInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/NameDeviceInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Name for the panel; empty removes the name. Not published in DNS */
+            name: string;
         };
         NetworkInterface: {
             device?: string;
@@ -1500,6 +1646,157 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApplyOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listDevices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceList"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    markDevicesKnown: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkKnownInputBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    forgetDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hardware address of the device, e.g. 00:00:5e:00:53:10 */
+                mac: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    nameDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hardware address of the device */
+                mac: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NameDeviceInputBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

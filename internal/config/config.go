@@ -7,7 +7,11 @@
 // config document is exported/imported as-is for backup/restore (FR-8).
 package config
 
-import "github.com/veilbridge-os/veilbridge/internal/core"
+import (
+	"errors"
+
+	"github.com/veilbridge-os/veilbridge/internal/core"
+)
 
 // Version is the current config schema version.
 const Version = "0.1.0"
@@ -61,6 +65,70 @@ type Document struct {
 	Nodes    []StoredNode     `json:"nodes"`
 	Routes   []core.RouteRule `json:"routes"`
 	Settings Settings         `json:"settings"`
+	// Devices is what the owner said about devices on the local network: a
+	// name, or "I know this one" (M4, #51, D-86). Written only when the owner
+	// does something, never because a device appeared — so the list costs
+	// the flash nothing while phones come and go.
+	Devices []core.DeviceNote `json:"devices,omitempty"`
+}
+
+// MaxDeviceNotes bounds the list: phones that change their private address
+// every day would otherwise grow it for ever, one name at a time.
+const MaxDeviceNotes = 1024
+
+// ErrTooManyDevices is the refusal when the list is full.
+var ErrTooManyDevices = errors.New("the panel remembers at most 1024 devices — forget some you no longer have")
+
+// SetDeviceName names a device; an empty name removes the name but leaves
+// the device known, because the owner has looked at it.
+func (d *Document) SetDeviceName(mac, name string) error {
+	n := d.deviceNote(mac)
+	if n == nil {
+		if len(d.Devices) >= MaxDeviceNotes {
+			return ErrTooManyDevices
+		}
+		d.Devices = append(d.Devices, core.DeviceNote{MAC: mac})
+		n = &d.Devices[len(d.Devices)-1]
+	}
+	n.Name = name
+	n.Known = true
+	return nil
+}
+
+// MarkDevicesKnown takes the "new" mark off every device in macs at once.
+func (d *Document) MarkDevicesKnown(macs []string) error {
+	for _, mac := range macs {
+		if n := d.deviceNote(mac); n != nil {
+			n.Known = true
+			continue
+		}
+		if len(d.Devices) >= MaxDeviceNotes {
+			return ErrTooManyDevices
+		}
+		d.Devices = append(d.Devices, core.DeviceNote{MAC: mac, Known: true})
+	}
+	return nil
+}
+
+// ForgetDevice drops everything the panel remembers about a device. It
+// reports whether there was anything to drop.
+func (d *Document) ForgetDevice(mac string) bool {
+	for i := range d.Devices {
+		if d.Devices[i].MAC == mac {
+			d.Devices = append(d.Devices[:i], d.Devices[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Document) deviceNote(mac string) *core.DeviceNote {
+	for i := range d.Devices {
+		if d.Devices[i].MAC == mac {
+			return &d.Devices[i]
+		}
+	}
+	return nil
 }
 
 // Default returns an empty document with the current version and sane defaults.

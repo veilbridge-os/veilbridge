@@ -2,7 +2,6 @@ package core_test
 
 import (
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 
@@ -90,13 +89,28 @@ func TestMockRouting(t *testing.T) {
 	}
 }
 
-// TestRoadmapStubs confirms the remaining stubs report ErrNotImplemented so the
-// API layer can surface a clean "not available yet". Network left this list in
-// M1.5; Device is still a stub until M4.
-func TestRoadmapStubs(t *testing.T) {
-	a := mock.NewAdapter()
-	if _, err := a.Device().ListDevices(); !errors.Is(err, core.ErrNotImplemented) {
-		t.Errorf("Device.ListDevices should return ErrNotImplemented, got %v", err)
+// TestDemoDevicesArePublishable: README screenshots are taken from the demo
+// adapter, so every address it shows has to belong to nobody — IPv4 from the
+// RFC 5737 / private ranges, IPv6 from ULA, hardware addresses either private
+// or from the documentation block of RFC 7042 (00:00:5e:00:53:xx). Device
+// left the roadmap stubs in M4 (#51).
+func TestDemoDevicesArePublishable(t *testing.T) {
+	list, err := mock.NewDemoAdapter().Device().ListDevices()
+	if err != nil || len(list.Devices) == 0 {
+		t.Fatalf("demo devices = %v, %v", list, err)
+	}
+	for _, d := range list.Devices {
+		if !core.IsPrivateMAC(d.MAC) && !strings.HasPrefix(d.MAC, "00:00:5e:00:53:") {
+			t.Errorf("demo device %s has a vendor's hardware address", d.MAC)
+		}
+		for _, ip := range d.IPs {
+			if !strings.HasPrefix(ip, "192.168.") && !strings.HasPrefix(ip, "fd") {
+				t.Errorf("demo device %s shows address %s", d.MAC, ip)
+			}
+		}
+	}
+	if _, err := mock.NewAdapter().Device().ListDevices(); err != nil {
+		t.Errorf("plain mock: %v", err)
 	}
 }
 

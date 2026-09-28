@@ -168,13 +168,20 @@ func (s *Server) getMetrics(_ context.Context, _ *struct{}) (*MetricsOutput, err
 // Sampling runs whether or not anyone is connected — see metrics.Sampler.
 func (s *Server) StartSampling() (stop func()) {
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
+	done := make(chan struct{}, 2)
 	go func() {
-		defer close(done)
+		defer func() { done <- struct{}{} }()
 		s.sampler.Run(ctx)
+	}()
+	// The device list's "last seen" is recorded the same way, for the same
+	// reason: whether or not anyone is watching (#51).
+	go func() {
+		defer func() { done <- struct{}{} }()
+		s.observeDevices(ctx)
 	}()
 	return func() {
 		cancel()
+		<-done
 		<-done
 	}
 }

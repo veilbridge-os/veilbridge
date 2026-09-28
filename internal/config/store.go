@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -102,6 +103,29 @@ func (s *Store) Save(d *Document) error {
 		return fmt.Errorf("config: rename into place: %w", err)
 	}
 	return nil
+}
+
+// fileLocks serialises read-modify-write per file, not per Store: the daemon
+// builds more than one Store on the same path (the API and the adapter each
+// hold one), and a lock inside a Store would let them overwrite each other.
+var fileLocks sync.Map // path -> *sync.Mutex
+
+// Update loads the document, lets change modify it and saves it, with no
+// other Update on the same file in between. If change returns an error,
+// nothing is written.
+func (s *Store) Update(change func(*Document) error) error {
+	l, _ := fileLocks.LoadOrStore(s.path, &sync.Mutex{})
+	mu := l.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+	d, err := s.Load()
+	if err != nil {
+		return err
+	}
+	if err := change(d); err != nil {
+		return err
+	}
+	return s.Save(d)
 }
 
 // SetPassword stores the bcrypt hash of password in the document's settings.

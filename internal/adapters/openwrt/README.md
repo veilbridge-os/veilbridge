@@ -39,6 +39,13 @@ Files:
 - `restore.go` — the emergency command (M3.5, #38): `veilbridged
   -restore-network` puts `network`, `firewall` and `dhcp` back from the newest
   snapshot that differs from them, with no panel and no network needed
+- `devices.go` / `neigh_linux.go` — the devices on the local network (M4,
+  #51): leases for names, the neighbour table (read over netlink, not by
+  running `ip`) for addresses, the access points on the bus for who is on the
+  Wi-Fi now, and the bridge's forwarding table (`brforward`: port and age of
+  the last frame, in the CPU's byte order) for cable and "last heard". The
+  neighbour table is not a sign of presence: it keeps no useful age and a
+  sleeping phone is FAILED there
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon

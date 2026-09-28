@@ -295,11 +295,40 @@ func (m Network) LANInfo() (core.LANStatus, error) {
 	}, nil
 }
 
-// Device is a roadmap stub: every method returns core.ErrNotImplemented.
-type Device struct{}
+// Device lists a fixed set of devices; the plain mock has none, the demo one
+// has a household (see NewDemoAdapter).
+type Device struct {
+	Devices []core.Device
+}
 
-func (Device) ListDevices() ([]core.Device, error) {
-	return nil, core.ErrNotImplemented
+func (d *Device) ListDevices() (core.DeviceList, error) {
+	out := make([]core.Device, len(d.Devices))
+	copy(out, d.Devices)
+	return core.DeviceList{Devices: out, WatchingSec: 5400}, nil
+}
+
+func ago(s int64) *int64 { return &s }
+
+// demoDevices is a household with the states worth looking at: a phone with a
+// private address on 5 GHz, a laptop on 2.4 GHz with a weak signal, devices on
+// the cable, one that gave no name, one that left 40 minutes ago. Addresses
+// that are not private come from the range RFC 7042 sets aside for
+// documentation (00:00:5e:00:53:xx), so no vendor's real equipment is shown.
+func demoDevices() []core.Device {
+	return []core.Device{
+		{MAC: "02:1a:a6:05:d4:9c", ReportedName: "workshop-laptop", IPs: []string{"192.168.1.222"},
+			Online: true, Link: core.DeviceLink{Kind: core.LinkWiFi, Band: "2.4", SignalDBm: -78}},
+		{MAC: "02:44:fd:18:0b:71", ReportedName: "printer", IPs: []string{"192.168.1.50"},
+			ReservedIP: "192.168.1.50", Online: true, Link: core.DeviceLink{Kind: core.LinkCable}},
+		{MAC: "02:0d:33:7a:55:c2", IPs: []string{"192.168.1.187"},
+			Online: true, Link: core.DeviceLink{Kind: core.LinkWiFi, Band: "5", SignalDBm: -52}},
+		{MAC: "02:27:eb:4c:90:1e", ReportedName: "storage", ReservedIP: "192.168.1.60",
+			LastSeenSec: ago(2400), Link: core.DeviceLink{Kind: core.LinkCable}},
+		{MAC: "00:00:5e:00:53:10", ReportedName: "living-room-tv", IPs: []string{"192.168.1.141", "fd00:db8:1::141"},
+			Online: true, Link: core.DeviceLink{Kind: core.LinkCable}},
+		{MAC: "00:00:5e:00:53:21", ReportedName: "tablet", IPs: []string{"192.168.1.163"},
+			Online: true, Link: core.DeviceLink{Kind: core.LinkWiFi, Band: "5", SignalDBm: -61}},
+	}
 }
 
 // Adapter bundles the mock managers into a core.Adapter.
@@ -308,13 +337,13 @@ type Adapter struct {
 	routing *Routing
 	system  System
 	network Network
-	device  Device
+	device  *Device
 	applier *Applier
 }
 
 // NewAdapter returns a fully wired mock adapter.
 func NewAdapter() *Adapter {
-	return &Adapter{vpn: &VPN{}, routing: &Routing{}, applier: &Applier{}}
+	return &Adapter{vpn: &VPN{}, routing: &Routing{}, device: &Device{}, applier: &Applier{}}
 }
 
 // Applier is an in-memory core.ConfigApplier: it counts what it was asked to
@@ -384,6 +413,7 @@ func NewDemoAdapter() *Adapter {
 		{ID: "r1", Kind: core.RuleDomain, Value: "example.com", Target: core.TargetTunnel},
 		{ID: "r2", Kind: core.RuleSubnet, Value: "198.51.100.0/24", Target: core.TargetDirect},
 	})
+	a.device.Devices = demoDevices()
 	return a
 }
 
@@ -422,7 +452,7 @@ var (
 	_ core.LANReader       = Network{}
 	_ core.FirewallReader  = Network{}
 	_ core.RouteReader     = Network{}
-	_ core.DeviceManager   = Device{}
+	_ core.DeviceManager   = (*Device)(nil)
 	_ core.Adapter         = (*Adapter)(nil)
 	_ core.CapabilityProbe = (*Adapter)(nil)
 )
