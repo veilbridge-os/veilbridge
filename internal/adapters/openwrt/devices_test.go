@@ -14,7 +14,8 @@ import (
 	"github.com/veilbridge-os/veilbridge/internal/core"
 )
 
-// #51. The shapes below were captured on the stands (#50 and 28.09):
+// #51. The shapes below (with addresses swapped for documentation ones:
+// RFC 5737, 2001:db8::/32, 00:00:5e:00:53:xx of RFC 7042) were captured on the stands (#50 and 28.09):
 // brforward on the Cudy (25.12.5, arm64) and the VM (23.05.5, x86-64), `ip
 // neigh` on both, `get_clients` on the Cudy. The one thing not captured with
 // a client attached is a `get_clients` entry — its fields are the ones
@@ -74,7 +75,7 @@ func cudy(fdb ...[]byte) mapSys {
 }
 
 const clients5 = `{"freq": 5180, "clients": {
- "9a:ef:51:8b:96:d6": {"auth": true, "assoc": true, "authorized": true, "aid": 1,
+ "02:00:5e:00:53:d6": {"auth": true, "assoc": true, "authorized": true, "aid": 1,
    "bytes": {"rx": 81234, "tx": 190211}, "signal": -48}}}`
 
 const clients24Empty = `{
@@ -184,11 +185,11 @@ func ndRecord(ifindex int, state uint16, ip, mac string) []byte {
 func neighCudy() []neighbour {
 	recs := [][]byte{
 		ndRecord(12, 0x20, "192.168.1.144", ""), // FAILED, no address
-		ndRecord(5, nudDelay, "192.168.10.247", "84:94:37:c5:75:e2"),
-		ndRecord(12, nudStale, "fe80::14c4:8ab5:66cc:42c0", "9a:ef:51:8b:96:d6"),
-		ndRecord(12, nudStale, "fdea:1422:6cbf:c:1c2a:7aff:fe11:2233", "9a:ef:51:8b:96:d6"),
-		ndRecord(12, nudReachable, "192.168.1.188", "9a:ef:51:8b:96:d6"),
-		ndRecord(5, nudStale, "fdea:1422:6cbf::1", "68:1d:ef:33:80:01"),
+		ndRecord(5, nudDelay, "198.51.100.7", "00:00:5e:00:53:07"),
+		ndRecord(12, nudStale, "fe80::14c4:8ab5:66cc:42c0", "02:00:5e:00:53:d6"),
+		ndRecord(12, nudStale, "2001:db8:1:c:1c2a:7aff:fe11:2233", "02:00:5e:00:53:d6"),
+		ndRecord(12, nudReachable, "192.168.1.188", "02:00:5e:00:53:d6"),
+		ndRecord(5, nudStale, "2001:db8:1::1", "00:00:5e:00:53:01"),
 	}
 	var out []neighbour
 	for _, r := range recs {
@@ -201,23 +202,23 @@ func neighCudy() []neighbour {
 
 func TestAPhoneOnWiFiIsOnlineWithBandSignalAndBothAddresses(t *testing.T) {
 	fx := newDevFixture(t, cudy(
-		fdbRecord("d4:0d:ab:50:c3:42", 1, true, 0), // the router's own
-		fdbRecord("9a:ef:51:8b:96:d6", 6, false, 150),
-	), "4102444800 9a:ef:51:8b:96:d6 192.168.1.188 iPhone 01:9a:ef:51:8b:96:d6\n")
+		fdbRecord("00:00:5e:00:53:42", 1, true, 0), // the router's own
+		fdbRecord("02:00:5e:00:53:d6", 6, false, 150),
+	), "4102444800 02:00:5e:00:53:d6 192.168.1.188 iPhone 01:02:00:5e:00:53:d6\n")
 	fx.neigh = neighCudy()
 
 	got := fx.list()
 	if len(got) != 1 {
 		t.Fatalf("devices = %v, want only the phone (not the router, not the uplink's hosts)", got)
 	}
-	d := got["9a:ef:51:8b:96:d6"]
+	d := got["02:00:5e:00:53:d6"]
 	if !d.Online || d.Link.Kind != core.LinkWiFi || d.Link.Band != "5" || d.Link.SignalDBm != -48 {
 		t.Errorf("phone = %+v, want online on Wi-Fi 5 GHz at -48 dBm", d)
 	}
 	if d.ReportedName != "iPhone" {
 		t.Errorf("reportedName = %q", d.ReportedName)
 	}
-	want := []string{"192.168.1.188", "fdea:1422:6cbf:c:1c2a:7aff:fe11:2233"}
+	want := []string{"192.168.1.188", "2001:db8:1:c:1c2a:7aff:fe11:2233"}
 	if strings.Join(d.IPs, ",") != strings.Join(want, ",") {
 		t.Errorf("ips = %v, want %v (IPv4 once, then IPv6, no link-local)", d.IPs, want)
 	}
@@ -230,10 +231,10 @@ func TestAPhoneOnWiFiIsOnlineWithBandSignalAndBothAddresses(t *testing.T) {
 // table (#50); the access point is the authority.
 func TestAssociatedIsOnlineEvenWhenTheNeighbourTableSaysFailed(t *testing.T) {
 	fx := newDevFixture(t, cudy(), "")
-	if _, ok := parseNeighMsg(ndRecord(12, 0x20, "192.168.1.188", "9a:ef:51:8b:96:d6"), 12); ok {
+	if _, ok := parseNeighMsg(ndRecord(12, 0x20, "192.168.1.188", "02:00:5e:00:53:d6"), 12); ok {
 		t.Fatal("a FAILED entry was read as a neighbour")
 	}
-	d := fx.list()["9a:ef:51:8b:96:d6"]
+	d := fx.list()["02:00:5e:00:53:d6"]
 	if !d.Online {
 		t.Errorf("associated phone = %+v, want online", d)
 	}
@@ -288,11 +289,11 @@ func TestLastSeenIsRememberedAfterTheBridgeForgets(t *testing.T) {
 // A signal reading is a now-fact; after the device left, it is not repeated —
 // also while its lease still runs and keeps it in the list.
 func TestSignalIsNotRememberedAfterTheDeviceLeaves(t *testing.T) {
-	fx := newDevFixture(t, cudy(), "4102444800 9a:ef:51:8b:96:d6 192.168.1.188 iPhone 01:9a\n")
+	fx := newDevFixture(t, cudy(), "4102444800 02:00:5e:00:53:d6 192.168.1.188 iPhone 01:02\n")
 	fx.list()
 	fx.runner.out["/bin/ubus call hostapd.phy1-ap0 get_clients"] = []byte(`{"freq": 5180, "clients": {}}`)
 	fx.clock = fx.clock.Add(5 * time.Minute)
-	d := fx.list()["9a:ef:51:8b:96:d6"]
+	d := fx.list()["02:00:5e:00:53:d6"]
 	if d.Online || d.Link.SignalDBm != 0 || d.Link.Band != "5" {
 		t.Errorf("left phone = %+v, want offline, band kept, no signal", d)
 	}
@@ -337,17 +338,17 @@ func TestALeaseAloneIsNotPresence(t *testing.T) {
 func TestWithoutABridgeTheNeighbourTableDecides(t *testing.T) {
 	fx := newDevFixture(t, mapSys{}, "")
 	for _, r := range [][]byte{
-		ndRecord(3, nudReachable, "192.168.1.20", "52:54:00:94:a3:12"),
-		ndRecord(3, nudStale, "192.168.1.21", "52:54:00:94:a3:13"),
+		ndRecord(3, nudReachable, "192.168.1.20", "52:54:00:00:53:12"),
+		ndRecord(3, nudStale, "192.168.1.21", "52:54:00:00:53:13"),
 	} {
 		n, _ := parseNeighMsg(r, 3)
 		fx.neigh = append(fx.neigh, n)
 	}
 	got := fx.list()
-	if d := got["52:54:00:94:a3:12"]; !d.Online || d.Link.Kind != core.LinkCable {
+	if d := got["52:54:00:00:53:12"]; !d.Online || d.Link.Kind != core.LinkCable {
 		t.Errorf("reachable = %+v, want online on the cable", d)
 	}
-	if d := got["52:54:00:94:a3:13"]; d.Online {
+	if d := got["52:54:00:00:53:13"]; d.Online {
 		t.Errorf("stale = %+v, want not online: STALE is kept for hours after a device leaves", d)
 	}
 }
@@ -377,19 +378,20 @@ func TestRememberedRecordIsBounded(t *testing.T) {
 	}
 }
 
-// Captured on the VM (x86, little endian): a LAN client heard 112.73 s ago on
-// port 1, and the bridge's own address flagged local.
+// Captured on the VM (x86, little endian), hardware addresses replaced: a LAN
+// client heard 112.73 s ago on port 1, and the bridge's own address flagged
+// local. Every address in these fixtures is from a documentation range.
 func TestForwardingTableIsReadAsTheKernelWritesIt(t *testing.T) {
 	raw := []byte{
-		0x52, 0x54, 0x00, 0x94, 0xa3, 0x12, 0x01, 0x00, 0x09, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x52, 0x54, 0x00, 0xf7, 0xaa, 0x8e, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x52, 0x54, 0x00, 0x00, 0x53, 0x12, 0x01, 0x00, 0x09, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x52, 0x54, 0x00, 0x00, 0x53, 0x8e, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
 	if binary.NativeEndian.Uint16([]byte{1, 0}) != 1 {
 		t.Skip("captured on a little-endian CPU")
 	}
 	got := parseForwarding(raw, map[int]string{1: "eth0"}, func(string) bool { return false }, nil)
-	if len(got) != 2 || got[0].mac != "52:54:00:94:a3:12" || got[0].local || got[0].age != 112730*time.Millisecond {
-		t.Errorf("entry 0 = %+v, want 52:54:00:94:a3:12 not local, 112.73 s", got)
+	if len(got) != 2 || got[0].mac != "52:54:00:00:53:12" || got[0].local || got[0].age != 112730*time.Millisecond {
+		t.Errorf("entry 0 = %+v, want 52:54:00:00:53:12 not local, 112.73 s", got)
 	}
 	if !got[1].local {
 		t.Errorf("entry 1 = %+v, want the bridge's own address flagged local", got[1])
