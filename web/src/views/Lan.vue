@@ -13,6 +13,7 @@
 // draft on the device, and the apply bar commits it under the watchdog.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   type AddressLease,
   ApiError,
@@ -24,7 +25,8 @@ import VbIcon from '@/components/VbIcon.vue'
 import { useDuration } from '@/lib/duration'
 import { refreshStaged, useLive } from '@/stores/live'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const router = useRouter()
 const { applyState, staged, stale, lastUpdate } = useLive()
 // How long a change will have to be confirmed, from the daemon (#29): the
 // warning is read BEFORE Apply, so it cannot quote a number from the UI; until
@@ -83,7 +85,7 @@ const busy = computed(() => applyState.value?.phase === 'awaiting_confirm')
 
 const dataFrom = computed(() =>
   lastUpdate.value
-    ? lastUpdate.value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    ? lastUpdate.value.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
     : '',
 )
 
@@ -163,55 +165,7 @@ const freshest = computed(() => {
   return best
 })
 
-// --- clients, including the ones that are not here right now -------------
-
-interface Row {
-  mac: string
-  ip: string
-  name: string
-  /** seconds left on the lease, absent for a device that is not connected. */
-  expiresSec?: number
-  /** the reservation this device has, if any. */
-  reservation?: ReservedAddress
-  online: boolean
-}
-
-const rows = computed<Row[]>(() => {
-  const byMac = new Map<string, Row>()
-  for (const l of leases.value) {
-    byMac.set(l.mac.toLowerCase(), {
-      mac: l.mac,
-      ip: l.ip,
-      name: l.hostname ?? '',
-      expiresSec: l.expiresSec,
-      online: true,
-    })
-  }
-  for (const r of reserved.value) {
-    const key = r.mac.toLowerCase()
-    const row = byMac.get(key)
-    if (row) {
-      row.reservation = r
-      // A reservation the device has not handed out yet would otherwise show
-      // the old address as if it were already in force.
-      if (r.ip !== row.ip) row.ip = `${row.ip} → ${r.ip}`
-      continue
-    }
-    // A reserved device that is not connected still has to be on this screen:
-    // otherwise the only way to undo a reservation is to wait for its owner to
-    // come back, and a wrong reservation is exactly the thing people want to
-    // undo immediately. Not in the artboard — recorded as an addition.
-    byMac.set(key, { mac: r.mac, ip: r.ip, name: r.name ?? '', reservation: r, online: false })
-  }
-  return [...byMac.values()]
-})
-
 const onlineCount = computed(() => leases.value.length)
-
-/** A lease the device lists with no time left: it was handed out, and the
- * device has not renewed it since — most likely it is gone (#33). Shown as
- * such rather than as a dash, which read like missing data. */
-const expired = (row: Row) => row.online && !row.reservation && row.expiresSec === 0
 
 /** The far end of the pool, shortened to the part that differs "192.168.1.100
  * \u2013 .249", as the artboard writes it. The shared part is on screen one
@@ -296,7 +250,6 @@ const handoutError = ref('')
 const lanErrors = ref<Record<string, string>>({})
 const lanError = ref('')
 const manualErrors = ref<Record<string, string>>({})
-const rowError = ref<Record<string, string>>({})
 const savedCard = ref('')
 
 type RefusedField = 'address' | 'netmask' | 'first' | 'last' | 'mac' | 'ip' | 'name'
@@ -331,13 +284,11 @@ function clearMessages() {
   lanErrors.value = {}
   lanError.value = ''
   manualErrors.value = {}
-  rowError.value = {}
   savedCard.value = ''
 }
 
 const savingHandout = ref(false)
 const savingLAN = ref(false)
-const pinning = ref('')
 
 async function saveHandout() {
   savingHandout.value = true
@@ -381,38 +332,6 @@ async function saveLAN() {
     }
   } finally {
     savingLAN.value = false
-    await refreshStaged()
-  }
-}
-
-/** Pinning from a row sends the hardware address and the address it already
- * holds, and deliberately NOT the name the client announced: that name would
- * go into DNS for the whole network, which is a decision the operator makes in
- * the manual form, not a side effect of clicking "keep this address". */
-async function pin(row: Row) {
-  pinning.value = row.mac
-  clearMessages()
-  try {
-    await api.stageReservation({ mac: row.mac, ip: row.ip })
-  } catch (e) {
-    rowError.value[row.mac] = e instanceof Error ? e.message : String(e)
-  } finally {
-    pinning.value = ''
-    await refreshStaged()
-  }
-}
-
-async function unpin(row: Row) {
-  const id = row.reservation?.id
-  if (!id) return
-  pinning.value = row.mac
-  clearMessages()
-  try {
-    await api.removeReservation(id)
-  } catch (e) {
-    rowError.value[row.mac] = e instanceof Error ? e.message : String(e)
-  } finally {
-    pinning.value = ''
     await refreshStaged()
   }
 }
@@ -586,90 +505,21 @@ async function discard() {
         </dl>
       </el-card>
 
-      <!-- 5. The devices. One table, with pinning as a property of the row:
-           a separate list of reservations would make a person compare two
-           tables by eye to answer one question. -->
+      <!-- 5. The devices live on their own screen (design 08 §2, #52): two
+           lists of the same devices on two screens would drift apart. Here
+           stays the count and the way there. -->
       <el-card shadow="never">
-        <template #header>
-          <div class="vb-lan__cardhead">
-            <VbIcon name="dev" class="vb-lan__muted" />
-            <strong>{{ t('lan.devices') }}</strong>
-            <el-tag size="small" type="info" class="vb-lan__tagright">
-              {{ t('lan.devicesCount', { online: onlineCount, pinned: reserved.length }) }}
-            </el-tag>
-          </div>
-        </template>
-
-        <el-empty v-if="rows.length === 0" :description="t('lan.noDevices')">
-          <p class="vb-lan__hint">{{ t('lan.noDevicesHint') }}</p>
-        </el-empty>
-
-        <!-- A grid of rows, not el-table: on a phone the same markup becomes
-             cards, with the pin button kept (artboards Lan-360, #33); a table
-             scrolled sideways put the button past the edge. -->
-        <div v-else class="vb-lan__list" role="table">
-          <div class="vb-lan__row vb-lan__row--th" role="row">
-            <span>{{ t('lan.device') }}</span>
-            <span>{{ t('lan.address') }}</span>
-            <span>{{ t('lan.hardware') }}</span>
-            <span>{{ t('lan.leaseLeftCol') }}</span>
-            <span />
-          </div>
-          <div
-            v-for="row in rows"
-            :key="row.mac"
-            class="vb-lan__row"
-            :class="{ 'is-off': expired(row) || !row.online }"
-            role="row"
-          >
-            <span class="vb-lan__cell--dev">
-              <span class="vb-lan__dev">
-                <VbIcon name="dev" size="sm" class="vb-lan__muted" />
-                <strong v-if="row.name">{{ row.name }}</strong>
-                <span v-else class="vb-lan__muted">{{ t('lan.noName') }}</span>
-                <el-tag v-if="row.reservation" size="small">{{ t('lan.pinned') }}</el-tag>
-                <el-tag v-if="!row.online" size="small" type="info">{{ t('lan.offline') }}</el-tag>
-              </span>
-              <span class="vb-mono vb-lan__muted vb-lan__macunder">{{ row.mac }}</span>
-            </span>
-            <span class="vb-mono vb-lan__cell--ip">{{ row.ip }}</span>
-            <span class="vb-mono vb-lan__muted vb-lan__cell--mac">{{ row.mac }}</span>
-            <span class="vb-lan__muted vb-lan__cell--left">
-              <span class="vb-lan__label">{{ t('lan.leaseLeftCol') }}: </span>
-              <template v-if="row.reservation">{{ t('lan.forever') }}</template>
-              <el-tag v-else-if="expired(row)" size="small" type="info">{{ t('lan.expired') }}</el-tag>
-              <template v-else-if="row.expiresSec">{{ t('lan.leaseLeft', { d: fmtDuration(row.expiresSec) }) }}</template>
-              <template v-else>—</template>
-            </span>
-            <span class="vb-lan__acts">
-              <el-button
-                v-if="row.reservation"
-                size="small"
-                text
-                :loading="pinning === row.mac"
-                :disabled="busy"
-                @click="unpin(row as Row)"
-              >
-                <VbIcon name="close" size="sm" class="vb-lan__btnico" />
-                {{ t('lan.unpin') }}
-              </el-button>
-              <el-button
-                v-else
-                size="small"
-                :loading="pinning === row.mac"
-                :disabled="busy"
-                @click="pin(row as Row)"
-              >
-                <VbIcon name="pin" size="sm" class="vb-lan__btnico" />
-                {{ t('lan.pin') }}
-              </el-button>
-              <div v-if="rowError[row.mac]" class="vb-lan__rowerr">
-                {{ t('lan.deviceSaid', { detail: rowError[row.mac] }) }}
-              </div>
-            </span>
-          </div>
+        <div class="vb-lan__cardhead">
+          <VbIcon name="dev" class="vb-lan__muted" />
+          <strong>{{ t('lan.devices') }}</strong>
+          <span class="vb-lan__muted">
+            {{ t('lan.devicesCount', { online: onlineCount, pinned: reserved.length }) }}
+          </span>
+          <el-button class="vb-lan__tagright" @click="router.push('/devices')">
+            {{ t('lan.openDevices') }}
+            <VbIcon name="chev" size="sm" class="vb-lan__btnafter" />
+          </el-button>
         </div>
-        <p v-if="rows.length" class="vb-lan__hint">{{ t('lan.devicesHint') }}</p>
       </el-card>
 
       <!-- 6. The handout. Deliberately without a warning and without a
@@ -932,90 +782,8 @@ async function discard() {
 .vb-lan__btnico {
   margin-right: 6px;
 }
-.vb-lan__dev {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.vb-lan__list {
-  display: flex;
-  flex-direction: column;
-  margin: 0 -20px;
-  font-size: 13px;
-}
-.vb-lan__row {
-  display: grid;
-  /* Fixed widths where content varies per row: each row is its own grid. */
-  grid-template-columns: minmax(200px, 1.6fr) 150px 170px 150px 200px;
-  align-items: center;
-  gap: 8px 14px;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-.vb-lan__row--th {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--vb-muted);
-}
-.vb-lan__row.is-off {
-  color: var(--vb-muted);
-}
-.vb-lan__cell--dev {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.vb-lan__macunder,
-.vb-lan__label {
-  display: none;
-}
-.vb-lan__acts {
-  text-align: right;
-}
-/* A tablet: the MAC address folds under the name (artboard Lan-768). */
-@media (width <= 1100px) {
-  .vb-lan__row {
-    grid-template-columns: minmax(0, 1.6fr) 140px 140px 190px;
-  }
-  .vb-lan__row > :nth-child(3) {
-    display: none;
-  }
-  .vb-lan__macunder {
-    display: block;
-  }
-}
-/* A phone: every device a card, the button kept (artboard Lan-360). */
-@media (width <= 700px) {
-  .vb-lan__list {
-    gap: 10px;
-    margin: 0;
-  }
-  .vb-lan__list .vb-lan__row.vb-lan__row--th {
-    display: none;
-  }
-  .vb-lan__row {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    padding: 12px 14px;
-    border: 1px solid var(--el-border-color-light);
-    border-radius: 10px;
-  }
-  .vb-lan__label {
-    display: inline;
-  }
-}
-.vb-lan__rowerr {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--el-color-error);
-  text-align: right;
-  white-space: normal;
+.vb-lan__btnafter {
+  margin-left: 6px;
 }
 .vb-lan__grid {
   display: grid;

@@ -41,7 +41,9 @@ const NAV: NavItem[] = [
   // a section for something the hardware cannot have is not shown (D-41).
   { key: 'network', path: '/network', group: 'groupLan', needs: 'dhcp-server', ready: true },
   { key: 'wifi', path: '/wifi', group: 'groupLan', needs: 'wifi', ready: false },
-  { key: 'devices', path: '/devices', group: 'groupLan', ready: false },
+  // Same condition as the local network: a box without one has nobody on it
+  // (design 08 §5).
+  { key: 'devices', path: '/devices', group: 'groupLan', needs: 'dhcp-server', ready: true },
   // Keenetic's own word for the group ("Сетевые правила"): port forwarding
   // and the firewall are where people look for "open a port".
   { key: 'firewall', path: '/firewall', group: 'groupRules', ready: true },

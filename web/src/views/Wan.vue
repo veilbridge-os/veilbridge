@@ -27,7 +27,7 @@ import VbIcon from '@/components/VbIcon.vue'
 import { useDuration } from '@/lib/duration'
 import { refreshStaged, useLive } from '@/stores/live'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { applyState, staged, capability, can, stale, lastUpdate } = useLive()
 // How long a change will have to be confirmed, from the daemon (#29): the
 // warning is read BEFORE Apply, so it cannot quote a number from the UI; until
@@ -121,7 +121,7 @@ const draftCount = computed(() => staged.value.length)
 
 const dataFrom = computed(() =>
   lastUpdate.value
-    ? lastUpdate.value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    ? lastUpdate.value.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
     : '',
 )
 

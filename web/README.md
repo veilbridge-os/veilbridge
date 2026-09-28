@@ -117,11 +117,11 @@ Measured on the reference device (Cudy WR3000S v1, OpenWrt 25.12.5, aarch64 — 
 RAM, 46 MB writable overlay). Numbers, not adjectives: this panel is stored on the
 device's flash and parsed by whatever phone the operator happens to hold.
 
-| What | Before on-demand imports | At M2.6 | + internet screen | + visual layer, icons | + local network | + firewall | Now (+ static routes) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | 659 kB (212 gzip) | 692 kB (220 gzip) | 746 kB (234 gzip) | **780 kB (243 gzip)** |
-| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | 149 kB (22 gzip) | 155 kB (23 gzip) | 162 kB (24 gzip) | **172 kB (25 gzip)** |
-| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | 874 kB | 946 kB | — | **~1.1 MB** |
+| What | Before on-demand imports | At M2.6 | + internet screen | + visual layer, icons | + local network | + firewall | + static routes | Now (+ devices) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | 659 kB (212 gzip) | 692 kB (220 gzip) | 746 kB (234 gzip) | 780 kB (243 gzip) | **814 kB (252 gzip)** |
+| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | 149 kB (22 gzip) | 155 kB (23 gzip) | 162 kB (24 gzip) | 172 kB (25 gzip) | **187 kB (27 gzip)** |
+| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | 874 kB | 946 kB | — | ~1.1 MB | **~1.0 MB** |
 
 The internet screen cost +34 kB of JS and +9 kB of CSS: it is the first screen
 with a form, so it pulls in the form, radio-group and skeleton components. The
@@ -140,6 +140,12 @@ hold. What those kilobytes are made of has not been broken down yet. The last
 two columns were measured on 2026-09-27 with `vite build` at `0278c97` and
 `065cbd3`; the binary figure is the difference between `-tags ui` and plain
 linux/arm64 builds with `-trimpath -ldflags '-s -w'`.
+
+The devices screen (#52) cost +34 kB of JS and +15 kB of CSS: it is the first
+screen with a drawer, a dropdown menu, pagination and check tags, and the
+local network screen lost its device list at the same time. The binary figure
+came out lower than the previous column (both measured the same way on
+2026-09-28); the linker rounds to pages, so read it as "about a megabyte".
 
 Element Plus is registered per component (`unplugin-vue-components`) rather than
 globally: the global registration shipped every component the panel never renders.

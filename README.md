@@ -59,8 +59,9 @@ And if a confirmed change still cuts you off, `veilbridged -restore-network`
 puts the network settings back from ssh, a console or failsafe mode:
 [getting back into a router](docs/emergency-access.md).
 
-VeilBridge does **not** yet manage Wi-Fi or clients — keep LuCI around for
-those. See [Install](#install)
+VeilBridge does **not** yet manage Wi-Fi, and it shows the devices on your
+network (who is online, who is new, how each is connected) but cannot turn
+off a device's internet yet — keep LuCI around for those. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
@@ -102,6 +103,11 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   the router's routing table, and why a route is not working
 - **Emergency command** — `veilbridged -restore-network` undoes a
   confirmed network change that cut you off ([how](docs/emergency-access.md))
+
+### On `main`, for `v0.3`
+
+- **Devices screen** — who is on the network now, who is new, how each is
+  connected; names you give are kept by the panel, never published in DNS
 
 ## Roadmap
 

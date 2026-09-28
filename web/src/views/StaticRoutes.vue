@@ -22,7 +22,7 @@ import {
 import VbIcon from '@/components/VbIcon.vue'
 import { refreshStaged, useLive } from '@/stores/live'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { applyState, staged, stale, lastUpdate } = useLive()
 
 const st = ref<RoutesStatus | null>(null)
@@ -62,7 +62,7 @@ const busy = computed(() => applyState.value?.phase === 'awaiting_confirm')
 const draftCount = computed(() => staged.value.length)
 const dataFrom = computed(() =>
   lastUpdate.value
-    ? lastUpdate.value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    ? lastUpdate.value.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
     : '',
 )
 

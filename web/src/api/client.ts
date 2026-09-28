@@ -38,6 +38,8 @@ export type RoutesStatus = components['schemas']['RoutesStatus']
 export type StaticRoute = components['schemas']['StaticRoute']
 export type StaticRouteConfig = components['schemas']['StaticRouteConfig']
 export type RouteInterface = components['schemas']['RouteInterface']
+export type Device = components['schemas']['Device']
+export type DeviceList = components['schemas']['DeviceList']
 
 /** What the device will change if the draft is applied, described in the
  * panel's own words rather than in configuration keys (M3.1a). */
@@ -228,6 +230,22 @@ export const api = {
       throw e
     }
   },
+
+  // Devices on the local network (#51). Naming a device and marking it known
+  // are the panel's own notes: they change nothing on the network, so they
+  // take effect at once and never go through the apply bar (D-95).
+  async devices(): Promise<DeviceList | null> {
+    try {
+      return await request<DeviceList>('GET', '/devices')
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }
+  },
+  nameDevice: (mac: string, name: string) =>
+    request<void>('PUT', `/devices/${encodeURIComponent(mac)}/name`, { name }),
+  markDevicesKnown: (macs: string[]) => request<void>('POST', '/devices/known', { macs }),
+  forgetDevice: (mac: string) => request<void>('DELETE', `/devices/${encodeURIComponent(mac)}`),
 
   metrics: () =>
     request<{ live: MetricSample[]; day: MetricSample[]; bufferBytes: number }>(

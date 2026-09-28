@@ -40,7 +40,10 @@ export function useDuration() {
     const mins = Math.floor(s / 60)
     if (mins < 60) return t('time.minutesAgo', { n: mins }, mins)
     const hours = Math.floor(mins / 60)
-    return t('time.hoursAgo', { n: hours }, hours)
+    if (hours < 48) return t('time.hoursAgo', { n: hours }, hours)
+    // "216 hours ago" was what a device gone for nine days read as (#52).
+    const days = Math.floor(hours / 24)
+    return t('time.daysAgo', { n: days }, days)
   }
 
   return { fmtDuration, fmtAgo }
