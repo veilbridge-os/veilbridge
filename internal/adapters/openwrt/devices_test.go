@@ -17,10 +17,8 @@ import (
 // #51. The shapes below (with addresses swapped for documentation ones:
 // RFC 5737, 2001:db8::/32, 00:00:5e:00:53:xx of RFC 7042) were captured on the stands (#50 and 28.09):
 // brforward on the Cudy (25.12.5, arm64) and the VM (23.05.5, x86-64), `ip
-// neigh` on both, `get_clients` on the Cudy. The one thing not captured with
-// a client attached is a `get_clients` entry — its fields are the ones
-// hostapd's ubus code writes ("assoc", "signal"); acceptance on the router
-// with a phone replaces it with a captured one.
+// neigh` on both, `get_clients` on the Cudy — empty, and with an iPhone
+// associated (28.09).
 
 // fdbRecord builds one struct __fdb_entry the way the kernel writes it.
 func fdbRecord(mac string, port int, local bool, ageCentis uint32) []byte {
@@ -74,9 +72,27 @@ func cudy(fdb ...[]byte) mapSys {
 	return s
 }
 
-const clients5 = `{"freq": 5180, "clients": {
- "02:00:5e:00:53:d6": {"auth": true, "assoc": true, "authorized": true, "aid": 1,
-   "bytes": {"rx": 81234, "tx": 190211}, "signal": -48}}}`
+// Captured on the Cudy (25.12.5) with an iPhone associated on 5 GHz, 28.09;
+// the hardware address swapped for a documentation one, the capability
+// blocks cut.
+const clients5 = `{
+	"freq": 5180,
+	"clients": {
+		"02:00:5e:00:53:d6": {
+			"auth": true, "assoc": true, "authorized": true, "preauth": false,
+			"wds": false, "wmm": true, "ht": true, "vht": true, "he": true,
+			"wps": false, "mfp": false, "mbo": false,
+			"rrm": [0, 0, 0, 0, 0],
+			"extended_capabilities": [0, 0, 0, 0, 0, 0, 0, 64],
+			"aid": 1,
+			"bytes": {"rx": 91497, "tx": 125286},
+			"airtime": {"rx": 90759, "tx": 48949},
+			"packets": {"rx": 474, "tx": 250},
+			"rate": {"rx": 120090000, "tx": 120090000},
+			"signal": -48
+		}
+	}
+}`
 
 const clients24Empty = `{
 	"freq": 2412,
