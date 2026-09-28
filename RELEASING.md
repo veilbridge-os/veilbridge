@@ -12,8 +12,8 @@ bar is "proven on hardware", not "the build is green".
   sub-issues show progress. **Tasks** are broken down only for the near
   horizon — a distant epic carries scope and acceptance criteria until its turn.
 - The board is the public [VeilBridge Roadmap](https://github.com/orgs/veilbridge-os/projects/1)
-  project: *Current release* for what is being worked on, *Epics* for the whole
-  map, *Roadmap* for the timeline.
+  project: *Current release* for the version being stabilised, *Next release*
+  for what is being built, *Epics* for the whole map, *Roadmap* for the timeline.
 - **There are no dates on purpose.** A version ships when every epic in its
   milestone is closed and proven, not when a calendar says so.
 

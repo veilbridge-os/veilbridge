@@ -111,7 +111,8 @@ part of CI. Without a router, `-demo` runs the panel anywhere.
 - **Milestones are versions** (`v0.2.0`, `v0.3.0`, …), **epics** (issue type
   *Epic*) group the work of one roadmap step, and **tasks** are their
   sub-issues. The board: [VeilBridge Roadmap](https://github.com/orgs/veilbridge-os/projects/1)
-  — the *Current release* view is what is being worked on now.
+  — the *Next release* view is what is being built now, *Current release* the
+  version being stabilised.
 - `good first issue` — small and self-contained. `provable on a VM` — you can
   prove the change without a router; `needs hardware` — the proof needs a
   physical router (Wi-Fi, switch ports, memory budget).

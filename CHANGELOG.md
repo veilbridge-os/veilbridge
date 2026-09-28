@@ -98,9 +98,9 @@ only fixes until `v0.2.0`.
   `v0.3`). Domain rules are only recorded and are not enforced until DNS
   interception (`v0.4`). The path check on a rule and the dashboard's egress
   address measure the tunnel itself, so they look right while the traffic of
-  the devices on the local network goes out directly; the panel stops saying
-  otherwise before `v0.2.0-beta1`
-  ([#49](https://github.com/veilbridge-os/veilbridge/issues/49)).
+  the devices on the local network goes out directly. From this release the
+  panel says so instead of claiming otherwise (see *Changed*,
+  [#49](https://github.com/veilbridge-os/veilbridge/issues/49)).
 
 ## [0.2.0-alpha2] — 2026-09-26 — pre-release
 

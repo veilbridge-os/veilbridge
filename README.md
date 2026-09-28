@@ -109,7 +109,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
 | `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-beta1`: the whole version — uplink, local network/DHCP, firewall, static routes, emergency access; stable `v0.2.0` after testing |
-| `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover; VPN connections for two purposes — an internet exit, or access to a network such as your workplace's (WireGuard, OpenVPN), several at once; rules that really send traffic into the tunnel | planned |
+| `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover; VPN connections for two purposes — an internet exit, or access to a network such as your workplace's (WireGuard, OpenVPN), several at once; rules that really send traffic into the tunnel; first firmware image with a first-run wizard; signed package feed | 🟡 in progress: devices and Wi-Fi |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |
 
