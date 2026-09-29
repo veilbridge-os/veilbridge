@@ -144,6 +144,36 @@ func TestADraftTheFirewallWouldSkipIsDropped(t *testing.T) {
 	}
 }
 
+// Measured on 23.05.5 (#61): a plain port forward is reported with a note
+// about reflection, and it works. A note is not a refusal; a section fw4
+// drops is.
+func TestOnlyWarningsThatDropTheSectionRefuse(t *testing.T) {
+	for _, tc := range []struct {
+		line   string
+		refuse bool
+	}{
+		{"[!] Section @redirect[0] (NAS) external address range cannot be determined, disabling reflection", false},
+		{"[!] Section @redirect[0] (NAS) internal address range cannot be determined, disabling reflection", false},
+		{"[!] Section @redirect[0] (NAS) is disabled, ignoring section", false},
+		{"[!] Section @redirect[0] (NAS) does not specify a destination, assuming 'lan'", false},
+		{"[!] Section @rule[9] (x) option 'foo' is deprecated by fw4", false},
+		{"[!] Section @redirect[0] (NAS) option 'dest_ip' specifies invalid value 'x'", true},
+		{"[!] Section @redirect[0] (NAS) skipped due to invalid options", true},
+		{"[!] Section @redirect[0] (NAS) has no source specified", true},
+		{"[!] Section @rule[9] (x) must specify a source zone for target 'DROP'", true},
+		{"[!] Section @rule[9] (x) something no firewall said before", true},
+	} {
+		m, _ := firewallWriter(t, fixture(t, "firewall-25.12.5.txt"),
+			"Ruleset passes nftables check.\n", "Ruleset passes nftables check.\n"+tc.line+"\n")
+		_, err := m.StagePortForward(core.PortForwardConfig{
+			Enabled: true, Protocols: []string{"tcp"}, ExternalPort: "8443", ToAddress: "192.168.1.50",
+		})
+		if refused := err != nil; refused != tc.refuse {
+			t.Errorf("%q: err = %v, want refused=%v", tc.line, err, tc.refuse)
+		}
+	}
+}
+
 // A check that cannot run is not a check that passed (#61): the draft is not
 // staged, and the reason says the firewall could not judge it.
 func TestAFirewallCheckThatCannotRunStagesNothing(t *testing.T) {

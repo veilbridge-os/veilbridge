@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -300,14 +301,53 @@ func (m networkManager) fw4Accepts(ctx context.Context, baseline map[string]bool
 	}
 	var fresh []string
 	for w := range now {
-		if !baseline[w] {
+		if !baseline[w] && fw4Drops(w) {
 			fresh = append(fresh, w)
 		}
 	}
 	if len(fresh) == 0 {
 		return nil
 	}
+	sort.Strings(fresh)
 	return fmt.Errorf("openwrt: the firewall would skip this entry: %s", strings.Join(fresh, "; "))
+}
+
+// fw4Notes are the `[!]` lines after which firewall4 still installs the
+// section: it tells, it does not drop. Read from fw4.uc of 23.05.5 and
+// 25.12.5, the two firewalls the panel runs on, and not guessed: a plain
+// port forward on 23.05 is reported with "disabling reflection" and works,
+// and refusing it made every port forward impossible there (#61).
+//
+// "is disabled, ignoring section" is here too: the entry was staged switched
+// off, which is what the operator asked for.
+//
+// Anything not listed refuses. A message this list does not know may be one
+// that drops the section, and the refusal quotes the firewall's own words.
+var fw4Notes = []string{
+	"is deprecated by fw4",
+	"is not supported by fw4",
+	"specifies unknown option",
+	"uses unavailable ct helper",
+	"skipping invalid wildcard pattern",
+	"has invalid target specified, defaulting to",
+	"must not use non-contiguous masks in 'dest_ip'",
+	"does not specify a destination, assuming",
+	"must not use 'helper' option for snat target",
+	"cannot be determined, disabling reflection",
+	"specifies multiple rewrite addresses, using only first one",
+	"which has no effect for position",
+	"is disabled, ignoring section",
+}
+
+// fw4Drops reports whether a `[!]` line from `fw4 check` means the section
+// will not be installed.
+func fw4Drops(line string) bool {
+	for _, n := range fw4Notes {
+		if strings.Contains(line, n) {
+			return false
+		}
+	}
+	return true
 }
 
 var _ core.FirewallWriter = networkManager{}
