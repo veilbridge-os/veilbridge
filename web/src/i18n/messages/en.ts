@@ -57,7 +57,7 @@ const en = {
     sessionExpired: 'Session expired',
   },
   apply: {
-    draft: 'Draft: {n} change | Draft: {n} change | Draft: {n} changes',
+    draft: 'Draft: {n} changes | Draft: {n} change | Draft: {n} changes',
     draftHint: 'The device is still running the previous settings.',
     review: 'Review',
     discard: 'Discard',
@@ -172,12 +172,12 @@ const en = {
       'No connection to the device. The tile looks frozen, but not empty: the old numbers say more than dashes.',
   },
   time: {
-    secondsAgo: '{n} second ago | {n} second ago | {n} seconds ago',
-    minutesAgo: '{n} minute ago | {n} minute ago | {n} minutes ago',
-    hoursAgo: '{n} hour ago | {n} hour ago | {n} hours ago',
-    days: '{n} day | {n} day | {n} days',
-    hours: '{n} hour | {n} hour | {n} hours',
-    minutes: '{n} minute | {n} minute | {n} minutes',
+    secondsAgo: '{n} seconds ago | {n} second ago | {n} seconds ago',
+    minutesAgo: '{n} minutes ago | {n} minute ago | {n} minutes ago',
+    hoursAgo: '{n} hours ago | {n} hour ago | {n} hours ago',
+    days: '{n} days | {n} day | {n} days',
+    hours: '{n} hours | {n} hour | {n} hours',
+    minutes: '{n} minutes | {n} minute | {n} minutes',
   },
   details: 'Technical details',
   nav: {
@@ -335,7 +335,7 @@ const en = {
     title: 'Internet',
     linkUp: 'connection is up',
     linkDown: 'no connection',
-    draftPending: 'draft: {n} change | draft: {n} change | draft: {n} changes',
+    draftPending: 'draft: {n} changes | draft: {n} change | draft: {n} changes',
     probe: 'Check the path',
     probing: 'Checking…',
     // Facts, never a green tick: the proof is the address traffic came back
@@ -416,7 +416,7 @@ const en = {
     title: 'Local network',
     handingOut: 'handing out addresses',
     handoutOff: 'not handing out addresses',
-    draftPending: 'draft: {n} change | draft: {n} change | draft: {n} changes',
+    draftPending: 'draft: {n} changes | draft: {n} change | draft: {n} changes',
     draftEmpty: 'draft is empty',
     pinByHand: 'Pin an address by hand',
     unsupported: 'The panel cannot read the local network on this platform',
@@ -426,7 +426,7 @@ const en = {
     noneHint:
       'A gateway with a single interface looks like this. Nothing is broken — there is simply nothing to hand addresses out to.',
     summaryOn:
-      'The router hands out addresses — {n} device in the network | The router hands out addresses — {n} device in the network | The router hands out addresses — {n} devices in the network',
+      'The router hands out addresses — {n} devices in the network | The router hands out addresses — {n} device in the network | The router hands out addresses — {n} devices in the network',
     summaryOff: 'The router does not hand out addresses here',
     summaryNone: 'The router hands out addresses — no devices yet',
     // Never a green tick on its own: the claim "it works" is backed by an
@@ -445,8 +445,8 @@ const en = {
     leaseTime: 'Address is given for',
     onlineNow: 'In the network now',
     pinnedCount: 'Pinned by hand',
-    nDevices: '{n} device | {n} device | {n} devices',
-    nAddresses: '{n} address | {n} address | {n} addresses',
+    nDevices: '{n} devices | {n} device | {n} devices',
+    nAddresses: '{n} addresses | {n} address | {n} addresses',
     devices: 'Devices in the network',
     devicesCount: '{online} now · {pinned} with a pinned address',
     devicesHint:
