@@ -11,6 +11,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, api, type ConfigChange } from '@/api/client'
 import { deviceSeconds, useDuration } from '@/lib/duration'
+import { deviceNames } from '@/stores/deviceNames'
 import { refreshApply, refreshStaged, useLive } from '@/stores/live'
 
 const { t, te } = useI18n()
@@ -26,9 +27,22 @@ const { applyState, reachable, staged } = useLive()
  * address was shown as "Address on the internet side". The device's own words
  * remain the fallback for a key this build cannot translate, and check.ts
  * makes that a build error for every key the device can send. */
+const NO_INTERNET = 'firewall.noInternet.section'
+
 function labelOf(c: ConfigChange): string {
+  if (c.labelKey === NO_INTERNET) return t('apply.devInternet')
   const key = `diff.${c.labelKey}`
   return c.labelKey && te(key) ? t(key) : c.label
+}
+
+/** subjectOf says which entry a row is about. For a device's internet it is
+ * the device, by the name the panel knows it by, with the address so two
+ * phones both called "iPhone" stay apart. */
+function subjectOf(c: ConfigChange): string {
+  if (c.labelKey !== NO_INTERNET) return c.subject ?? ''
+  const mac = c.to || c.from
+  const name = deviceNames.get(mac)
+  return name ? `${name} · ${mac}` : mac
 }
 
 /** valueOf does for a value what labelOf does for a name. The device stores a
@@ -36,6 +50,9 @@ function labelOf(c: ConfigChange): string {
  * puts the operating system back on screen through the side door (D-3). Only
  * known enumerations are translated; an address stays exactly as measured. */
 function shownValue(c: ConfigChange, value: string): string {
+  // The device's own row carries the address the rule holds, or nothing:
+  // present means blocked, absent means allowed (#53).
+  if (c.labelKey === NO_INTERNET) return value ? t('apply.inetBlocked') : t('apply.inetAllowed')
   const fw = firewallValue(c.labelKey ?? '', value)
   if (fw !== null) return fw
   const route = routeValue(c.labelKey ?? '', value)
@@ -302,7 +319,7 @@ function dismiss() {
                  read "Rule is on: yes → no" and nothing said which rule. -->
             <dt>
               {{ labelOf(c) }}
-              <span v-if="c.subject" class="vb-applybar__subject">{{ c.subject }}</span>
+              <span v-if="subjectOf(c)" class="vb-applybar__subject">{{ subjectOf(c) }}</span>
             </dt>
             <dd>
               <s v-if="shownValue(c, c.from)">{{ shownValue(c, c.from) }}</s>

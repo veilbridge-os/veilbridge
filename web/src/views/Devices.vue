@@ -4,10 +4,15 @@
 // It answers "who is on my network, and is anyone here I do not know" before
 // the list is read: the summary counts online, new and nameless devices.
 //
-// What is NOT here, on purpose (D-87): the "internet" and "traffic" columns,
-// turning internet off, the schedule and waking a device. They come with their
-// own tasks (#53-#56); until the device can do them, a button or a column for
-// them would be exactly the kind of promise #49 took back.
+// Turning a device's internet off (#53, D-88) is a firewall change: it goes
+// through the apply bar with its confirmation window, and the dialog before it
+// says where the block stops. It is offered only where the router can do it
+// (`internetControl`).
+//
+// What is NOT here, on purpose (D-87): the "traffic" column, the schedule and
+// waking a device. They come with their own tasks (#54-#56); until the device
+// can do them, a button or a column for them would be exactly the kind of
+// promise #49 took back.
 //
 // A name and "I know this device" are the panel's own notes: they change
 // nothing on the network and take effect at once (D-95). Reserving an address
@@ -17,6 +22,7 @@ import { useI18n } from 'vue-i18n'
 import { ApiError, api, type Device, type DeviceList } from '@/api/client'
 import VbIcon from '@/components/VbIcon.vue'
 import { useDuration } from '@/lib/duration'
+import { rememberNames } from '@/stores/deviceNames'
 import { refreshStaged, useLive } from '@/stores/live'
 
 const { t, locale } = useI18n()
@@ -40,6 +46,7 @@ async function load() {
     const got = await api.devices()
     noLAN.value = got === null
     list.value = got
+    if (got) rememberNames(got.devices ?? [])
     unsupported.value = false
     loadError.value = ''
   } catch (e) {
@@ -251,12 +258,53 @@ async function unpin(d: Device) {
   await refreshStaged()
 }
 
+// --- internet off and back on (through the apply bar, #53) ---------------
+
+const canBlock = computed(() => !!list.value?.internetControl)
+const blocking = ref<Device | null>(null)
+const blockError = ref('')
+const blockOpen = computed({
+  get: () => blocking.value !== null,
+  set: (v: boolean) => {
+    if (!v) blocking.value = null
+  },
+})
+
+function askBlock(d: Device) {
+  blockError.value = ''
+  blocking.value = d
+}
+
+async function stageInternet(d: Device, allowed: boolean): Promise<boolean> {
+  saving.value = d.mac
+  rowError.value = {}
+  try {
+    await api.stageDeviceInternet(d.mac, allowed)
+    await Promise.all([load(), refreshStaged()])
+    return true
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (allowed) rowError.value[d.mac] = msg
+    else blockError.value = msg
+    return false
+  } finally {
+    saving.value = ''
+  }
+}
+
+async function confirmBlock() {
+  const d = blocking.value
+  if (d && (await stageInternet(d, false))) blocking.value = null
+}
+
 function onMenu(d: Device, cmd: string) {
   if (cmd === 'rename') startRename(d)
   else if (cmd === 'know') void know(d)
   else if (cmd === 'pin') void pin(d)
   else if (cmd === 'unpin') void unpin(d)
   else if (cmd === 'details') details.value = d.mac
+  else if (cmd === 'inetOff') askBlock(d)
+  else if (cmd === 'inetOn') void stageInternet(d, true)
 }
 
 // --- details --------------------------------------------------------------
@@ -442,6 +490,12 @@ const remembered = (d: Device) => !!d.name || !d.new
                   <el-tag v-if="d.privateAddress" size="small" type="info">
                     {{ t('dev.private') }}
                   </el-tag>
+                  <el-tag v-if="d.internet === 'blocked'" size="small" type="danger" effect="light">
+                    {{ t('dev.noInternet') }}
+                  </el-tag>
+                  <el-tag v-if="d.here" size="small" type="success" effect="light">
+                    {{ t('dev.here') }}
+                  </el-tag>
                 </span>
                 <span v-if="!d.name && d.reportedName" class="vb-dev__muted vb-dev__small">
                   {{ t('dev.reported') }}
@@ -490,6 +544,18 @@ const remembered = (d: Device) => !!d.name || !d.new
                       <el-dropdown-item v-else-if="ipv4(d)" command="pin" :disabled="busy">
                         {{ t('dev.pin') }}
                       </el-dropdown-item>
+                      <template v-if="canBlock">
+                        <el-dropdown-item
+                          v-if="d.internet === 'blocked'"
+                          command="inetOn"
+                          :disabled="busy"
+                        >
+                          {{ t('dev.inetOn') }}
+                        </el-dropdown-item>
+                        <el-dropdown-item v-else command="inetOff" :disabled="busy">
+                          {{ t('dev.inetOff') }}
+                        </el-dropdown-item>
+                      </template>
                       <el-dropdown-item command="details" divided>{{ t('dev.details') }}</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
@@ -568,6 +634,12 @@ const remembered = (d: Device) => !!d.name || !d.new
             <dt>{{ t('dev.dReserved') }}</dt>
             <dd class="vb-mono">{{ detailed.reservedIp }}</dd>
           </div>
+          <div>
+            <dt>{{ t('dev.dInternet') }}</dt>
+            <dd>
+              {{ detailed.internet === 'blocked' ? t('dev.dInternetOff') : t('dev.dInternetOn') }}
+            </dd>
+          </div>
         </dl>
         <el-alert
           v-if="detailed.privateAddress"
@@ -582,6 +654,19 @@ const remembered = (d: Device) => !!d.name || !d.new
           <el-button :disabled="frozen" @click="startRename(detailed); details = null">
             {{ detailed.name ? t('dev.rename') : t('dev.giveName') }}
           </el-button>
+          <template v-if="canBlock">
+            <el-button
+              v-if="detailed.internet === 'blocked'"
+              :disabled="frozen || busy"
+              :loading="saving === detailed.mac"
+              @click="stageInternet(detailed, true)"
+            >
+              {{ t('dev.inetOn') }}
+            </el-button>
+            <el-button v-else :disabled="frozen || busy" @click="askBlock(detailed)">
+              {{ t('dev.inetOff') }}
+            </el-button>
+          </template>
           <el-button
             v-if="remembered(detailed)"
             :disabled="frozen"
@@ -595,10 +680,57 @@ const remembered = (d: Device) => !!d.name || !d.new
         <p v-if="rowError[detailed.mac]" class="vb-dev__err">{{ rowError[detailed.mac] }}</p>
       </template>
     </el-drawer>
+
+    <!-- Turning internet off says where it stops BEFORE the apply bar
+         (D-88, design 08 §3 and §6): the boundary, a private address that
+         may slip out of the block, and "this is the device you are on". -->
+    <el-dialog
+      v-model="blockOpen"
+      :title="blocking ? t('dev.blockTitle', { name: displayName(blocking) || blocking.mac }) : ''"
+      width="min(520px, 94vw)"
+      append-to-body
+    >
+      <template v-if="blocking">
+        <p class="vb-dev__blocktext">{{ t('dev.blockBoundary') }}</p>
+        <el-alert
+          v-if="blocking.here"
+          type="warning"
+          :closable="false"
+          show-icon
+          :title="t('dev.blockHere')"
+          class="vb-dev__alert"
+        />
+        <el-alert
+          v-if="blocking.privateAddress"
+          type="info"
+          :closable="false"
+          show-icon
+          :title="t('dev.blockPrivate')"
+          class="vb-dev__alert"
+        />
+        <p class="vb-dev__hint">{{ t('dev.blockApplyHint') }}</p>
+        <p v-if="blockError" class="vb-dev__err">{{ blockError }}</p>
+      </template>
+      <template #footer>
+        <el-button @click="blocking = null">{{ t('dev.cancel') }}</el-button>
+        <el-button
+          type="danger"
+          :loading="!!blocking && saving === blocking.mac"
+          :disabled="busy"
+          @click="confirmBlock"
+        >
+          {{ t('dev.blockConfirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
 <style scoped>
+.vb-dev__blocktext {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
 .vb-dev {
   display: flex;
   flex-direction: column;

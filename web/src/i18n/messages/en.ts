@@ -106,6 +106,11 @@ const en = {
     fwAllProtocols: 'all protocols',
     fwPlace: 'No. {n}',
     wasUnset: 'was not set',
+    // A device's internet turned off (#53): one row per device, "Internet
+    // · Phone: allowed → blocked", never the router's rule spelt out.
+    devInternet: 'Internet',
+    inetAllowed: 'allowed',
+    inetBlocked: 'blocked',
     nowNothing: 'removed',
     showTechnical: 'Technical details — for the log and for support',
     hideTechnical: 'Hide technical details',
@@ -542,6 +547,23 @@ const en = {
     colAddress: 'Address · MAC address',
     isNew: 'new',
     private: 'private address',
+    noInternet: 'no internet',
+    here: 'you are here',
+    inetOff: 'Turn off internet…',
+    inetOn: 'Turn internet back on',
+    blockTitle: 'Turn off internet for {name}?',
+    blockBoundary:
+      'The device will not reach the internet through the router. Inside your home network it still sees other devices: the switch connects them, and the router does not see that traffic.',
+    blockHere:
+      'This is the device you are using right now. The panel stays reachable from it — the block is about the internet, not the router — so you can confirm the change from here.',
+    blockPrivate:
+      'This device uses a private address and may change it. If it does, it comes back as a new device with internet: the block stays on the old address.',
+    blockApplyHint:
+      'The change goes to the apply bar. Nothing happens until you apply it, and if you do not confirm it the router puts the internet back by itself.',
+    blockConfirm: 'Turn off internet',
+    dInternet: 'Internet',
+    dInternetOn: 'on',
+    dInternetOff: 'turned off in the panel',
     pinned: 'address reserved',
     noName: 'No name',
     reported: 'what it called itself',

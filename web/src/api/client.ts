@@ -242,6 +242,9 @@ export const api = {
       throw e
     }
   },
+  // A firewall change (#53): staged like a reservation, applied by the bar.
+  stageDeviceInternet: (mac: string, allowed: boolean) =>
+    request<unknown>('PUT', `/devices/${encodeURIComponent(mac)}/internet`, { allowed }),
   nameDevice: (mac: string, name: string) =>
     request<void>('PUT', `/devices/${encodeURIComponent(mac)}/name`, { name }),
   markDevicesKnown: (macs: string[]) => request<void>('POST', '/devices/known', { macs }),
