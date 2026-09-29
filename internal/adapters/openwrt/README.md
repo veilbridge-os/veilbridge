@@ -53,6 +53,12 @@ Files:
   named firewall rule per device (`vb_noinet_<mac>`: from the local zone, from
   that address, to any zone, rejected — IPv4 and IPv6), found again by its
   name; a refusal by the firewall takes back only that section
+- `devices_schedule.go` — an internet schedule per device (M4, #54): the same
+  rule with `weekdays`/`start_time`/`stop_time`, as two sections for a window
+  across midnight (`vb_sched_<mac>` in the evening, `…_m` the next morning),
+  because the firewall checks the day when a packet passes; read back into one
+  schedule and one row in the apply bar. The router's clock comes from `system
+  info` (its own local time) and `/var/state/dnsmasqsec` (checked since boot)
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon

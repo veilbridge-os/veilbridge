@@ -60,8 +60,8 @@ puts the network settings back from ssh, a console or failsafe mode:
 [getting back into a router](docs/emergency-access.md).
 
 VeilBridge does **not** yet manage Wi-Fi, and no release has the devices
-screen yet: the list of who is on your network and turning off a device's
-internet are on `main`, for `v0.3` (below). Keep LuCI around for those. See [Install](#install)
+screen yet: the list of who is on your network, turning off a device's
+internet and its schedule are on `main`, for `v0.3` (below). Keep LuCI around for those. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
@@ -111,6 +111,9 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **Turn off internet for a device** — IPv4 and IPv6, through the same
   confirmation window; the panel says first where the block stops (other
   devices at home stay reachable) and warns when it is the device you are on
+- **Internet schedule per device** — "weekdays 22:00–07:00", in the router's
+  local time; the panel shows the router's clock and says when it is not
+  checked against the internet
 
 ## Roadmap
 

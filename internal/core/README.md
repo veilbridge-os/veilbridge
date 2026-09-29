@@ -36,6 +36,10 @@ Layout:
   stages turning a device's internet off and on (#53), and the list says
   `internetControl` only where the adapter has it. `MarkHere` marks the device
   a request came from, by its address, and marks nothing when it cannot tell.
+- `schedule.go` — an internet schedule (#54): days a window starts on, from —
+  to, checked and spelt one way (`CleanSchedule`), whether it holds at a moment
+  of the week and when that next changes, read against the router's clock
+  (`ApplySchedule`; a block wins).
 - `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
   field it is about, returned by the API as `errors[].location`.
 - `capabilities.go` — what a device can do, and why not when it cannot. The

@@ -41,6 +41,15 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   block covers IPv4 and IPv6, is one rule per device in the router's firewall
   settings (visible in LuCI), and a blocked device stays on the list while it
   is away. The list marks the device the panel is used from ("you are here").
+- **An internet schedule per device** (#54): the days, and from — to ("weekdays
+  22:00–07:00"). The days are the evenings a window starts on, so Friday 22:00 to
+  07:00 runs into Saturday morning. The times are the router's local time. The
+  new "Internet" column says whether a device has internet now and when that
+  changes, by the router's clock. Next to the schedule the panel shows the
+  router's time and time zone. When that clock has not been checked against
+  the internet since the router started, the panel says so, and says that the
+  schedule acts on it anyway. Like a block, a schedule goes through the apply
+  bar and the confirmation window. A block wins over a schedule.
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are

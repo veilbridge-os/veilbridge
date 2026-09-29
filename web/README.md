@@ -54,7 +54,8 @@ as a diff with the confirmation timer.
   new, how each is connected; name a device in its row, mark devices as known,
   reserve or release an address through the apply bar, turn a device's
   internet off and back on (#53: a dialog says where the block stops, then the
-  apply bar), "you are here" on the device the panel is used from, details,
+  apply bar), an internet schedule (#54: days, from — to, the router's clock
+  beside it) with an "Internet" column saying what holds now, "you are here" on the device the panel is used from, details,
   forget; pages of twenty, cards on a phone.
 - **Static routes** (`StaticRoutes.vue`, menu group *Network rules*) — each
   route's real state first (working, off, not working with the reason, not
