@@ -421,7 +421,7 @@ async function checkPath() {
         <div class="vb-tile__sub">
           {{
             devices.traffic.sinceBoot
-              ? t('tiles.topSinceBoot', { duration: fmtDuration(devices.traffic.sinceSec) })
+              ? t('tiles.topSinceBoot')
               : t('tiles.topSinceLast', { duration: fmtDuration(devices.traffic.sinceSec) })
           }}
         </div>

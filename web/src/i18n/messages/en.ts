@@ -171,7 +171,7 @@ const en = {
     later: 'traffic speed · switch port map · Wi-Fi and a guest QR code · the city of the egress',
     topTitle: 'Who uses the most',
     topNone: 'Nothing counted yet.',
-    topSinceBoot: 'Received and sent since the router started, {duration} ago',
+    topSinceBoot: 'Received and sent since the router started',
     topSinceLast: 'Received and sent over the last {duration} (counting started after the router)',
     topPartial: 'Flow offloading is on: the numbers are too low.',
     topOpen: 'All devices',
@@ -569,7 +569,7 @@ const en = {
     colInternetTraffic: 'Internet · in · out',
     rxtx: '↓ {rx} · ↑ {tx}',
     sortTraffic: 'By traffic',
-    trafficSinceBoot: 'Traffic is counted since the router started ({ago}), in its memory only.',
+    trafficSinceBoot: 'Traffic is counted since the router started, in its memory only.',
     trafficSinceLast:
       'Traffic is counted for the last {ago} only: the panel started counting after the router did. It lives in memory and starts over after a reboot.',
     trafficPartial:

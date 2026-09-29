@@ -318,7 +318,7 @@ const trafficSince = computed(() => {
   const tr = traffic.value
   if (!tr) return ''
   return tr.sinceBoot
-    ? t('dev.trafficSinceBoot', { ago: fmtAgo(tr.sinceSec) })
+    ? t('dev.trafficSinceBoot')
     : t('dev.trafficSinceLast', { ago: fmtDuration(tr.sinceSec) })
 })
 const rowNote = ref<Record<string, string>>({})
