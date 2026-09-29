@@ -40,6 +40,7 @@ export const DIFF_LABEL_KEYS = [
   'firewall.rule.section',
   'firewall.rule.src',
   'firewall.rule.target',
+  'firewall.schedule.section',
   'firewall.section',
   'firewall.setting',
   'network.lan.dns',

@@ -187,10 +187,11 @@ components:
           description: The panel is being used from this device
           type: boolean
         internet:
-          description: Whether the router lets this device through to the internet; includes a staged change that is not applied yet
+          description: "Whether the router lets this device through to the internet: always, never (a block wins over a schedule), or by a schedule; includes a staged change that is not applied yet"
           enum:
             - allowed
             - blocked
+            - scheduled
           type: string
         ips:
           description: Addresses the router knows for the device (the last known ones if it is not online); IPv4 first, then IPv6, no link-local
@@ -214,6 +215,9 @@ components:
         new:
           description: Not named and not marked as known yet
           type: boolean
+        offBySchedule:
+          description: By the router's clock, the schedule keeps the device off the internet right now
+          type: boolean
         online:
           description: "Connected now: associated with an access point, or heard on the cable recently"
           type: boolean
@@ -225,6 +229,12 @@ components:
           type: string
         reservedIp:
           description: Address reserved for this device on the local network
+          type: string
+        schedule:
+          $ref: "#/components/schemas/InternetSchedule"
+          description: When the router keeps this device off the internet
+        scheduleChangeAt:
+          description: Router's local time (HH:MM) at which the schedule next turns the internet off or back on
           type: string
       required:
         - mac
@@ -285,6 +295,8 @@ components:
           format: uri
           readOnly: true
           type: string
+        clock:
+          $ref: "#/components/schemas/RouterClock"
         devices:
           items:
             $ref: "#/components/schemas/Device"
@@ -292,7 +304,7 @@ components:
             - array
             - "null"
         internetControl:
-          description: This router can turn internet off for a device
+          description: This router can turn internet off for a device, now or by a schedule
           type: boolean
         watchingSec:
           description: How long the panel has been watching the network; last-seen times cannot go further back
@@ -600,6 +612,36 @@ components:
           type: string
       required:
         - kind
+      type: object
+    InternetSchedule:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/InternetSchedule.json
+          format: uri
+          readOnly: true
+          type: string
+        days:
+          description: "Days the window starts on: mon, tue, wed, thu, fri, sat, sun"
+          items:
+            type: string
+          maxItems: 7
+          minItems: 1
+          type:
+            - array
+            - "null"
+        from:
+          description: Start of the window, the router's local time, HH:MM
+          type: string
+        to:
+          description: End of the window, HH:MM; earlier than from means the next day (22:00 to 07:00 is overnight)
+          type: string
+      required:
+        - days
+        - from
+        - to
       type: object
     LANConfig:
       additionalProperties: false
@@ -1066,6 +1108,35 @@ components:
         - kind
         - value
         - target
+      type: object
+    RouterClock:
+      additionalProperties: false
+      properties:
+        now:
+          description: The router's local time, HH:MM
+          type: string
+        synced:
+          description: The router's clock was checked against the internet since it started
+          type: boolean
+        timezone:
+          description: The router's time zone, as set on the router (e.g. Europe/Moscow, or UTC)
+          type: string
+        weekday:
+          description: The router's local day of the week
+          enum:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+          type: string
+      required:
+        - synced
+        - now
+        - weekday
+        - timezone
       type: object
     RoutesStatus:
       additionalProperties: false
@@ -1790,6 +1861,118 @@ paths:
       security:
         - bearerAuth: []
       summary: Give a device a name in the panel (takes effect at once; changes nothing on the network)
+      tags:
+        - devices
+  /devices/{mac}/schedule:
+    delete:
+      operationId: removeDeviceSchedule
+      parameters:
+        - description: Hardware address of the device, e.g. 00:00:5e:00:53:10
+          in: path
+          name: mac
+          required: true
+          schema:
+            description: Hardware address of the device, e.g. 00:00:5e:00:53:10
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Request
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+      security:
+        - bearerAuth: []
+      summary: Stage removing a device's internet schedule (does not apply it)
+      tags:
+        - devices
+    put:
+      description: "A firewall change, like turning internet off: it goes through the apply bar. Days are the days a window starts on; a window whose end is earlier than its start runs to the next morning. Times are the router's local time, and the schedule acts on the router's clock (see clock in GET /devices)."
+      operationId: stageDeviceSchedule
+      parameters:
+        - description: Hardware address of the device
+          in: path
+          name: mac
+          required: true
+          schema:
+            description: Hardware address of the device
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InternetSchedule"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Request
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+      security:
+        - bearerAuth: []
+      summary: Stage an internet schedule for a device (does not apply it)
       tags:
         - devices
   /events:

@@ -164,6 +164,16 @@ func (b *blockingDevices) StageDeviceInternet(mac string, allowed bool) ([]core.
 		To: mac, Dangerous: true, Detail: "firewall.vb_noinet_x"}}, nil
 }
 
+func (b *blockingDevices) StageDeviceSchedule(mac string, s *core.InternetSchedule) ([]core.ConfigChange, error) {
+	b.asked = append(b.asked, "schedule "+mac)
+	to := ""
+	if s != nil {
+		to = s.Words()
+	}
+	return []core.ConfigChange{{Label: "Internet schedule", LabelKey: "firewall.schedule.section",
+		To: to, Subject: mac, Dangerous: true}}, nil
+}
+
 type blockingAdapter struct {
 	*mock.Adapter
 	dev *blockingDevices
@@ -227,6 +237,47 @@ func TestTurningADevicesInternetOffIsAStagedFirewallChange(t *testing.T) {
 	}
 	if len(dev.asked) != 1 {
 		t.Errorf("adapter asked %v, want only the valid request", dev.asked)
+	}
+}
+
+func TestAScheduleIsStagedAndRemovedThroughTheAPI(t *testing.T) {
+	store := config.NewStore(filepath.Join(t.TempDir(), "config.json"))
+	doc := config.Default()
+	if err := doc.SetPassword(testPassword); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(doc); err != nil {
+		t.Fatal(err)
+	}
+	demo := mock.NewDemoAdapter()
+	dev := &blockingDevices{Device: demo.Device().(*mock.Device)}
+	srv, err := api.New(blockingAdapter{Adapter: demo, dev: dev}, store, api.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := newServer(t, srv).URL + "/api/v1"
+	token := login(t, base)
+
+	resp := do(t, http.MethodPut, base+"/devices/02:0d:33:7a:55:c2/schedule", token,
+		map[string]any{"days": []string{"fri"}, "from": "22:00", "to": "07:00"})
+	var out struct {
+		Changes []core.ConfigChange `json:"changes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 || len(out.Changes) != 1 || out.Changes[0].To != "fri 22:00-07:00" {
+		t.Fatalf("PUT schedule = %d %+v", resp.StatusCode, out)
+	}
+	resp = do(t, http.MethodDelete, base+"/devices/02:0d:33:7a:55:c2/schedule", token, nil)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("DELETE schedule = %d", resp.StatusCode)
+	}
+	want := []string{"schedule 02:0d:33:7a:55:c2", "schedule 02:0d:33:7a:55:c2"}
+	if strings.Join(dev.asked, "|") != strings.Join(want, "|") {
+		t.Errorf("adapter asked %v, want %v", dev.asked, want)
 	}
 }
 

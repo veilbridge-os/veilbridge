@@ -233,6 +233,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devices/{mac}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Stage an internet schedule for a device (does not apply it)
+         * @description A firewall change, like turning internet off: it goes through the apply bar. Days are the days a window starts on; a window whose end is earlier than its start runs to the next morning. Times are the router's local time, and the schedule acts on the router's clock (see clock in GET /devices).
+         */
+        put: operations["stageDeviceSchedule"];
+        post?: never;
+        /** Stage removing a device's internet schedule (does not apply it) */
+        delete: operations["removeDeviceSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -797,10 +818,10 @@ export interface components {
             /** @description The panel is being used from this device */
             here?: boolean;
             /**
-             * @description Whether the router lets this device through to the internet; includes a staged change that is not applied yet
+             * @description Whether the router lets this device through to the internet: always, never (a block wins over a schedule), or by a schedule; includes a staged change that is not applied yet
              * @enum {string}
              */
-            internet: "allowed" | "blocked";
+            internet: "allowed" | "blocked" | "scheduled";
             /** @description Addresses the router knows for the device (the last known ones if it is not online); IPv4 first, then IPv6, no link-local */
             ips: string[] | null;
             /**
@@ -815,6 +836,8 @@ export interface components {
             name?: string;
             /** @description Not named and not marked as known yet */
             new: boolean;
+            /** @description By the router's clock, the schedule keeps the device off the internet right now */
+            offBySchedule?: boolean;
             /** @description Connected now: associated with an access point, or heard on the cable recently */
             online: boolean;
             /** @description The device uses a private (randomised) hardware address and may change it */
@@ -823,6 +846,10 @@ export interface components {
             reportedName?: string;
             /** @description Address reserved for this device on the local network */
             reservedIp?: string;
+            /** @description When the router keeps this device off the internet */
+            schedule?: components["schemas"]["InternetSchedule"];
+            /** @description Router's local time (HH:MM) at which the schedule next turns the internet off or back on */
+            scheduleChangeAt?: string;
         };
         DeviceInternetInputBody: {
             /**
@@ -858,8 +885,9 @@ export interface components {
              * @example /api/v1/schemas/DeviceList.json
              */
             readonly $schema?: string;
+            clock?: components["schemas"]["RouterClock"];
             devices: components["schemas"]["Device"][] | null;
-            /** @description This router can turn internet off for a device */
+            /** @description This router can turn internet off for a device, now or by a schedule */
             internetControl: boolean;
             /**
              * Format: int64
@@ -1017,6 +1045,20 @@ export interface components {
             kind: "awg-config" | "subscription";
             /** @description Subscription URL (kind=subscription) */
             url?: string;
+        };
+        InternetSchedule: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/InternetSchedule.json
+             */
+            readonly $schema?: string;
+            /** @description Days the window starts on: mon, tue, wed, thu, fri, sat, sun */
+            days: string[] | null;
+            /** @description Start of the window, the router's local time, HH:MM */
+            from: string;
+            /** @description End of the window, HH:MM; earlier than from means the next day (22:00 to 07:00 is overnight) */
+            to: string;
         };
         LANConfig: {
             /**
@@ -1235,6 +1277,19 @@ export interface components {
             note?: string;
             target: string;
             value: string;
+        };
+        RouterClock: {
+            /** @description The router's local time, HH:MM */
+            now: string;
+            /** @description The router's clock was checked against the internet since it started */
+            synced: boolean;
+            /** @description The router's time zone, as set on the router (e.g. Europe/Moscow, or UTC) */
+            timezone: string;
+            /**
+             * @description The router's local day of the week
+             * @enum {string}
+             */
+            weekday: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
         };
         RoutesStatus: {
             /**
@@ -1911,6 +1966,146 @@ export interface operations {
             };
             /** @description Error */
             default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageDeviceSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hardware address of the device */
+                mac: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InternetSchedule"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removeDeviceSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hardware address of the device, e.g. 00:00:5e:00:53:10 */
+                mac: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

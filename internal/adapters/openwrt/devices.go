@@ -230,6 +230,11 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 	for mac := range blocked {
 		get(mac)
 	}
+	scheduled := m.net.schedulesNow(ctx)
+	for mac := range scheduled {
+		get(mac)
+	}
+	clock := m.clock(ctx)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for mac, o := range obs {
@@ -256,12 +261,16 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 	}
 
 	out := core.DeviceList{Devices: make([]core.Device, 0, len(obs)),
-		WatchingSec: int64(now.Sub(m.started) / time.Second)}
+		WatchingSec: int64(now.Sub(m.started) / time.Second), Clock: clock}
 	for mac, o := range obs {
 		d := core.Device{MAC: mac, ReportedName: o.reported, ReservedIP: o.reserved,
 			Online: o.online, IPs: sortIPs(o.ips), Link: o.link, Internet: core.InternetAllowed}
 		if blocked[mac] {
 			d.Internet = core.InternetBlocked
+		}
+		if s, ok := scheduled[mac]; ok {
+			d.Schedule = &s
+			core.ApplySchedule(&d, clock)
 		}
 		if d.Link.Kind == "" {
 			d.Link.Kind = core.LinkUnknown

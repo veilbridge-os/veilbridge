@@ -121,6 +121,9 @@ var entryRoles = map[string]phrase{
 	// A device's internet turned off (#53): one row naming the device,
 	// appearing when it is turned off and going away when it is back on.
 	roleNoInternet: {"firewall.noInternet.section", "No internet for a device"},
+	// A device's internet schedule (#54): one row per device, however many
+	// sections the router needs for it.
+	roleSchedule: {"firewall.schedule.section", "Internet schedule"},
 }
 
 // rulePhrases name a whole rule appearing or going away by what it does, so
@@ -164,6 +167,9 @@ const (
 	// roleNoInternet is the panel's own rule that turns one device's
 	// internet off (#53); see devices_internet.go.
 	roleNoInternet = "noInternet"
+	// roleSchedule is the panel's own schedule for one device (#54); see
+	// devices_schedule.go.
+	roleSchedule = "schedule"
 )
 
 // configLabels name a whole configuration file in domain words, for a key we
@@ -586,11 +592,34 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 	// no longer contains was removed, which reads as "→ nothing".
 	changes := make([]core.ConfigChange, 0, len(edits))
 	seen := map[string]bool{}
+	// A device's schedule is one or two sections on the router and one thing
+	// to the person: it gets one row, placed where its first line was, from
+	// the schedule as it is on disk to the schedule the draft makes (#54).
+	scheduleRows := map[string]bool{}
 	for _, e := range edits {
 		if seen[e.key] {
 			continue
 		}
 		seen[e.key] = true
+
+		if e.config == "firewall" && isScheduleSection(e.section) {
+			mac, ok := scheduleMAC(e.section)
+			if !ok || scheduleRows[mac] {
+				continue
+			}
+			scheduleRows[mac] = true
+			was, will := "", ""
+			if sc, ok := schedules(showOf(before))[mac]; ok {
+				was = sc.Words()
+			}
+			if sc, ok := schedules(showOf(after))[mac]; ok {
+				will = sc.Words()
+			}
+			if was != will {
+				changes = append(changes, scheduleRow(mac, was, will))
+			}
+			continue
+		}
 
 		if e.reorder {
 			// A rule moved in the list. Without its own row a move was
@@ -919,6 +948,7 @@ func firstNonEmpty(values ...string) string {
 var wholeEntryOptions = map[string][]string{
 	"dhcp": {"mac", "ip", "name"},
 	"firewall": {
+		"weekdays", "start_time", "stop_time", "enabled", // a device's schedule (#54)
 		"name", "src", "dest", "proto", "dest_port", "target", "family", // rule
 		"src_mac",              // a device's internet turned off (#53)
 		"src_dport", "dest_ip", // port forward
@@ -1233,3 +1263,18 @@ func (m networkManager) uciSet(ctx context.Context, key, value string) error {
 }
 
 var _ core.NetworkWriter = networkManager{}
+
+// showOf prints a key → value map the way `uci show` does, so the readers
+// written for it (schedules) can read the values StagedChanges gathered.
+func showOf(values map[string]string) string {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // a section's own line sorts before its options
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k + "='" + values[k] + "'\n")
+	}
+	return b.String()
+}

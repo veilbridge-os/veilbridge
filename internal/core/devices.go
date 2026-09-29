@@ -67,7 +67,15 @@ type Device struct {
 	// Internet says whether the router lets the device out (#53, D-88). It
 	// is read from the configuration including a draft, like every other
 	// screen: the apply bar says what is not live yet.
-	Internet string `json:"internet" enum:"allowed,blocked" doc:"Whether the router lets this device through to the internet; includes a staged change that is not applied yet"`
+	Internet string `json:"internet" enum:"allowed,blocked,scheduled" doc:"Whether the router lets this device through to the internet: always, never (a block wins over a schedule), or by a schedule; includes a staged change that is not applied yet"`
+	// Schedule is when the router keeps the device off the internet (#54,
+	// D-89, D-98). It is there even while a block overrides it, so lifting
+	// the block does not surprise anyone.
+	Schedule *InternetSchedule `json:"schedule,omitempty" doc:"When the router keeps this device off the internet"`
+	// OffBySchedule and ScheduleChangeAt are the schedule read against the
+	// router's own clock (DeviceList.Clock says whether that clock is right).
+	OffBySchedule    bool   `json:"offBySchedule,omitempty" doc:"By the router's clock, the schedule keeps the device off the internet right now"`
+	ScheduleChangeAt string `json:"scheduleChangeAt,omitempty" doc:"Router's local time (HH:MM) at which the schedule next turns the internet off or back on"`
 	// Here marks the device the request came from: the one somebody would
 	// cut off by turning its internet off from this very screen.
 	Here bool `json:"here,omitempty" doc:"The panel is being used from this device"`
@@ -75,15 +83,30 @@ type Device struct {
 
 // Internet states of a device.
 const (
-	InternetAllowed = "allowed"
-	InternetBlocked = "blocked"
+	InternetAllowed   = "allowed"
+	InternetBlocked   = "blocked"
+	InternetScheduled = "scheduled"
 )
 
 // DeviceInternetWriter turns a device's internet off and on again (#53,
-// D-88). It only stages: the change is a firewall change and goes through
-// the apply transaction under the confirmation window (D-69).
+// D-88), and sets when it is off (#54). It only stages: both are firewall
+// changes and go through the apply transaction under the confirmation window
+// (D-69).
 type DeviceInternetWriter interface {
 	StageDeviceInternet(mac string, allowed bool) ([]ConfigChange, error)
+	// StageDeviceSchedule sets the schedule; nil removes it.
+	StageDeviceSchedule(mac string, s *InternetSchedule) ([]ConfigChange, error)
+}
+
+// RouterClock is the router's own idea of the time, which a schedule acts on
+// (D-89, D-98).
+type RouterClock struct {
+	// Synced: the clock was checked against the internet since the router
+	// started. A router without a battery starts in the past after a reboot.
+	Synced   bool   `json:"synced" doc:"The router's clock was checked against the internet since it started"`
+	Now      string `json:"now" doc:"The router's local time, HH:MM"`
+	Weekday  string `json:"weekday" enum:"mon,tue,wed,thu,fri,sat,sun" doc:"The router's local day of the week"`
+	Timezone string `json:"timezone" doc:"The router's time zone, as set on the router (e.g. Europe/Moscow, or UTC)"`
 }
 
 // DeviceList is the answer to "who is on my network".
@@ -94,7 +117,9 @@ type DeviceList struct {
 	WatchingSec int64 `json:"watchingSec" doc:"How long the panel has been watching the network; last-seen times cannot go further back"`
 	// InternetControl says whether this router can turn a device's internet
 	// off at all: an action is shown only where it works (D-87).
-	InternetControl bool `json:"internetControl" doc:"This router can turn internet off for a device"`
+	InternetControl bool `json:"internetControl" doc:"This router can turn internet off for a device, now or by a schedule"`
+	// Clock is absent where the router cannot say what time it is.
+	Clock *RouterClock `json:"clock,omitempty"`
 }
 
 // DeviceNote is what the panel remembers about one device.

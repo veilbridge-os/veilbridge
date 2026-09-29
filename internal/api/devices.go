@@ -59,6 +59,11 @@ type DeviceInternetInput struct {
 	}
 }
 
+type DeviceScheduleInput struct {
+	MAC  string `path:"mac" doc:"Hardware address of the device"`
+	Body core.InternetSchedule
+}
+
 type MarkKnownInput struct {
 	Body struct {
 		MACs []string `json:"macs" minItems:"1" maxItems:"1024" doc:"Devices the owner knows; their \"new\" mark goes away"`
@@ -94,6 +99,21 @@ func (s *Server) registerDevices(authed huma.Middlewares, authSec []map[string][
 		Tags: []string{"devices"}, Middlewares: authed, Security: authSec,
 		Errors: []int{http.StatusBadRequest, http.StatusConflict, http.StatusNotImplemented},
 	}, s.stageDeviceInternet)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stageDeviceSchedule", Method: http.MethodPut, Path: "/devices/{mac}/schedule",
+		Summary: "Stage an internet schedule for a device (does not apply it)",
+		Description: "A firewall change, like turning internet off: it goes through the apply bar. " +
+			"Days are the days a window starts on; a window whose end is earlier than its start runs to the next morning. " +
+			"Times are the router's local time, and the schedule acts on the router's clock (see clock in GET /devices).",
+		Tags: []string{"devices"}, Middlewares: authed, Security: authSec,
+		Errors: []int{http.StatusBadRequest, http.StatusConflict, http.StatusNotImplemented},
+	}, s.stageDeviceSchedule)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "removeDeviceSchedule", Method: http.MethodDelete, Path: "/devices/{mac}/schedule",
+		Summary: "Stage removing a device's internet schedule (does not apply it)",
+		Tags:    []string{"devices"}, Middlewares: authed, Security: authSec,
+		Errors: []int{http.StatusBadRequest, http.StatusConflict, http.StatusNotImplemented},
+	}, s.removeDeviceSchedule)
 	huma.Register(s.api, huma.Operation{
 		OperationID: "forgetDevice", Method: http.MethodDelete, Path: "/devices/{mac}",
 		Summary: "Forget what the panel remembers about a device (its name and \"known\")",
@@ -210,4 +230,29 @@ func (s *Server) observeDevices(ctx context.Context) {
 			o.ObserveDevices()
 		}
 	}
+}
+
+func (s *Server) stageDeviceSchedule(_ context.Context, in *DeviceScheduleInput) (*ChangesOutput, error) {
+	body := in.Body
+	return s.schedule(in.MAC, &body)
+}
+
+func (s *Server) removeDeviceSchedule(_ context.Context, in *DeviceMACInput) (*ChangesOutput, error) {
+	return s.schedule(in.MAC, nil)
+}
+
+func (s *Server) schedule(raw string, want *core.InternetSchedule) (*ChangesOutput, error) {
+	w, ok := s.adapter.Device().(core.DeviceInternetWriter)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot schedule a device's internet")
+	}
+	mac, err := pathMAC(raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StageDeviceSchedule(mac, want)
+	return stagedOr("staging a device's internet schedule", changes, err)
 }
