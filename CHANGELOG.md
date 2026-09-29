@@ -31,6 +31,16 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   Search by name, address or MAC address; pages of twenty when the list is
   longer; on a phone every device is a card. A board without a radio has no
   Wi-Fi filter.
+- **Turn off internet for a device** (#53): from its row or its details. Before
+  the change goes to the apply bar the panel says where the block stops: the
+  device loses the internet through the router, but still reaches other
+  devices at home, because the switch connects them without the router. It
+  warns when the device uses a private address it may change, and when it is
+  the device you are using right now (the panel stays reachable from it). Like
+  any firewall change it has to be confirmed, or the router undoes it. The
+  block covers IPv4 and IPv6, is one rule per device in the router's firewall
+  settings (visible in LuCI), and a blocked device stays on the list while it
+  is away. The list marks the device the panel is used from ("you are here").
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are

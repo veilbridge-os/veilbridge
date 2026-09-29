@@ -920,7 +920,7 @@ var wholeEntryOptions = map[string][]string{
 	"dhcp": {"mac", "ip", "name"},
 	"firewall": {
 		"name", "src", "dest", "proto", "dest_port", "target", "family", // rule
-		"src_mac", // a device's internet turned off (#53)
+		"src_mac",              // a device's internet turned off (#53)
 		"src_dport", "dest_ip", // port forward
 	},
 }

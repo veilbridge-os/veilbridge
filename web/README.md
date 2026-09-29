@@ -52,8 +52,10 @@ as a diff with the confirmation timer.
   screen; the device list itself lives there.
 - **Devices** (`Devices.vue`, #52) — who is online out of how many, who is
   new, how each is connected; name a device in its row, mark devices as known,
-  reserve or release an address through the apply bar, details, forget; pages
-  of twenty, cards on a phone.
+  reserve or release an address through the apply bar, turn a device's
+  internet off and back on (#53: a dialog says where the block stops, then the
+  apply bar), "you are here" on the device the panel is used from, details,
+  forget; pages of twenty, cards on a phone.
 - **Static routes** (`StaticRoutes.vue`, menu group *Network rules*) — each
   route's real state first (working, off, not working with the reason, not
   checked), add to a network or a host, one-click fix when a network is
