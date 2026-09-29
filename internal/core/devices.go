@@ -76,6 +76,11 @@ type Device struct {
 	// router's own clock (DeviceList.Clock says whether that clock is right).
 	OffBySchedule    bool   `json:"offBySchedule,omitempty" doc:"By the router's clock, the schedule keeps the device off the internet right now"`
 	ScheduleChangeAt string `json:"scheduleChangeAt,omitempty" doc:"Router's local time (HH:MM) at which the schedule next turns the internet off or back on"`
+	// RxBytes and TxBytes are what the device received and sent through the
+	// router since counting started (#56, D-92, D-99): present only when
+	// DeviceList.Traffic is, and never written anywhere but memory.
+	RxBytes int64 `json:"rxBytes,omitempty" doc:"Bytes the device received through the router since counting started (see traffic)"`
+	TxBytes int64 `json:"txBytes,omitempty" doc:"Bytes the device sent through the router since counting started (see traffic)"`
 	// Here marks the device the request came from: the one somebody would
 	// cut off by turning its internet off from this very screen.
 	Here bool `json:"here,omitempty" doc:"The panel is being used from this device"`
@@ -106,6 +111,21 @@ type DeviceWaker interface {
 	WakeDevice(mac string) error
 }
 
+// TrafficCounting is the frame the per-device byte counts live in (D-92,
+// D-99). They are kept in the router's memory only, so a reboot starts them
+// over, and the screen has to say since when they run.
+type TrafficCounting struct {
+	// SinceSec is how long the counters have been running.
+	SinceSec int64 `json:"sinceSec" doc:"How long the router has been counting, in seconds"`
+	// SinceBoot: they started with the router, so "since the router started"
+	// is the true label. False after the panel was restarted or installed
+	// later: then only "for the last N" is.
+	SinceBoot bool `json:"sinceBoot" doc:"Counting started when the router started"`
+	// Partial: part of the traffic bypasses the counters (hardware or
+	// software flow offloading is on), so the numbers are too low.
+	Partial bool `json:"partial" doc:"Some traffic bypasses the counters (flow offloading is on); the numbers are too low"`
+}
+
 // RouterClock is the router's own idea of the time, which a schedule acts on
 // (D-89, D-98).
 type RouterClock struct {
@@ -128,6 +148,9 @@ type DeviceList struct {
 	InternetControl bool `json:"internetControl" doc:"This router can turn internet off for a device, now or by a schedule"`
 	// WakeControl says whether this router can send a wake packet (#55).
 	WakeControl bool `json:"wakeControl" doc:"This router can wake a sleeping device on a cable (Wake-on-LAN)"`
+	// Traffic says how the per-device counters are to be read; absent where
+	// the router does not count.
+	Traffic *TrafficCounting `json:"traffic,omitempty"`
 	// Clock is absent where the router cannot say what time it is.
 	Clock *RouterClock `json:"clock,omitempty"`
 }

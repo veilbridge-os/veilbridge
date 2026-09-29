@@ -866,10 +866,20 @@ export interface components {
             reportedName?: string;
             /** @description Address reserved for this device on the local network */
             reservedIp?: string;
+            /**
+             * Format: int64
+             * @description Bytes the device received through the router since counting started (see traffic)
+             */
+            rxBytes?: number;
             /** @description When the router keeps this device off the internet */
             schedule?: components["schemas"]["InternetSchedule"];
             /** @description Router's local time (HH:MM) at which the schedule next turns the internet off or back on */
             scheduleChangeAt?: string;
+            /**
+             * Format: int64
+             * @description Bytes the device sent through the router since counting started (see traffic)
+             */
+            txBytes?: number;
         };
         DeviceInternetInputBody: {
             /**
@@ -909,6 +919,7 @@ export interface components {
             devices: components["schemas"]["Device"][] | null;
             /** @description This router can turn internet off for a device, now or by a schedule */
             internetControl: boolean;
+            traffic?: components["schemas"]["TrafficCounting"];
             /** @description This router can wake a sleeping device on a cable (Wake-on-LAN) */
             wakeControl: boolean;
             /**
@@ -1427,6 +1438,17 @@ export interface components {
             /** Format: int64 */
             uptimeSec: number;
             wanIP?: string;
+        };
+        TrafficCounting: {
+            /** @description Some traffic bypasses the counters (flow offloading is on); the numbers are too low */
+            partial: boolean;
+            /** @description Counting started when the router started */
+            sinceBoot: boolean;
+            /**
+             * Format: int64
+             * @description How long the router has been counting, in seconds
+             */
+            sinceSec: number;
         };
         WANConfig: {
             /**

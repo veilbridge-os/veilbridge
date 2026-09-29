@@ -68,6 +68,9 @@ var allowedCommands = map[string]bool{
 	// passed — while the tests, whose fake runner accepts anything, passed
 	// too.
 	fw4Program: true,
+	// Per-device traffic (#56, D-99): the panel's own counting table, read
+	// and put in place with nft. Nothing else in fw4's tables is touched.
+	nftProgram: true,
 }
 
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {

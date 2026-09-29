@@ -230,12 +230,20 @@ components:
         reservedIp:
           description: Address reserved for this device on the local network
           type: string
+        rxBytes:
+          description: Bytes the device received through the router since counting started (see traffic)
+          format: int64
+          type: integer
         schedule:
           $ref: "#/components/schemas/InternetSchedule"
           description: When the router keeps this device off the internet
         scheduleChangeAt:
           description: Router's local time (HH:MM) at which the schedule next turns the internet off or back on
           type: string
+        txBytes:
+          description: Bytes the device sent through the router since counting started (see traffic)
+          format: int64
+          type: integer
       required:
         - mac
         - ips
@@ -306,6 +314,8 @@ components:
         internetControl:
           description: This router can turn internet off for a device, now or by a schedule
           type: boolean
+        traffic:
+          $ref: "#/components/schemas/TrafficCounting"
         wakeControl:
           description: This router can wake a sleeping device on a cable (Wake-on-LAN)
           type: boolean
@@ -1378,6 +1388,24 @@ components:
         - memUsed
         - memTotal
         - tunnelUp
+      type: object
+    TrafficCounting:
+      additionalProperties: false
+      properties:
+        partial:
+          description: Some traffic bypasses the counters (flow offloading is on); the numbers are too low
+          type: boolean
+        sinceBoot:
+          description: Counting started when the router started
+          type: boolean
+        sinceSec:
+          description: How long the router has been counting, in seconds
+          format: int64
+          type: integer
+      required:
+        - sinceSec
+        - sinceBoot
+        - partial
       type: object
     WANConfig:
       additionalProperties: false

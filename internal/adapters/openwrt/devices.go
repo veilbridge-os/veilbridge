@@ -69,6 +69,12 @@ type deviceManager struct {
 	// sys is the seam /sys is read through; tests hand in captured files.
 	sys sysReader
 	now func() time.Time
+	// addrOwner remembers which device an address belonged to, so bytes
+	// received on an address that has since changed still reach it (#56).
+	addrOwner map[string]string
+	// stateDir is where the counting table is written before `nft -f`;
+	// empty is the system temporary directory.
+	stateDir string
 	// send is the seam the wake packet goes out through (#55); nil is the
 	// real broadcast.
 	send func(ctx context.Context, dev string, payload []byte) error
@@ -238,8 +244,24 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 		get(mac)
 	}
 	clock := m.clock(ctx)
+	counts, uptime, counting := m.traffic(ctx, lanDev)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	owners := map[string]string{}
+	for mac, o := range obs {
+		for _, ip := range o.ips {
+			if p := net.ParseIP(ip); p != nil {
+				owners[p.String()] = mac
+			}
+		}
+	}
+	m.rememberOwners(owners)
+	rx := map[string]int64{}
+	for ip, b := range counts.down {
+		if mac, ok := m.addrOwner[ip]; ok {
+			rx[mac] += b
+		}
+	}
 	for mac, o := range obs {
 		if prev, ok := m.seen[mac]; ok {
 			if o.at.IsZero() || prev.at.After(o.at) {
@@ -265,11 +287,22 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 
 	out := core.DeviceList{Devices: make([]core.Device, 0, len(obs)),
 		WatchingSec: int64(now.Sub(m.started) / time.Second), Clock: clock}
+	if counting {
+		since := uptime - counts.startedAt
+		if since < 0 {
+			since = 0
+		}
+		out.Traffic = &core.TrafficCounting{SinceSec: since, SinceBoot: counts.startedAt <= bootWindow,
+			Partial: m.offloaded(ctx)}
+	}
 	for mac, o := range obs {
 		d := core.Device{MAC: mac, ReportedName: o.reported, ReservedIP: o.reserved,
 			Online: o.online, IPs: sortIPs(o.ips), Link: o.link, Internet: core.InternetAllowed}
 		if blocked[mac] {
 			d.Internet = core.InternetBlocked
+		}
+		if counting {
+			d.RxBytes, d.TxBytes = rx[mac], counts.up[mac]
 		}
 		if s, ok := scheduled[mac]; ok {
 			d.Schedule = &s
