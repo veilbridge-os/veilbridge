@@ -47,6 +47,11 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   "0 devices".
 - English counts of zero read "0 address", "0 minute ago"; now "0 addresses",
   "0 minutes ago".
+- The router's own firewall check before a port forward or a traffic rule is
+  staged never ran on a router: the panel was not allowed to start it, took the
+  failure for "no warnings" and staged every draft (#61). It runs now; a draft
+  the firewall would skip is refused with the firewall's own words, and a check
+  that cannot run stages nothing.
 
 ## [0.2.0-beta1] — 2026-09-27 — pre-release
 
