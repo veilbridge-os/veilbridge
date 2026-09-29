@@ -47,8 +47,9 @@ as a diff with the confirmation timer.
 - **Internet** (`Wan.vue`) — uplink type and addresses, staged through the
   apply bar.
 - **Local network** (`Lan.vue`) — router address, address handout (pool, lease
-  time), how many devices hold a lease and how many addresses are reserved,
-  with a way to the devices screen; the device list itself lives there.
+  time), how many devices are online (counted like on the devices screen, not
+  by leases) and how many addresses are reserved, with a way to the devices
+  screen; the device list itself lives there.
 - **Devices** (`Devices.vue`, #52) — who is online out of how many, who is
   new, how each is connected; name a device in its row, mark devices as known,
   reserve or release an address through the apply bar, details, forget; pages
