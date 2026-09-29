@@ -39,6 +39,15 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 - "Data from" next to a screen's title is written in the panel's language
   (it followed the browser's, e.g. "08:22 PM" in a Russian panel).
 
+### Fixed
+- "In the network now" on the local network screen counted address leases, so
+  a phone that left an hour ago was still counted there while the devices
+  screen showed it away (#60). Both screens now count the same devices — the
+  ones the access points and the bridge hear — and say "nobody" instead of
+  "0 devices".
+- English counts of zero read "0 address", "0 minute ago"; now "0 addresses",
+  "0 minutes ago".
+
 ## [0.2.0-beta1] — 2026-09-27 — pre-release
 
 The first build with the whole `v0.2` scope — uplink, local network, firewall,
