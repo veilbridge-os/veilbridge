@@ -429,7 +429,8 @@ const en = {
     summaryOn:
       'The router hands out addresses — {n} device in the network | The router hands out addresses — {n} device in the network | The router hands out addresses — {n} devices in the network',
     summaryOff: 'The router does not hand out addresses here',
-    summaryNone: 'The router hands out addresses — no devices yet',
+    summaryNone: 'The router hands out addresses — nobody in the network now',
+    summaryOnly: 'The router hands out addresses',
     // Never a green tick on its own: the claim "it works" is backed by an
     // address that was actually handed out, and when there is no such
     // evidence the screen says so instead (D-5, NFR-5).
@@ -447,9 +448,11 @@ const en = {
     onlineNow: 'In the network now',
     pinnedCount: 'Pinned by hand',
     nDevices: '{n} device | {n} device | {n} devices',
+    nobody: 'nobody',
     nAddresses: '{n} address | {n} address | {n} addresses',
     devices: 'Devices in the network',
     devicesCount: '{online} now · {pinned} with a pinned address',
+    devicesPinned: '{pinned} with a pinned address',
     openDevices: 'Open devices',
     devicesHint:
       'A device announces its own name and often announces none, so a row has to read without it. A pinned address is a property of the row, not a second list.',

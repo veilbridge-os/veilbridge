@@ -47,7 +47,27 @@ const loadError = ref('')
 const SLOW_POLL_MS = 15_000
 let poll = 0
 
+// Who is in the network now comes from the same list as the devices screen
+// (#60, D-93): the bridge and the access points, not the leases. A lease
+// outlives the device by hours, so counting leases here gave one number on
+// this screen and another on the devices screen. null = the list cannot be
+// read here; then the screen says nothing about presence rather than falling
+// back to the lease count under the same words.
+const present = ref<number | null>(null)
+
+async function loadPresent() {
+  try {
+    const got = await api.devices()
+    present.value = got ? (got.devices ?? []).filter((d) => d.online).length : null
+  } catch (e) {
+    // Any other failure keeps the last count: the shell already says the data
+    // is old. Only a platform that cannot list devices has no count at all.
+    if (e instanceof ApiError && e.status === 501) present.value = null
+  }
+}
+
 async function load() {
+  void loadPresent()
   try {
     lan.value = await api.lan()
     unsupported.value = false
@@ -164,8 +184,6 @@ const freshest = computed(() => {
   }
   return best
 })
-
-const onlineCount = computed(() => leases.value.length)
 
 /** The far end of the pool, shortened to the part that differs "192.168.1.100
  * \u2013 .249", as the artboard writes it. The shared part is on screen one
@@ -436,9 +454,11 @@ async function discard() {
             {{
               !handingOut
                 ? t('lan.summaryOff')
-                : onlineCount
-                  ? t('lan.summaryOn', { n: onlineCount }, onlineCount)
-                  : t('lan.summaryNone')
+                : present === null
+                  ? t('lan.summaryOnly')
+                  : present
+                    ? t('lan.summaryOn', { n: present }, present)
+                    : t('lan.summaryNone')
             }}
           </strong>
           <el-tag v-if="stale" size="small" type="info">
@@ -494,9 +514,11 @@ async function discard() {
             <dt>{{ t('lan.leaseTime') }}</dt>
             <dd>{{ fmtDuration(handout?.leaseSeconds) }}</dd>
           </div>
-          <div class="vb-facts__i">
+          <div v-if="present !== null" class="vb-facts__i">
             <dt>{{ t('lan.onlineNow') }}</dt>
-            <dd>{{ t('lan.nDevices', { n: onlineCount }, onlineCount) }}</dd>
+            <dd>
+              {{ present ? t('lan.nDevices', { n: present }, present) : t('lan.nobody') }}
+            </dd>
           </div>
           <div class="vb-facts__i">
             <dt>{{ t('lan.pinnedCount') }}</dt>
@@ -513,7 +535,11 @@ async function discard() {
           <VbIcon name="dev" class="vb-lan__muted" />
           <strong>{{ t('lan.devices') }}</strong>
           <span class="vb-lan__muted">
-            {{ t('lan.devicesCount', { online: onlineCount, pinned: reserved.length }) }}
+            {{
+              present === null
+                ? t('lan.devicesPinned', { pinned: reserved.length })
+                : t('lan.devicesCount', { online: present, pinned: reserved.length })
+            }}
           </span>
           <el-button class="vb-lan__tagright" @click="router.push('/devices')">
             {{ t('lan.openDevices') }}
