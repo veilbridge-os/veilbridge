@@ -50,6 +50,11 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   the internet since the router started, the panel says so, and says that the
   schedule acts on it anyway. Like a block, a schedule goes through the apply
   bar and the confirmation window. A block wins over a schedule.
+- **Wake up a device** (#55): for a device that is away and was last on a
+  cable, the router sends the Wake-on-LAN packet itself (no extra package) on
+  the local network only. It acts at once, since it changes no settings. The
+  panel says the signal was sent, not that the device woke: the row turns
+  online if it does. A device last seen on Wi-Fi says "only over a cable".
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are

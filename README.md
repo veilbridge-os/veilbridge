@@ -114,6 +114,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **Internet schedule per device** — "weekdays 22:00–07:00", in the router's
   local time; the panel shows the router's clock and says when it is not
   checked against the internet
+- **Wake up a device on a cable** — Wake-on-LAN sent by the router itself
 
 ## Roadmap
 

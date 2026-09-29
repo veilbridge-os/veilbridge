@@ -59,6 +59,10 @@ Files:
   because the firewall checks the day when a packet passes; read back into one
   schedule and one row in the apply bar. The router's clock comes from `system
   info` (its own local time) and `/var/state/dnsmasqsec` (checked since boot)
+- `devices_wake.go` — waking a device (M4, #55): the standard wake packet as
+  a UDP broadcast to port 9, pinned to the local network's device with
+  `SO_BINDTODEVICE` (no program started); a device last heard on Wi-Fi is
+  refused
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon
