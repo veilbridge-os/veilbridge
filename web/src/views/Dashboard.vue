@@ -8,7 +8,14 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { api, type NodeWithStatus, type PathProbe, type WANStatus } from '@/api/client'
+import {
+  api,
+  type DeviceList,
+  type NodeWithStatus,
+  type PathProbe,
+  type WANStatus,
+} from '@/api/client'
+import { fmtTraffic } from '@/lib/bytes'
 import { useDuration } from '@/lib/duration'
 import { useLive } from '@/stores/live'
 
@@ -50,7 +57,25 @@ async function loadSlow() {
   } finally {
     nodesLoaded.value = true
   }
+  try {
+    devices.value = await api.devices()
+  } catch {
+    // Same reasoning: the top list keeps its last reading.
+  }
 }
+
+// "Who uses the most" (#56, D-92): the same counters as the devices screen,
+// so the two can never disagree. No counters, no tile.
+const devices = ref<DeviceList | null>(null)
+const top = computed(() => {
+  if (!devices.value?.traffic) return []
+  return [...(devices.value.devices ?? [])]
+    .map((d) => ({ d, total: (d.rxBytes ?? 0) + (d.txBytes ?? 0) }))
+    .filter((x) => x.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5)
+})
+const topMax = computed(() => top.value[0]?.total || 1)
 
 onMounted(() => {
   void loadSlow()
@@ -376,6 +401,43 @@ async function checkPath() {
         </ul>
       </el-card>
 
+      <el-card v-if="devices?.traffic" class="vb-tile" shadow="never">
+        <div class="vb-tile__head">
+          <span class="vb-tile__title">{{ t('tiles.topTitle') }}</span>
+        </div>
+        <p v-if="!top.length" class="vb-tile__hint">{{ t('tiles.topNone') }}</p>
+        <ul v-else class="vb-top">
+          <li v-for="x in top" :key="x.d.mac" class="vb-top__row">
+            <span class="vb-top__name">{{ x.d.name || x.d.reportedName || x.d.mac }}</span>
+            <span class="vb-top__bytes">{{ fmtTraffic(n, x.total) }}</span>
+            <el-progress
+              class="vb-top__bar"
+              :percentage="Math.round((x.total / topMax) * 100)"
+              :show-text="false"
+              :stroke-width="4"
+            />
+          </li>
+        </ul>
+        <div class="vb-tile__sub">
+          {{
+            devices.traffic.sinceBoot
+              ? t('tiles.topSinceBoot', { duration: fmtDuration(devices.traffic.sinceSec) })
+              : t('tiles.topSinceLast', { duration: fmtDuration(devices.traffic.sinceSec) })
+          }}
+        </div>
+        <el-alert
+          v-if="devices.traffic.partial"
+          class="vb-tile__proof"
+          type="warning"
+          :closable="false"
+          :description="t('tiles.topPartial')"
+          show-icon
+        />
+        <el-button link type="primary" class="vb-tile__link" @click="router.push('/devices')">
+          {{ t('tiles.topOpen') }} →
+        </el-button>
+      </el-card>
+
       <!-- Everything we cannot fill honestly, in one place instead of a grid
            of tiles full of dashes. -->
       <el-card class="vb-tile vb-tile--wide vb-tile--later" shadow="never">
@@ -410,6 +472,31 @@ async function checkPath() {
 }
 .vb-tile--wide {
   grid-column: span 2;
+}
+.vb-top {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vb-top__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  font-size: 13px;
+}
+.vb-top__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vb-top__bytes {
+  font-variant-numeric: tabular-nums;
+}
+.vb-top__bar {
+  grid-column: 1 / -1;
 }
 .vb-tile__head {
   display: flex;

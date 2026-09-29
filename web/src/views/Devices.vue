@@ -19,9 +19,9 @@
 // so it says the signal was sent and lets the row turn "online" by itself. A
 // device last seen on Wi-Fi gets the reason instead of the action.
 //
-// What is NOT here, on purpose (D-87): the "traffic" column (#56); until the
-// device can count it, a column for it would be exactly the kind of promise
-// #49 took back.
+// Traffic (#56, D-92, D-99) is what the router counted since it started, in
+// memory only; it sits in the Internet cell (as on the mid-width artboard) and
+// says since when it runs, and that it is too low when offloading is on.
 //
 // A name and "I know this device" are the panel's own notes: they change
 // nothing on the network and take effect at once (D-95). Reserving an address
@@ -30,14 +30,15 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, api, type Device, type DeviceList } from '@/api/client'
 import VbIcon from '@/components/VbIcon.vue'
+import { fmtTraffic } from '@/lib/bytes'
 import { useDuration } from '@/lib/duration'
 import { overnight, scheduleWords, WEEKDAYS } from '@/lib/schedule'
 import { rememberNames } from '@/stores/deviceNames'
 import { refreshStaged, useLive } from '@/stores/live'
 
-const { t, locale } = useI18n()
+const { t, n, locale } = useI18n()
 const { applyState, stale, lastUpdate, can } = useLive()
-const { fmtAgo } = useDuration()
+const { fmtAgo, fmtDuration } = useDuration()
 
 const list = ref<DeviceList | null>(null)
 const loaded = ref(false)
@@ -146,7 +147,7 @@ const ipv6 = (d: Device) => (d.ips ?? []).filter((ip) => ip.includes(':'))
 
 type Filter = 'all' | 'wifi' | 'cable' | 'away'
 const filter = ref<Filter>('all')
-const order = ref<'new' | 'name'>('new')
+const order = ref<'new' | 'name' | 'traffic'>('new')
 const query = ref('')
 
 const counts = computed(() => ({
@@ -184,6 +185,10 @@ const shown = computed(() => {
     )
   })
   return out.sort((a, b) => {
+    if (order.value === 'traffic') {
+      const d = (b.rxBytes ?? 0) + (b.txBytes ?? 0) - (a.rxBytes ?? 0) - (a.txBytes ?? 0)
+      if (d !== 0) return d
+    }
     if (order.value === 'new' && a.new !== b.new) return a.new ? -1 : 1
     if (order.value === 'new' && a.online !== b.online) return a.online ? -1 : 1
     return byName(a, b)
@@ -305,6 +310,17 @@ async function stageInternet(d: Device, allowed: boolean): Promise<boolean> {
 // --- waking (at once, #55) ------------------------------------------------
 
 const canWake = computed(() => !!list.value?.wakeControl)
+const traffic = computed(() => list.value?.traffic ?? null)
+const inetCol = computed(() => canBlock.value || !!traffic.value)
+const trafficLine = (d: Device) =>
+  t('dev.rxtx', { rx: fmtTraffic(n, d.rxBytes), tx: fmtTraffic(n, d.txBytes) })
+const trafficSince = computed(() => {
+  const tr = traffic.value
+  if (!tr) return ''
+  return tr.sinceBoot
+    ? t('dev.trafficSinceBoot', { ago: fmtAgo(tr.sinceSec) })
+    : t('dev.trafficSinceLast', { ago: fmtDuration(tr.sinceSec) })
+})
 const rowNote = ref<Record<string, string>>({})
 /** Worth offering: not heard now, and not a device that sleeps on Wi-Fi. */
 const wakeable = (d: Device) => !d.online && d.link.kind !== 'wifi'
@@ -523,6 +539,7 @@ const remembered = (d: Device) => !!d.name || !d.new
           <el-radio-group v-model="order" size="small">
             <el-radio-button value="new">{{ t('dev.sortNew') }}</el-radio-button>
             <el-radio-button value="name">{{ t('dev.sortName') }}</el-radio-button>
+            <el-radio-button v-if="traffic" value="traffic">{{ t('dev.sortTraffic') }}</el-radio-button>
           </el-radio-group>
         </div>
         <!-- Without a radio there is no "Wi-Fi" filter at all, not a zero
@@ -550,14 +567,14 @@ const remembered = (d: Device) => !!d.name || !d.new
             <span>{{ t('dev.colDevice') }}</span>
             <span>{{ t('dev.colLink') }}</span>
             <span>{{ t('dev.colAddress') }}</span>
-            <span v-if="canBlock">{{ t('dev.colInternet') }}</span>
+            <span v-if="inetCol">{{ traffic ? t('dev.colInternetTraffic') : t('dev.colInternet') }}</span>
             <span />
           </div>
           <div
             v-for="d in paged"
             :key="d.mac"
             class="vb-dev__row"
-            :class="{ 'is-new': d.new, 'is-off': !d.online, 'has-inet': canBlock }"
+            :class="{ 'is-new': d.new, 'is-off': !d.online, 'has-inet': inetCol }"
             role="row"
           >
             <!-- Naming happens in the row itself (artboard Dev-Actions 1). -->
@@ -622,13 +639,17 @@ const remembered = (d: Device) => !!d.name || !d.new
                   {{ t('dev.pinned') }}
                 </el-tag>
               </span>
-              <span v-if="canBlock" class="vb-dev__cell--inet">
-                <el-tag v-if="inet(d).tag" size="small" :type="inet(d).type || undefined" effect="light">
+              <span v-if="inetCol" class="vb-dev__cell--inet">
+                <el-tag v-if="canBlock && inet(d).tag" size="small" :type="inet(d).type || undefined" effect="light">
                   {{ inet(d).tag }}
                 </el-tag>
-                <span v-if="inet(d).cap" :class="inet(d).tag ? 'vb-dev__small vb-dev__muted' : 'vb-dev__muted'">
+                <span
+                  v-if="canBlock && inet(d).cap"
+                  :class="inet(d).tag ? 'vb-dev__small vb-dev__muted' : 'vb-dev__muted'"
+                >
                   {{ inet(d).cap }}
                 </span>
+                <span v-if="traffic" class="vb-dev__small vb-dev__muted vb-mono">{{ trafficLine(d) }}</span>
               </span>
               <span class="vb-dev__acts">
                 <!-- One main action in a row: naming, where there is no name
@@ -710,7 +731,16 @@ const remembered = (d: Device) => !!d.name || !d.new
         </div>
         <p v-if="list" class="vb-dev__hint">
           {{ t('dev.watching', { ago: fmtAgo(list.watchingSec) }) }}
+          <template v-if="trafficSince"> {{ trafficSince }}</template>
         </p>
+        <el-alert
+          v-if="traffic?.partial"
+          type="warning"
+          :closable="false"
+          show-icon
+          :title="t('dev.trafficPartial')"
+          class="vb-dev__alert"
+        />
       </el-card>
     </template>
 

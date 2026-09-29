@@ -168,8 +168,13 @@ const en = {
       'In this mode the gateway does not move traffic for the whole local network.',
     rxtx: 'received {rx} · sent {tx}',
     laterTitle: 'Coming later',
-    later:
-      'traffic speed and volume · local network clients · who uses the most · switch port map · Wi-Fi and a guest QR code · the city of the egress',
+    later: 'traffic speed · switch port map · Wi-Fi and a guest QR code · the city of the egress',
+    topTitle: 'Who uses the most',
+    topNone: 'Nothing counted yet.',
+    topSinceBoot: 'Received and sent since the router started, {duration} ago',
+    topSinceLast: 'Received and sent over the last {duration} (counting started after the router)',
+    topPartial: 'Flow offloading is on: the numbers are too low.',
+    topOpen: 'All devices',
     checkPath: 'Check the tunnel',
     probeViaTunnel: 'The tunnel works: traffic sent into it leaves through the node',
     probeNotViaTunnel: 'Nothing gets out through the tunnel',
@@ -561,6 +566,14 @@ const en = {
     wakeSent:
       'Wake signal sent. If waking over the network is switched on in the device, it shows up as online in a few seconds.',
     colInternet: 'Internet',
+    colInternetTraffic: 'Internet · in · out',
+    rxtx: '↓ {rx} · ↑ {tx}',
+    sortTraffic: 'By traffic',
+    trafficSinceBoot: 'Traffic is counted since the router started ({ago}), in its memory only.',
+    trafficSinceLast:
+      'Traffic is counted for the last {ago} only: the panel started counting after the router did. It lives in memory and starts over after a reboot.',
+    trafficPartial:
+      "Flow offloading is on in the router's firewall settings, so most traffic of an established connection passes the counters: the numbers are too low.",
     inetYes: 'on',
     inetOffTag: 'internet off',
     schedTag: 'on a schedule',
