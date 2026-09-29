@@ -56,7 +56,9 @@ as a diff with the confirmation timer.
   internet off and back on (#53: a dialog says where the block stops, then the
   apply bar), an internet schedule (#54: days, from — to, the router's clock
   beside it) with an "Internet" column saying what holds now, "Wake up" for a
-  device away on a cable (#55; "only over a cable" for one on Wi-Fi), "you are here" on the device the panel is used from, details,
+  device away on a cable (#55; "only over a cable" for one on Wi-Fi), traffic
+  in each row and sorting by it (#56, since when it is counted said below the
+  list), "you are here" on the device the panel is used from, details,
   forget; pages of twenty, cards on a phone.
 - **Static routes** (`StaticRoutes.vue`, menu group *Network rules*) — each
   route's real state first (working, off, not working with the reason, not

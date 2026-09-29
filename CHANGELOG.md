@@ -55,6 +55,16 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   the local network only. It acts at once, since it changes no settings. The
   panel says the signal was sent, not that the device woke: the row turns
   online if it does. A device last seen on Wi-Fi says "only over a cable".
+- **Traffic per device** (#56): received and sent, counted by the router
+  itself over IPv4 and IPv6 and kept in its memory only (nothing written to
+  flash), so a reboot starts it over. The count shows in each device's row,
+  and the devices can be sorted by it. The screen says the traffic is counted
+  "since the router started", or only for the last so long when the panel
+  began counting later. With flow offloading on, most traffic bypasses the
+  counters, and the panel says the numbers are too low. On the dashboard,
+  "Who uses the most" lists the top five from the same counters. The counting
+  is a table of the panel's own in the router's firewall; fw4's rules are not
+  touched.
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are

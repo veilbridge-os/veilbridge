@@ -115,6 +115,8 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   local time; the panel shows the router's clock and says when it is not
   checked against the internet
 - **Wake up a device on a cable** — Wake-on-LAN sent by the router itself
+- **Traffic per device and "who uses the most"** — counted by the router in
+  memory only, labelled since when
 
 ## Roadmap
 

@@ -40,7 +40,9 @@ Layout:
   to, checked and spelt one way (`CleanSchedule`), whether it holds at a moment
   of the week and when that next changes, read against the router's clock
   (`ApplySchedule`; a block wins). `DeviceWaker` (#55) is optional too, and
-  the list says `wakeControl` only where the adapter has it.
+  the list says `wakeControl` only where the adapter has it. Per-device
+  `rxBytes`/`txBytes` come with `traffic` (how long counted, since boot or not,
+  offloading hiding part of it) — #56.
 - `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
   field it is about, returned by the API as `errors[].location`.
 - `capabilities.go` — what a device can do, and why not when it cannot. The

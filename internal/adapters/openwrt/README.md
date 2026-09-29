@@ -63,6 +63,13 @@ Files:
   a UDP broadcast to port 9, pinned to the local network's device with
   `SO_BINDTODEVICE` (no program started); a device last heard on Wi-Fi is
   refused
+- `devices_traffic.go` — traffic per device (M4, #56, D-99): a table of the
+  panel's own, `inet veilbridge_traffic`, loaded with `nft -f` (not fw4's, so
+  a firewall reload keeps it), counting on the forward hook after the filter:
+  sent by the sender's hardware address, received by the destination address,
+  handed to a device through the addresses it was known by. When counting
+  started (uptime) and the device it names live in the table's comment; a
+  missing or stale table is made again
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon
