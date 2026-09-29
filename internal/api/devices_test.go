@@ -174,6 +174,11 @@ func (b *blockingDevices) StageDeviceSchedule(mac string, s *core.InternetSchedu
 		To: to, Subject: mac, Dangerous: true}}, nil
 }
 
+func (b *blockingDevices) WakeDevice(mac string) error {
+	b.asked = append(b.asked, "wake "+mac)
+	return nil
+}
+
 type blockingAdapter struct {
 	*mock.Adapter
 	dev *blockingDevices
@@ -281,6 +286,42 @@ func TestAScheduleIsStagedAndRemovedThroughTheAPI(t *testing.T) {
 	}
 }
 
+func TestWakingADeviceActsAtOnceAndStagesNothing(t *testing.T) {
+	store := config.NewStore(filepath.Join(t.TempDir(), "config.json"))
+	doc := config.Default()
+	if err := doc.SetPassword(testPassword); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(doc); err != nil {
+		t.Fatal(err)
+	}
+	demo := mock.NewDemoAdapter()
+	dev := &blockingDevices{Device: demo.Device().(*mock.Device)}
+	srv, err := api.New(blockingAdapter{Adapter: demo, dev: dev}, store, api.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := newServer(t, srv).URL + "/api/v1"
+	token := login(t, base)
+	resp := do(t, http.MethodGet, base+"/devices", token, nil)
+	var list core.DeviceList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if !list.WakeControl {
+		t.Error("wakeControl = false on a router that can wake")
+	}
+	resp = do(t, http.MethodPost, base+"/devices/00:00:5E:00:53:10/wake", token, nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("POST wake = %d, want 204", resp.StatusCode)
+	}
+	if strings.Join(dev.asked, "|") != "wake 00:00:5e:00:53:10" {
+		t.Errorf("adapter asked %v", dev.asked)
+	}
+}
+
 func TestARouterThatCannotTurnInternetOffSaysSo(t *testing.T) {
 	base, token, _ := setupDevices(t)
 	resp := do(t, http.MethodGet, base+"/devices", token, nil)
@@ -289,8 +330,8 @@ func TestARouterThatCannotTurnInternetOffSaysSo(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if list.InternetControl {
-		t.Error("internetControl = true on the demo, which cannot do it")
+	if list.InternetControl || list.WakeControl {
+		t.Error("internetControl or wakeControl true on the demo, which can do neither")
 	}
 	resp = do(t, http.MethodPut, base+"/devices/02:0d:33:7a:55:c2/internet", token, map[string]bool{"allowed": false})
 	resp.Body.Close()

@@ -98,6 +98,14 @@ type DeviceInternetWriter interface {
 	StageDeviceSchedule(mac string, s *InternetSchedule) ([]ConfigChange, error)
 }
 
+// DeviceWaker wakes a sleeping device over the network (#55, D-87): the
+// router sends the wake packet itself. It changes no configuration, so it acts
+// at once and never goes through the apply bar. A device that sleeps on Wi-Fi
+// cannot be woken this way, and the adapter refuses it by name.
+type DeviceWaker interface {
+	WakeDevice(mac string) error
+}
+
 // RouterClock is the router's own idea of the time, which a schedule acts on
 // (D-89, D-98).
 type RouterClock struct {
@@ -118,6 +126,8 @@ type DeviceList struct {
 	// InternetControl says whether this router can turn a device's internet
 	// off at all: an action is shown only where it works (D-87).
 	InternetControl bool `json:"internetControl" doc:"This router can turn internet off for a device, now or by a schedule"`
+	// WakeControl says whether this router can send a wake packet (#55).
+	WakeControl bool `json:"wakeControl" doc:"This router can wake a sleeping device on a cable (Wake-on-LAN)"`
 	// Clock is absent where the router cannot say what time it is.
 	Clock *RouterClock `json:"clock,omitempty"`
 }

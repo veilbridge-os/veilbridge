@@ -69,6 +69,9 @@ type deviceManager struct {
 	// sys is the seam /sys is read through; tests hand in captured files.
 	sys sysReader
 	now func() time.Time
+	// send is the seam the wake packet goes out through (#55); nil is the
+	// real broadcast.
+	send func(ctx context.Context, dev string, payload []byte) error
 
 	mu      sync.Mutex
 	started time.Time

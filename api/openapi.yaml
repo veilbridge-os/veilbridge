@@ -306,6 +306,9 @@ components:
         internetControl:
           description: This router can turn internet off for a device, now or by a schedule
           type: boolean
+        wakeControl:
+          description: This router can wake a sleeping device on a cable (Wake-on-LAN)
+          type: boolean
         watchingSec:
           description: How long the panel has been watching the network; last-seen times cannot go further back
           format: int64
@@ -314,6 +317,7 @@ components:
         - devices
         - watchingSec
         - internetControl
+        - wakeControl
       type: object
     DiagnosticsOutputBody:
       additionalProperties: false
@@ -1973,6 +1977,56 @@ paths:
       security:
         - bearerAuth: []
       summary: Stage an internet schedule for a device (does not apply it)
+      tags:
+        - devices
+  /devices/{mac}/wake:
+    post:
+      description: "The router sends the wake packet on the local network. Whether the device wakes depends on the device (wake on network access switched on, a cable): it appears as online if it does. A device last seen on Wi-Fi is refused."
+      operationId: wakeDevice
+      parameters:
+        - description: Hardware address of the device, e.g. 00:00:5e:00:53:10
+          in: path
+          name: mac
+          required: true
+          schema:
+            description: Hardware address of the device, e.g. 00:00:5e:00:53:10
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+      security:
+        - bearerAuth: []
+      summary: Wake a sleeping device on a cable (Wake-on-LAN); acts at once
       tags:
         - devices
   /events:

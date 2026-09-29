@@ -115,6 +115,15 @@ func (s *Server) registerDevices(authed huma.Middlewares, authSec []map[string][
 		Errors: []int{http.StatusBadRequest, http.StatusConflict, http.StatusNotImplemented},
 	}, s.removeDeviceSchedule)
 	huma.Register(s.api, huma.Operation{
+		OperationID: "wakeDevice", Method: http.MethodPost, Path: "/devices/{mac}/wake",
+		Summary: "Wake a sleeping device on a cable (Wake-on-LAN); acts at once",
+		Description: "The router sends the wake packet on the local network. Whether the device wakes depends on the device " +
+			"(wake on network access switched on, a cable): it appears as online if it does. A device last seen on Wi-Fi is refused.",
+		Tags: []string{"devices"}, DefaultStatus: http.StatusNoContent,
+		Middlewares: authed, Security: authSec,
+		Errors: []int{http.StatusBadRequest, http.StatusNotFound, http.StatusNotImplemented},
+	}, s.wakeDevice)
+	huma.Register(s.api, huma.Operation{
 		OperationID: "forgetDevice", Method: http.MethodDelete, Path: "/devices/{mac}",
 		Summary: "Forget what the panel remembers about a device (its name and \"known\")",
 		Tags:    []string{"devices"}, DefaultStatus: http.StatusNoContent,
@@ -139,6 +148,7 @@ func (s *Server) listDevices(_ context.Context, in *ListDevicesInput) (*DevicesO
 	list.Devices = core.MergeDevices(list.Devices, doc.Devices)
 	core.MarkHere(list.Devices, in.from)
 	_, list.InternetControl = s.adapter.Device().(core.DeviceInternetWriter)
+	_, list.WakeControl = s.adapter.Device().(core.DeviceWaker)
 	return &DevicesOutput{Body: list}, nil
 }
 
@@ -255,4 +265,24 @@ func (s *Server) schedule(raw string, want *core.InternetSchedule) (*ChangesOutp
 	}
 	changes, err := w.StageDeviceSchedule(mac, want)
 	return stagedOr("staging a device's internet schedule", changes, err)
+}
+
+func (s *Server) wakeDevice(_ context.Context, in *DeviceMACInput) (*struct{}, error) {
+	w, ok := s.adapter.Device().(core.DeviceWaker)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot wake a device")
+	}
+	mac, err := pathMAC(in.MAC)
+	if err != nil {
+		return nil, err
+	}
+	err = w.WakeDevice(mac)
+	switch {
+	case err == nil:
+		return nil, nil
+	case errors.Is(err, core.ErrNoLAN):
+		return nil, huma.Error404NotFound("no lan interface", err)
+	default:
+		return nil, refusal(err)
+	}
 }

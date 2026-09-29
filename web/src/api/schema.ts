@@ -254,6 +254,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devices/{mac}/wake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Wake a sleeping device on a cable (Wake-on-LAN); acts at once
+         * @description The router sends the wake packet on the local network. Whether the device wakes depends on the device (wake on network access switched on, a cable): it appears as online if it does. A device last seen on Wi-Fi is refused.
+         */
+        post: operations["wakeDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -889,6 +909,8 @@ export interface components {
             devices: components["schemas"]["Device"][] | null;
             /** @description This router can turn internet off for a device, now or by a schedule */
             internetControl: boolean;
+            /** @description This router can wake a sleeping device on a cable (Wake-on-LAN) */
+            wakeControl: boolean;
             /**
              * Format: int64
              * @description How long the panel has been watching the network; last-seen times cannot go further back
@@ -2079,6 +2101,72 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    wakeDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hardware address of the device, e.g. 00:00:5e:00:53:10 */
+                mac: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
