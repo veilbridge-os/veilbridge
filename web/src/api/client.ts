@@ -242,6 +242,11 @@ export const api = {
       throw e
     }
   },
+  // Firewall changes too (#54): a schedule, or its removal.
+  stageDeviceSchedule: (mac: string, s: { days: string[]; from: string; to: string }) =>
+    request<unknown>('PUT', `/devices/${encodeURIComponent(mac)}/schedule`, s),
+  removeDeviceSchedule: (mac: string) =>
+    request<unknown>('DELETE', `/devices/${encodeURIComponent(mac)}/schedule`),
   // A firewall change (#53): staged like a reservation, applied by the bar.
   stageDeviceInternet: (mac: string, allowed: boolean) =>
     request<unknown>('PUT', `/devices/${encodeURIComponent(mac)}/internet`, { allowed }),

@@ -9,10 +9,15 @@
 // says where the block stops. It is offered only where the router can do it
 // (`internetControl`).
 //
-// What is NOT here, on purpose (D-87): the "traffic" column, the schedule and
-// waking a device. They come with their own tasks (#54-#56); until the device
-// can do them, a button or a column for them would be exactly the kind of
-// promise #49 took back.
+// An internet schedule (#54, D-89, D-98) goes the same way. The "Internet"
+// column (artboard Dev-Main) says, by the router's own clock, whether the
+// device has internet now and when that changes; while that clock is not
+// checked against the internet it says so instead of pretending.
+//
+// What is NOT here, on purpose (D-87): the "traffic" column and waking a
+// device. They come with their own tasks (#55, #56); until the device can do
+// them, a button or a column for them would be exactly the kind of promise
+// #49 took back.
 //
 // A name and "I know this device" are the panel's own notes: they change
 // nothing on the network and take effect at once (D-95). Reserving an address
@@ -22,6 +27,7 @@ import { useI18n } from 'vue-i18n'
 import { ApiError, api, type Device, type DeviceList } from '@/api/client'
 import VbIcon from '@/components/VbIcon.vue'
 import { useDuration } from '@/lib/duration'
+import { overnight, scheduleWords, WEEKDAYS } from '@/lib/schedule'
 import { rememberNames } from '@/stores/deviceNames'
 import { refreshStaged, useLive } from '@/stores/live'
 
@@ -292,6 +298,80 @@ async function stageInternet(d: Device, allowed: boolean): Promise<boolean> {
   }
 }
 
+// --- schedule (through the apply bar, #54) -------------------------------
+
+const clock = computed(() => list.value?.clock ?? null)
+const scheduling = ref<Device | null>(null)
+const schedForm = ref<{ days: string[]; from: string; to: string }>({
+  days: [],
+  from: '22:00',
+  to: '07:00',
+})
+const schedError = ref('')
+const schedOpen = computed({
+  get: () => scheduling.value !== null,
+  set: (v: boolean) => {
+    if (!v) scheduling.value = null
+  },
+})
+
+function askSchedule(d: Device) {
+  schedError.value = ''
+  schedForm.value = d.schedule
+    ? { days: [...(d.schedule.days ?? [])], from: d.schedule.from, to: d.schedule.to }
+    : { days: ['mon', 'tue', 'wed', 'thu', 'fri'], from: '22:00', to: '07:00' }
+  scheduling.value = d
+}
+
+function toggleDay(day: string) {
+  const days = schedForm.value.days
+  schedForm.value.days = days.includes(day) ? days.filter((d) => d !== day) : [...days, day]
+}
+
+async function saveSchedule(remove: boolean) {
+  const d = scheduling.value
+  if (!d) return
+  saving.value = d.mac
+  schedError.value = ''
+  try {
+    if (remove) await api.removeDeviceSchedule(d.mac)
+    else await api.stageDeviceSchedule(d.mac, schedForm.value)
+    await Promise.all([load(), refreshStaged()])
+    scheduling.value = null
+  } catch (e) {
+    schedError.value =
+      e instanceof ApiError && Object.keys(e.fields).length
+        ? `${e.message} — ${Object.values(e.fields).join('; ')}`
+        : e instanceof Error
+          ? e.message
+          : String(e)
+  } finally {
+    saving.value = ''
+  }
+}
+
+/** The "Internet" cell: a tag and, under it, what happens next. */
+function inet(d: Device): { tag: string; type: '' | 'danger' | 'warning' | 'info'; cap: string } {
+  if (d.internet === 'blocked') return { tag: t('dev.inetOffTag'), type: 'danger', cap: '' }
+  if (d.internet === 'scheduled') {
+    if (!clock.value?.synced)
+      return { tag: t('dev.schedTag'), type: 'warning', cap: t('dev.schedNoSync') }
+    if (d.offBySchedule) {
+      return {
+        tag: t('dev.schedOffTag'),
+        type: 'danger',
+        cap: d.scheduleChangeAt ? t('dev.schedBackAt', { at: d.scheduleChangeAt }) : '',
+      }
+    }
+    return {
+      tag: t('dev.schedTag'),
+      type: 'info',
+      cap: d.scheduleChangeAt ? t('dev.schedOnNow', { at: d.scheduleChangeAt }) : '',
+    }
+  }
+  return { tag: '', type: '', cap: t('dev.inetYes') }
+}
+
 async function confirmBlock() {
   const d = blocking.value
   if (d && (await stageInternet(d, false))) blocking.value = null
@@ -305,6 +385,7 @@ function onMenu(d: Device, cmd: string) {
   else if (cmd === 'details') details.value = d.mac
   else if (cmd === 'inetOff') askBlock(d)
   else if (cmd === 'inetOn') void stageInternet(d, true)
+  else if (cmd === 'schedule') askSchedule(d)
 }
 
 // --- details --------------------------------------------------------------
@@ -442,13 +523,14 @@ const remembered = (d: Device) => !!d.name || !d.new
             <span>{{ t('dev.colDevice') }}</span>
             <span>{{ t('dev.colLink') }}</span>
             <span>{{ t('dev.colAddress') }}</span>
+            <span v-if="canBlock">{{ t('dev.colInternet') }}</span>
             <span />
           </div>
           <div
             v-for="d in paged"
             :key="d.mac"
             class="vb-dev__row"
-            :class="{ 'is-new': d.new, 'is-off': !d.online }"
+            :class="{ 'is-new': d.new, 'is-off': !d.online, 'has-inet': canBlock }"
             role="row"
           >
             <!-- Naming happens in the row itself (artboard Dev-Actions 1). -->
@@ -490,9 +572,6 @@ const remembered = (d: Device) => !!d.name || !d.new
                   <el-tag v-if="d.privateAddress" size="small" type="info">
                     {{ t('dev.private') }}
                   </el-tag>
-                  <el-tag v-if="d.internet === 'blocked'" size="small" type="danger" effect="light">
-                    {{ t('dev.noInternet') }}
-                  </el-tag>
                   <el-tag v-if="d.here" size="small" type="success" effect="light">
                     {{ t('dev.here') }}
                   </el-tag>
@@ -515,6 +594,14 @@ const remembered = (d: Device) => !!d.name || !d.new
                 <el-tag v-if="d.reservedIp" size="small" class="vb-dev__pintag">
                   {{ t('dev.pinned') }}
                 </el-tag>
+              </span>
+              <span v-if="canBlock" class="vb-dev__cell--inet">
+                <el-tag v-if="inet(d).tag" size="small" :type="inet(d).type || undefined" effect="light">
+                  {{ inet(d).tag }}
+                </el-tag>
+                <span v-if="inet(d).cap" :class="inet(d).tag ? 'vb-dev__small vb-dev__muted' : 'vb-dev__muted'">
+                  {{ inet(d).cap }}
+                </span>
               </span>
               <span class="vb-dev__acts">
                 <!-- One main action in a row: naming, where there is no name
@@ -554,6 +641,9 @@ const remembered = (d: Device) => !!d.name || !d.new
                         </el-dropdown-item>
                         <el-dropdown-item v-else command="inetOff" :disabled="busy">
                           {{ t('dev.inetOff') }}
+                        </el-dropdown-item>
+                        <el-dropdown-item command="schedule" :disabled="busy">
+                          {{ d.schedule ? t('dev.scheduleEdit') : t('dev.schedule') }}
                         </el-dropdown-item>
                       </template>
                       <el-dropdown-item command="details" divided>{{ t('dev.details') }}</el-dropdown-item>
@@ -640,6 +730,10 @@ const remembered = (d: Device) => !!d.name || !d.new
               {{ detailed.internet === 'blocked' ? t('dev.dInternetOff') : t('dev.dInternetOn') }}
             </dd>
           </div>
+          <div v-if="detailed.schedule">
+            <dt>{{ t('dev.dSchedule') }}</dt>
+            <dd>{{ scheduleWords(t, detailed.schedule) }}</dd>
+          </div>
         </dl>
         <el-alert
           v-if="detailed.privateAddress"
@@ -665,6 +759,9 @@ const remembered = (d: Device) => !!d.name || !d.new
             </el-button>
             <el-button v-else :disabled="frozen || busy" @click="askBlock(detailed)">
               {{ t('dev.inetOff') }}
+            </el-button>
+            <el-button :disabled="frozen || busy" @click="askSchedule(detailed)">
+              {{ detailed.schedule ? t('dev.scheduleEdit') : t('dev.schedule') }}
             </el-button>
           </template>
           <el-button
@@ -721,6 +818,109 @@ const remembered = (d: Device) => !!d.name || !d.new
         >
           {{ t('dev.blockConfirm') }}
         </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- The schedule (artboard Dev-Schedule): days as buttons, "from — to",
+         the router's clock beside it (D-89, D-98). -->
+    <el-dialog
+      v-model="schedOpen"
+      :title="scheduling ? t('dev.schedTitle', { name: displayName(scheduling) || scheduling.mac }) : ''"
+      width="min(560px, 94vw)"
+      append-to-body
+    >
+      <template v-if="scheduling">
+        <p class="vb-dev__label">{{ t('dev.schedDays') }}</p>
+        <div class="vb-dev__days" role="group" :aria-label="t('dev.schedDays')">
+          <el-button
+            v-for="day in WEEKDAYS"
+            :key="day"
+            size="small"
+            :type="schedForm.days.includes(day) ? 'primary' : ''"
+            :aria-pressed="schedForm.days.includes(day)"
+            @click="toggleDay(day)"
+          >
+            {{ t(`dev.days.short.${day}`) }}
+          </el-button>
+        </div>
+        <p class="vb-dev__label">{{ t('dev.schedFromTo') }}</p>
+        <div class="vb-dev__times">
+          <el-time-select
+            v-model="schedForm.from"
+            start="00:00"
+            step="00:15"
+            end="23:45"
+            :clearable="false"
+            class="vb-dev__time"
+          />
+          <span class="vb-dev__muted">—</span>
+          <el-time-select
+            v-model="schedForm.to"
+            start="00:00"
+            step="00:15"
+            end="23:45"
+            :clearable="false"
+            class="vb-dev__time"
+          />
+          <span v-if="overnight(schedForm)" class="vb-dev__hint">
+            {{ t('dev.schedNextMorning', { to: schedForm.to }) }}
+          </span>
+        </div>
+        <el-alert
+          v-if="clock"
+          :type="clock.synced ? 'info' : 'warning'"
+          :closable="false"
+          show-icon
+          :title="
+            t(clock.synced ? 'dev.schedClockOk' : 'dev.schedClockNo', {
+              now: clock.now,
+              tz: clock.timezone || 'UTC',
+            })
+          "
+          class="vb-dev__alert"
+        />
+        <el-alert
+          v-if="scheduling.internet === 'blocked'"
+          type="info"
+          :closable="false"
+          show-icon
+          :title="t('dev.schedBlocked')"
+          class="vb-dev__alert"
+        />
+        <el-alert
+          v-if="scheduling.privateAddress"
+          type="info"
+          :closable="false"
+          show-icon
+          :title="t('dev.schedPrivate')"
+          class="vb-dev__alert"
+        />
+        <p class="vb-dev__hint">{{ t('dev.schedHint') }}</p>
+        <p class="vb-dev__hint">{{ t('dev.schedApplyHint') }}</p>
+        <p v-if="schedError" class="vb-dev__err">{{ schedError }}</p>
+      </template>
+      <template #footer>
+        <div class="vb-dev__schedfoot">
+          <el-button
+            v-if="scheduling?.schedule"
+            text
+            :disabled="busy"
+            :loading="!!scheduling && saving === scheduling.mac"
+            @click="saveSchedule(true)"
+          >
+            {{ t('dev.schedRemove') }}
+          </el-button>
+          <span class="vb-dev__grow" />
+          <el-button @click="scheduling = null">{{ t('dev.cancel') }}</el-button>
+          <el-button
+            type="primary"
+            :disabled="busy || !schedForm.days.length"
+            :loading="!!scheduling && saving === scheduling.mac"
+            @click="saveSchedule(false)"
+          >
+            {{ t('dev.schedSave') }}
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </section>
@@ -860,6 +1060,49 @@ const remembered = (d: Device) => !!d.name || !d.new
 .vb-dev__pintag {
   align-self: flex-start;
 }
+/* With the "Internet" column (#54): one more cell, the name keeps the most. */
+.vb-dev__row.has-inet,
+.vb-dev__list:has(.has-inet) .vb-dev__row--th {
+  grid-template-columns: minmax(200px, 1.5fr) minmax(150px, 1fr) 170px minmax(170px, 1fr) 150px;
+}
+.vb-dev__cell--inet {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.vb-dev__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 14px;
+}
+.vb-dev__days .el-button + .el-button {
+  margin-left: 0;
+}
+.vb-dev__times {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.vb-dev__time {
+  width: 120px;
+}
+.vb-dev__schedfoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.vb-dev__schedfoot .el-button + .el-button {
+  margin-left: 0;
+}
+.vb-dev__grow {
+  flex: 1;
+}
 .vb-dev__acts {
   display: flex;
   gap: 4px;
@@ -918,6 +1161,10 @@ const remembered = (d: Device) => !!d.name || !d.new
 @media (width <= 1100px) {
   .vb-dev__row {
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 150px 170px;
+  }
+  .vb-dev__row.has-inet,
+  .vb-dev__list:has(.has-inet) .vb-dev__row--th {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 140px minmax(0, 1fr) 120px;
   }
 }
 /* A phone: every device a card, the action kept (artboard Dev-360). */

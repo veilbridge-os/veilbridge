@@ -11,6 +11,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, api, type ConfigChange } from '@/api/client'
 import { deviceSeconds, useDuration } from '@/lib/duration'
+import { parseWords, scheduleWords } from '@/lib/schedule'
 import { deviceNames } from '@/stores/deviceNames'
 import { refreshApply, refreshStaged, useLive } from '@/stores/live'
 
@@ -28,9 +29,11 @@ const { applyState, reachable, staged } = useLive()
  * remain the fallback for a key this build cannot translate, and check.ts
  * makes that a build error for every key the device can send. */
 const NO_INTERNET = 'firewall.noInternet.section'
+const SCHEDULE = 'firewall.schedule.section'
 
 function labelOf(c: ConfigChange): string {
   if (c.labelKey === NO_INTERNET) return t('apply.devInternet')
+  if (c.labelKey === SCHEDULE) return t('apply.devSchedule')
   const key = `diff.${c.labelKey}`
   return c.labelKey && te(key) ? t(key) : c.label
 }
@@ -39,8 +42,8 @@ function labelOf(c: ConfigChange): string {
  * the device, by the name the panel knows it by, with the address so two
  * phones both called "iPhone" stay apart. */
 function subjectOf(c: ConfigChange): string {
-  if (c.labelKey !== NO_INTERNET) return c.subject ?? ''
-  const mac = c.to || c.from
+  if (c.labelKey !== NO_INTERNET && c.labelKey !== SCHEDULE) return c.subject ?? ''
+  const mac = c.labelKey === SCHEDULE ? (c.subject ?? '') : c.to || c.from
   const name = deviceNames.get(mac)
   return name ? `${name} · ${mac}` : mac
 }
@@ -53,6 +56,10 @@ function shownValue(c: ConfigChange, value: string): string {
   // The device's own row carries the address the rule holds, or nothing:
   // present means blocked, absent means allowed (#53).
   if (c.labelKey === NO_INTERNET) return value ? t('apply.inetBlocked') : t('apply.inetAllowed')
+  if (c.labelKey === SCHEDULE) {
+    const s = parseWords(value)
+    return s ? scheduleWords(t, s) : value || t('apply.schedNone')
+  }
   const fw = firewallValue(c.labelKey ?? '', value)
   if (fw !== null) return fw
   const route = routeValue(c.labelKey ?? '', value)

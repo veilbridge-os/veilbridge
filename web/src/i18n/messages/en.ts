@@ -111,6 +111,8 @@ const en = {
     devInternet: 'Internet',
     inetAllowed: 'allowed',
     inetBlocked: 'blocked',
+    devSchedule: 'Internet schedule',
+    schedNone: 'none',
     nowNothing: 'removed',
     showTechnical: 'Technical details — for the log and for support',
     hideTechnical: 'Hide technical details',
@@ -285,6 +287,9 @@ const en = {
       setting: 'Firewall setting',
       noInternet: {
         section: 'No internet for a device',
+      },
+      schedule: {
+        section: 'Internet schedule',
       },
       redirect: {
         section: 'Port forward',
@@ -549,6 +554,40 @@ const en = {
     private: 'private address',
     noInternet: 'no internet',
     here: 'you are here',
+    colInternet: 'Internet',
+    inetYes: 'on',
+    inetOffTag: 'internet off',
+    schedTag: 'on a schedule',
+    schedOnNow: 'on now, goes off at {at}',
+    schedOffTag: 'off by schedule',
+    schedBackAt: 'back on at {at}',
+    schedNoSync: "the router's clock is not checked",
+    schedule: 'Internet schedule…',
+    scheduleEdit: 'Change the schedule…',
+    schedTitle: 'Internet schedule: {name}',
+    schedDays: 'Internet off on',
+    schedFromTo: 'From — to',
+    schedNextMorning: 'until {to} the next morning',
+    schedClockOk: 'Router time: {now}, time zone {tz}. The clock is checked against the internet.',
+    schedClockNo:
+      "The router's clock is not checked against the internet yet. The schedule acts on it — it now reads {now} ({tz}). After a restart without internet it can be behind.",
+    schedHint:
+      'Days are the evenings a window starts on: Friday 22:00 → Saturday 07:00. Outside the window the device has internet. Inside the home network it always sees other devices.',
+    schedPrivate:
+      'This device uses a private address and may change it. If it does, it comes back as a new device, and the schedule stays on the old address.',
+    schedBlocked:
+      'Internet is turned off for this device; the schedule does not matter until it is back on.',
+    schedApplyHint:
+      'The change goes to the apply bar. Nothing happens until you apply it, and if you do not confirm it the router puts the schedule back as it was.',
+    schedRemove: 'Remove the schedule',
+    schedSave: 'To the draft',
+    dSchedule: 'Schedule',
+    days: {
+      every: 'every day',
+      work: 'weekdays',
+      weekend: 'weekends',
+      short: { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' },
+    },
     inetOff: 'Turn off internet…',
     inetOn: 'Turn internet back on',
     blockTitle: 'Turn off internet for {name}?',
