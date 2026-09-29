@@ -24,7 +24,10 @@ Files:
   (M3.3): zones by what they do rather than their names, forwarded ports,
   rules marked as the firewall package ships them and named by the conditions
   the panel does not show; staging port forwards and the owner's rules, with
-  `fw4 check` as the last word, since it exits 0 on an entry it will skip. A
+  `fw4 check` as the last word, since it exits 0 on an entry it will skip:
+  a new `[!]` line after which fw4 drops the section refuses the draft, its
+  notes that drop nothing ("disabling reflection" on 23.05) do not, and a check
+  that cannot run stages nothing (#61). A
   new rule can be placed in front of another and an existing one moved
   (`uci reorder` takes the final place in the WHOLE file: moving down it is
   one less than the target's place), and a rule an earlier one would always
@@ -46,6 +49,10 @@ Files:
   the last frame, in the CPU's byte order) for cable and "last heard". The
   neighbour table is not a sign of presence: it keeps no useful age and a
   sleeping phone is FAILED there
+- `devices_internet.go` — turning a device's internet off (M4, #53): one
+  named firewall rule per device (`vb_noinet_<mac>`: from the local zone, from
+  that address, to any zone, rejected — IPv4 and IPv6), found again by its
+  name; a refusal by the firewall takes back only that section
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon

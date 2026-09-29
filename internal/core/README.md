@@ -32,7 +32,10 @@ Layout:
   address), `MergeDevices` (what the router observes plus what the owner said:
   a name, "known"), and the private-address test. `DeviceObserver` is optional:
   an adapter that has it is asked to look on a timer, so "last seen" does not
-  depend on somebody watching.
+  depend on somebody watching. `DeviceInternetWriter` is optional as well: it
+  stages turning a device's internet off and on (#53), and the list says
+  `internetControl` only where the adapter has it. `MarkHere` marks the device
+  a request came from, by its address, and marks nothing when it cannot tell.
 - `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
   field it is about, returned by the API as `errors[].location`.
 - `capabilities.go` — what a device can do, and why not when it cannot. The

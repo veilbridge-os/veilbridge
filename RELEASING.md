@@ -113,10 +113,17 @@ and CPU guard, writes `SHA256SUMS` and publishes the release.
 
 ## Patch releases on an older line
 
-Fixes for a stable line that `main` has moved past go on a `release/vX.Y`
-branch cut from the last tag of that line (the first one: `release/v0.1`, for
-`v0.1.2`). Cherry-pick the fix and the release tooling, add the notes file, and
-tag from that branch. `main` keeps the changelog for every line.
+Fixes for a line that `main` has moved past — stable or still in beta — go on
+a `release/vX.Y` branch cut from the last tag of that line (`release/v0.1` for
+`v0.1.2`, `release/v0.2` for `v0.2.0-beta2` and the rest of `v0.2`).
+Cherry-pick the fix and the release tooling, take the notes file and
+`CHANGELOG.md` from `main`, and tag from that branch. `main` keeps the
+changelog for every line.
+
+CI runs on `main` only, so on a release branch run its checks by hand before
+tagging, in a clean worktree: `gofmt -l`, `go vet ./...`, `go test ./...`, the
+OpenAPI snapshot diff, and `npm ci && npm run lint && npm run build` in
+`web/`. The risk gate applies as usual.
 
 ## When a release is bad
 

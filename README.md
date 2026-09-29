@@ -59,9 +59,9 @@ And if a confirmed change still cuts you off, `veilbridged -restore-network`
 puts the network settings back from ssh, a console or failsafe mode:
 [getting back into a router](docs/emergency-access.md).
 
-VeilBridge does **not** yet manage Wi-Fi, and it shows the devices on your
-network (who is online, who is new, how each is connected) but cannot turn
-off a device's internet yet — keep LuCI around for those. See [Install](#install)
+VeilBridge does **not** yet manage Wi-Fi, and no release has the devices
+screen yet: the list of who is on your network and turning off a device's
+internet are on `main`, for `v0.3` (below). Keep LuCI around for those. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
@@ -108,6 +108,9 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 
 - **Devices screen** — who is on the network now, who is new, how each is
   connected; names you give are kept by the panel, never published in DNS
+- **Turn off internet for a device** — IPv4 and IPv6, through the same
+  confirmation window; the panel says first where the block stops (other
+  devices at home stay reachable) and warns when it is the device you are on
 
 ## Roadmap
 
