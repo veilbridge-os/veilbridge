@@ -55,13 +55,22 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   screen showed it away (#60). Both screens now count the same devices — the
   ones the access points and the bridge hear — and say "nobody" instead of
   "0 devices".
+
+## [0.2.0-beta2] — 2026-09-29 — pre-release
+
+`v0.2.0-beta1` with one serious fix for its firewall writes, built from the
+`release/v0.2` branch. Nothing new; the API of `v0.2.0` stays frozen.
+
+### Fixed
+- The router's own firewall check before a port forward, a traffic rule or a
+  move of a rule is staged never ran on a router: the panel was not allowed to
+  start it, took the failure for "no warnings" and staged every draft (#61).
+  It runs now. A draft the firewall would drop is refused with the firewall's
+  own words; its notes that drop nothing ("disabling reflection" on OpenWrt
+  23.05, an entry staged switched off) are not refusals; a check that cannot
+  run stages nothing.
 - English counts of zero read "0 address", "0 minute ago"; now "0 addresses",
   "0 minutes ago".
-- The router's own firewall check before a port forward or a traffic rule is
-  staged never ran on a router: the panel was not allowed to start it, took the
-  failure for "no warnings" and staged every draft (#61). It runs now; a draft
-  the firewall would skip is refused with the firewall's own words, and a check
-  that cannot run stages nothing.
 
 ## [0.2.0-beta1] — 2026-09-27 — pre-release
 
@@ -358,6 +367,7 @@ First public release.
 - `-demo` mode, `-version`, static binaries for amd64 and arm64 with the UI embedded.
 
 [Unreleased]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta1...HEAD
+[0.2.0-beta2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta1...v0.2.0-beta2
 [0.2.0-beta1]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha2...v0.2.0-beta1
 [0.2.0-alpha2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha1...v0.2.0-alpha2
 [0.2.0-alpha1]: https://github.com/veilbridge-os/veilbridge/compare/v0.1.2...v0.2.0-alpha1
