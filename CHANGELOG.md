@@ -8,6 +8,70 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
 
 ## [Unreleased]
 
+### Added
+- **Devices on the local network, in the API** (`GET /api/v1/devices`, #51) —
+  one list from the DHCP leases, the neighbour table, the access points and
+  the bridge: for each device its hardware address, the name it gave itself,
+  its addresses (IPv4 and IPv6), how it is connected (cable, or Wi-Fi band and
+  signal), whether it is online now or how long ago it was last heard, and
+  whether it uses a private (changing) hardware address. "Last heard" is kept
+  in memory only, so it starts over when the panel restarts, and the answer
+  says for how long the panel has been watching. Give a device a name, mark
+  devices as known (a device is *new* until you do), or forget one — these are
+  the panel's own notes, kept in its settings and never published in DNS.
+  Going back to `v0.2` drops the notes.
+- **Devices screen** (menu: Local network → Devices, #52): who is online out of
+  how many, how many are new and how many have no name, before the list is
+  read; new devices first and lit. Each row says how the device is connected
+  in words ("Wi-Fi 5 GHz · good signal", "cable", "last online 2 hours ago"),
+  its address and MAC address, and whether it uses a private address. Name a
+  device right in its row, mark one or all new devices as known, reserve or
+  release its address (through the apply bar), open the details (IPv6
+  addresses, the signal in dBm, what a private address means) or forget it.
+  Search by name, address or MAC address; pages of twenty when the list is
+  longer; on a phone every device is a card. A board without a radio has no
+  Wi-Fi filter.
+- **Turn off internet for a device** (#53): from its row or its details. Before
+  the change goes to the apply bar the panel says where the block stops: the
+  device loses the internet through the router, but still reaches other
+  devices at home, because the switch connects them without the router. It
+  warns when the device uses a private address it may change, and when it is
+  the device you are using right now (the panel stays reachable from it). Like
+  any firewall change it has to be confirmed, or the router undoes it. The
+  block covers IPv4 and IPv6, is one rule per device in the router's firewall
+  settings (visible in LuCI), and a blocked device stays on the list while it
+  is away. The list marks the device the panel is used from ("you are here").
+
+### Changed
+- The local network screen no longer lists the devices: it shows how many are
+  online and reserved, with a way to the devices screen — two lists of the same
+  devices would drift apart.
+- "Data from" next to a screen's title is written in the panel's language
+  (it followed the browser's, e.g. "08:22 PM" in a Russian panel).
+
+### Fixed
+- "In the network now" on the local network screen counted address leases, so
+  a phone that left an hour ago was still counted there while the devices
+  screen showed it away (#60). Both screens now count the same devices — the
+  ones the access points and the bridge hear — and say "nobody" instead of
+  "0 devices".
+
+## [0.2.0-beta2] — 2026-09-29 — pre-release
+
+`v0.2.0-beta1` with one serious fix for its firewall writes, built from the
+`release/v0.2` branch. Nothing new; the API of `v0.2.0` stays frozen.
+
+### Fixed
+- The router's own firewall check before a port forward, a traffic rule or a
+  move of a rule is staged never ran on a router: the panel was not allowed to
+  start it, took the failure for "no warnings" and staged every draft (#61).
+  It runs now. A draft the firewall would drop is refused with the firewall's
+  own words; its notes that drop nothing ("disabling reflection" on OpenWrt
+  23.05, an entry staged switched off) are not refusals; a check that cannot
+  run stages nothing.
+- English counts of zero read "0 address", "0 minute ago"; now "0 addresses",
+  "0 minutes ago".
+
 ## [0.2.0-beta1] — 2026-09-27 — pre-release
 
 The first build with the whole `v0.2` scope — uplink, local network, firewall,
@@ -98,9 +162,9 @@ only fixes until `v0.2.0`.
   `v0.3`). Domain rules are only recorded and are not enforced until DNS
   interception (`v0.4`). The path check on a rule and the dashboard's egress
   address measure the tunnel itself, so they look right while the traffic of
-  the devices on the local network goes out directly; the panel stops saying
-  otherwise before `v0.2.0-beta1`
-  ([#49](https://github.com/veilbridge-os/veilbridge/issues/49)).
+  the devices on the local network goes out directly. From this release the
+  panel says so instead of claiming otherwise (see *Changed*,
+  [#49](https://github.com/veilbridge-os/veilbridge/issues/49)).
 
 ## [0.2.0-alpha2] — 2026-09-26 — pre-release
 
@@ -303,6 +367,7 @@ First public release.
 - `-demo` mode, `-version`, static binaries for amd64 and arm64 with the UI embedded.
 
 [Unreleased]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta1...HEAD
+[0.2.0-beta2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta1...v0.2.0-beta2
 [0.2.0-beta1]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha2...v0.2.0-beta1
 [0.2.0-alpha2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha1...v0.2.0-alpha2
 [0.2.0-alpha1]: https://github.com/veilbridge-os/veilbridge/compare/v0.1.2...v0.2.0-alpha1
