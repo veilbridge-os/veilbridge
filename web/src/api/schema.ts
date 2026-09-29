@@ -196,6 +196,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devices/{mac}/internet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Stage turning a device's internet off or back on (does not apply it)
+         * @description A firewall change: it goes through the apply bar and its confirmation window. The device loses the internet through the router; on the local network it still reaches other devices. Asking for what is already so returns no changes.
+         */
+        put: operations["stageDeviceInternet"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/devices/{mac}/name": {
         parameters: {
             query?: never;
@@ -774,6 +794,13 @@ export interface components {
             to: string;
         };
         Device: {
+            /** @description The panel is being used from this device */
+            here?: boolean;
+            /**
+             * @description Whether the router lets this device through to the internet; includes a staged change that is not applied yet
+             * @enum {string}
+             */
+            internet: "allowed" | "blocked";
             /** @description Addresses the router knows for the device (the last known ones if it is not online); IPv4 first, then IPv6, no link-local */
             ips: string[] | null;
             /**
@@ -796,6 +823,16 @@ export interface components {
             reportedName?: string;
             /** @description Address reserved for this device on the local network */
             reservedIp?: string;
+        };
+        DeviceInternetInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/DeviceInternetInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description false turns the device's internet off, true turns it back on */
+            allowed: boolean;
         };
         DeviceLink: {
             /**
@@ -822,6 +859,8 @@ export interface components {
              */
             readonly $schema?: string;
             devices: components["schemas"]["Device"][] | null;
+            /** @description This router can turn internet off for a device */
+            internetControl: boolean;
             /**
              * Format: int64
              * @description How long the panel has been watching the network; last-seen times cannot go further back
@@ -1766,6 +1805,78 @@ export interface operations {
             };
             /** @description Error */
             default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageDeviceInternet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hardware address of the device */
+                mac: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceInternetInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

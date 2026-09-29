@@ -82,3 +82,63 @@ func TestMergeAddsTheOwnersWordsAndKeepsNamedDevices(t *testing.T) {
 		t.Errorf("named but away = %+v, want kept, offline, nothing claimed about it", d)
 	}
 }
+
+// #53. Nothing on the router holding a device back is what "allowed" means,
+// and a block the adapter reported is kept through the merge.
+func TestInternetIsAllowedUnlessTheRouterSaysOtherwise(t *testing.T) {
+	out := core.MergeDevices([]core.Device{
+		{MAC: "02:00:5e:00:53:d6"},
+		{MAC: "00:00:5e:00:53:10", Internet: core.InternetBlocked},
+	}, []core.DeviceNote{{MAC: "00:00:5e:00:53:21", Name: "Принтер"}})
+	got := map[string]string{}
+	for _, d := range out {
+		got[d.MAC] = d.Internet
+	}
+	want := map[string]string{
+		"02:00:5e:00:53:d6": core.InternetAllowed,
+		"00:00:5e:00:53:10": core.InternetBlocked,
+		"00:00:5e:00:53:21": core.InternetAllowed, // remembered, not seen
+	}
+	for mac, w := range want {
+		if got[mac] != w {
+			t.Errorf("%s: internet %q, want %q", mac, got[mac], w)
+		}
+	}
+}
+
+// "Here" is the device the request came from, by any of its addresses. Not
+// knowing (a tunnel, the uplink side) marks nothing rather than guessing.
+func TestHereIsTheDeviceTheRequestCameFrom(t *testing.T) {
+	list := func() []core.Device {
+		return []core.Device{
+			{MAC: "02:00:5e:00:53:d6", IPs: []string{"192.0.2.137", "2001:db8:0:c::2e5"}},
+			{MAC: "00:00:5e:00:53:10", IPs: []string{"192.0.2.50"}},
+		}
+	}
+	for _, tc := range []struct {
+		from string
+		want string // the MAC marked, or "" for none
+	}{
+		{"192.0.2.50", "00:00:5e:00:53:10"},
+		{"2001:db8:0:c:0:0:0:2e5", "02:00:5e:00:53:d6"}, // another spelling of the same address
+		{"::ffff:192.0.2.137", "02:00:5e:00:53:d6"},     // IPv4 as a dual-stack listener reports it
+		{"127.0.0.1", ""},
+		{"198.51.100.7", ""},
+		{"", ""},
+	} {
+		ds := list()
+		core.MarkHere(ds, tc.from)
+		got := ""
+		for _, d := range ds {
+			if d.Here {
+				if got != "" {
+					t.Errorf("%q: more than one device marked", tc.from)
+				}
+				got = d.MAC
+			}
+		}
+		if got != tc.want {
+			t.Errorf("from %q: marked %q, want %q", tc.from, got, tc.want)
+		}
+	}
+}

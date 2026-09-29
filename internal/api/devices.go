@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"time"
 
@@ -37,6 +38,27 @@ type NameDeviceInput struct {
 	}
 }
 
+// ListDevicesInput carries nothing from the caller but where the request came
+// from: that is how the list knows which device is "here" (#53).
+type ListDevicesInput struct {
+	from string
+}
+
+func (in *ListDevicesInput) Resolve(ctx huma.Context) []error {
+	host, _, err := net.SplitHostPort(ctx.RemoteAddr())
+	if err == nil {
+		in.from = host
+	}
+	return nil
+}
+
+type DeviceInternetInput struct {
+	MAC  string `path:"mac" doc:"Hardware address of the device"`
+	Body struct {
+		Allowed bool `json:"allowed" doc:"false turns the device's internet off, true turns it back on"`
+	}
+}
+
 type MarkKnownInput struct {
 	Body struct {
 		MACs []string `json:"macs" minItems:"1" maxItems:"1024" doc:"Devices the owner knows; their \"new\" mark goes away"`
@@ -64,6 +86,15 @@ func (s *Server) registerDevices(authed huma.Middlewares, authSec []map[string][
 		Middlewares: authed, Security: authSec,
 	}, s.markDevicesKnown)
 	huma.Register(s.api, huma.Operation{
+		OperationID: "stageDeviceInternet", Method: http.MethodPut, Path: "/devices/{mac}/internet",
+		Summary: "Stage turning a device's internet off or back on (does not apply it)",
+		Description: "A firewall change: it goes through the apply bar and its confirmation window. " +
+			"The device loses the internet through the router; on the local network it still reaches other devices. " +
+			"Asking for what is already so returns no changes.",
+		Tags: []string{"devices"}, Middlewares: authed, Security: authSec,
+		Errors: []int{http.StatusBadRequest, http.StatusConflict, http.StatusNotImplemented},
+	}, s.stageDeviceInternet)
+	huma.Register(s.api, huma.Operation{
 		OperationID: "forgetDevice", Method: http.MethodDelete, Path: "/devices/{mac}",
 		Summary: "Forget what the panel remembers about a device (its name and \"known\")",
 		Tags:    []string{"devices"}, DefaultStatus: http.StatusNoContent,
@@ -71,7 +102,7 @@ func (s *Server) registerDevices(authed huma.Middlewares, authSec []map[string][
 	}, s.forgetDevice)
 }
 
-func (s *Server) listDevices(_ context.Context, _ *struct{}) (*DevicesOutput, error) {
+func (s *Server) listDevices(_ context.Context, in *ListDevicesInput) (*DevicesOutput, error) {
 	list, err := s.adapter.Device().ListDevices()
 	switch {
 	case errors.Is(err, core.ErrNoLAN):
@@ -86,7 +117,25 @@ func (s *Server) listDevices(_ context.Context, _ *struct{}) (*DevicesOutput, er
 		return nil, huma.Error500InternalServerError("reading the panel's notes about devices", err)
 	}
 	list.Devices = core.MergeDevices(list.Devices, doc.Devices)
+	core.MarkHere(list.Devices, in.from)
+	_, list.InternetControl = s.adapter.Device().(core.DeviceInternetWriter)
 	return &DevicesOutput{Body: list}, nil
+}
+
+func (s *Server) stageDeviceInternet(_ context.Context, in *DeviceInternetInput) (*ChangesOutput, error) {
+	w, ok := s.adapter.Device().(core.DeviceInternetWriter)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot turn a device's internet off")
+	}
+	mac, err := pathMAC(in.MAC)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.refuseWhileApplying(); err != nil {
+		return nil, err
+	}
+	changes, err := w.StageDeviceInternet(mac, in.Body.Allowed)
+	return stagedOr("staging a device's internet", changes, err)
 }
 
 func pathMAC(raw string) (string, error) {

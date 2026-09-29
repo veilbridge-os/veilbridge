@@ -64,6 +64,26 @@ type Device struct {
 	// watching (see DeviceList.WatchingSec).
 	LastSeenSec *int64     `json:"lastSeenSec,omitempty" doc:"Seconds since the router last heard a device that is not online; absent if not heard since the panel started watching"`
 	Link        DeviceLink `json:"link"`
+	// Internet says whether the router lets the device out (#53, D-88). It
+	// is read from the configuration including a draft, like every other
+	// screen: the apply bar says what is not live yet.
+	Internet string `json:"internet" enum:"allowed,blocked" doc:"Whether the router lets this device through to the internet; includes a staged change that is not applied yet"`
+	// Here marks the device the request came from: the one somebody would
+	// cut off by turning its internet off from this very screen.
+	Here bool `json:"here,omitempty" doc:"The panel is being used from this device"`
+}
+
+// Internet states of a device.
+const (
+	InternetAllowed = "allowed"
+	InternetBlocked = "blocked"
+)
+
+// DeviceInternetWriter turns a device's internet off and on again (#53,
+// D-88). It only stages: the change is a firewall change and goes through
+// the apply transaction under the confirmation window (D-69).
+type DeviceInternetWriter interface {
+	StageDeviceInternet(mac string, allowed bool) ([]ConfigChange, error)
 }
 
 // DeviceList is the answer to "who is on my network".
@@ -72,6 +92,9 @@ type DeviceList struct {
 	// WatchingSec is how far back "last seen" can reach: the panel keeps it in
 	// memory only (D-13), so after a restart it knows nothing older.
 	WatchingSec int64 `json:"watchingSec" doc:"How long the panel has been watching the network; last-seen times cannot go further back"`
+	// InternetControl says whether this router can turn a device's internet
+	// off at all: an action is shown only where it works (D-87).
+	InternetControl bool `json:"internetControl" doc:"This router can turn internet off for a device"`
 }
 
 // DeviceNote is what the panel remembers about one device.
@@ -158,5 +181,29 @@ func annotate(d Device, n DeviceNote) Device {
 	if d.Link.Kind == "" {
 		d.Link.Kind = LinkUnknown
 	}
+	// Nothing on the router holds it back: that is what "allowed" means, so
+	// it is the answer whenever the adapter did not say otherwise.
+	if d.Internet == "" {
+		d.Internet = InternetAllowed
+	}
 	return d
+}
+
+// MarkHere marks the device the panel is being used from, found by the
+// address the request came from. A request through a tunnel or from beyond
+// the uplink matches nothing, and nothing is marked: "not known" is not "not
+// you", and the screen must not claim either.
+func MarkHere(devices []Device, from string) {
+	ip := net.ParseIP(from)
+	if ip == nil || ip.IsLoopback() {
+		return
+	}
+	for i := range devices {
+		for _, a := range devices[i].IPs {
+			if other := net.ParseIP(a); other != nil && other.Equal(ip) {
+				devices[i].Here = true
+				return
+			}
+		}
+	}
 }

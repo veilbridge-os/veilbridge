@@ -146,3 +146,104 @@ func TestDevicesNeedALogin(t *testing.T) {
 		t.Errorf("status = %d", resp.StatusCode)
 	}
 }
+
+// #53. A router that can turn a device's internet off says so in the list,
+// and the change is a staged firewall change. One that cannot says that too,
+// and the action answers 501 rather than pretending.
+type blockingDevices struct {
+	*mock.Device
+	asked []string
+}
+
+func (b *blockingDevices) StageDeviceInternet(mac string, allowed bool) ([]core.ConfigChange, error) {
+	b.asked = append(b.asked, mac)
+	if allowed {
+		return nil, nil
+	}
+	return []core.ConfigChange{{Label: "No internet for a device", LabelKey: "firewall.noInternet.section",
+		To: mac, Dangerous: true, Detail: "firewall.vb_noinet_x"}}, nil
+}
+
+type blockingAdapter struct {
+	*mock.Adapter
+	dev *blockingDevices
+}
+
+func (a blockingAdapter) Device() core.DeviceManager { return a.dev }
+
+func TestTurningADevicesInternetOffIsAStagedFirewallChange(t *testing.T) {
+	store := config.NewStore(filepath.Join(t.TempDir(), "config.json"))
+	doc := config.Default()
+	if err := doc.SetPassword(testPassword); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(doc); err != nil {
+		t.Fatal(err)
+	}
+	demo := mock.NewDemoAdapter()
+	dev := &blockingDevices{Device: demo.Device().(*mock.Device)}
+	srv, err := api.New(blockingAdapter{Adapter: demo, dev: dev}, store, api.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := newServer(t, srv).URL + "/api/v1"
+	token := login(t, base)
+
+	resp := do(t, http.MethodGet, base+"/devices", token, nil)
+	var list core.DeviceList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if !list.InternetControl {
+		t.Error("internetControl = false on a router that can do it")
+	}
+	for _, d := range list.Devices {
+		if d.Here {
+			t.Errorf("%s marked as here for a request from the loopback", d.MAC)
+		}
+		if d.Internet == "" {
+			t.Errorf("%s: internet state missing", d.MAC)
+		}
+	}
+
+	resp = do(t, http.MethodPut, base+"/devices/02:0D:33:7A:55:C2/internet", token, map[string]bool{"allowed": false})
+	var out struct {
+		Changes   []core.ConfigChange `json:"changes"`
+		Dangerous bool                `json:"dangerous"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 || len(out.Changes) != 1 || !out.Dangerous || out.Changes[0].To != "02:0d:33:7a:55:c2" {
+		t.Fatalf("PUT internet = %d %+v, want one dangerous staged row", resp.StatusCode, out)
+	}
+
+	resp = do(t, http.MethodPut, base+"/devices/nonsense/internet", token, map[string]bool{"allowed": false})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("a path that is not a device = %d, want 400", resp.StatusCode)
+	}
+	if len(dev.asked) != 1 {
+		t.Errorf("adapter asked %v, want only the valid request", dev.asked)
+	}
+}
+
+func TestARouterThatCannotTurnInternetOffSaysSo(t *testing.T) {
+	base, token, _ := setupDevices(t)
+	resp := do(t, http.MethodGet, base+"/devices", token, nil)
+	var list core.DeviceList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if list.InternetControl {
+		t.Error("internetControl = true on the demo, which cannot do it")
+	}
+	resp = do(t, http.MethodPut, base+"/devices/02:0d:33:7a:55:c2/internet", token, map[string]bool{"allowed": false})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Errorf("PUT internet on the demo = %d, want 501", resp.StatusCode)
+	}
+}

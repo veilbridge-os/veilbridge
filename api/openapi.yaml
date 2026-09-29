@@ -183,6 +183,15 @@ components:
     Device:
       additionalProperties: false
       properties:
+        here:
+          description: The panel is being used from this device
+          type: boolean
+        internet:
+          description: Whether the router lets this device through to the internet; includes a staged change that is not applied yet
+          enum:
+            - allowed
+            - blocked
+          type: string
         ips:
           description: Addresses the router knows for the device (the last known ones if it is not online); IPv4 first, then IPv6, no link-local
           items:
@@ -224,6 +233,23 @@ components:
         - new
         - online
         - link
+        - internet
+      type: object
+    DeviceInternetInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/DeviceInternetInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        allowed:
+          description: false turns the device's internet off, true turns it back on
+          type: boolean
+      required:
+        - allowed
       type: object
     DeviceLink:
       additionalProperties: false
@@ -265,6 +291,9 @@ components:
           type:
             - array
             - "null"
+        internetControl:
+          description: This router can turn internet off for a device
+          type: boolean
         watchingSec:
           description: How long the panel has been watching the network; last-seen times cannot go further back
           format: int64
@@ -272,6 +301,7 @@ components:
       required:
         - devices
         - watchingSec
+        - internetControl
       type: object
     DiagnosticsOutputBody:
       additionalProperties: false
@@ -1669,6 +1699,66 @@ paths:
       security:
         - bearerAuth: []
       summary: Forget what the panel remembers about a device (its name and "known")
+      tags:
+        - devices
+  /devices/{mac}/internet:
+    put:
+      description: "A firewall change: it goes through the apply bar and its confirmation window. The device loses the internet through the router; on the local network it still reaches other devices. Asking for what is already so returns no changes."
+      operationId: stageDeviceInternet
+      parameters:
+        - description: Hardware address of the device
+          in: path
+          name: mac
+          required: true
+          schema:
+            description: Hardware address of the device
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceInternetInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Request
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+      security:
+        - bearerAuth: []
+      summary: Stage turning a device's internet off or back on (does not apply it)
       tags:
         - devices
   /devices/{mac}/name:

@@ -13,6 +13,7 @@ export const DIFF_LABEL_KEYS = [
   'dhcp.lan.start',
   'dhcp.section',
   'dhcp.setting',
+  'firewall.noInternet.section',
   'firewall.redirect.dest',
   'firewall.redirect.dest_ip',
   'firewall.redirect.dest_port',

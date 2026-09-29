@@ -118,6 +118,9 @@ var entryRoles = map[string]phrase{
 	// other rule is named by what it does, see rulePhrases.
 	roleRule:  {"firewall.rule.section", "Firewall rule"},
 	roleRoute: {"network.route.section", "Static route"},
+	// A device's internet turned off (#53): one row naming the device,
+	// appearing when it is turned off and going away when it is back on.
+	roleNoInternet: {"firewall.noInternet.section", "No internet for a device"},
 }
 
 // rulePhrases name a whole rule appearing or going away by what it does, so
@@ -158,6 +161,9 @@ const (
 	rolePortForward = "redirect"
 	// roleRule is a firewall traffic rule.
 	roleRule = "rule"
+	// roleNoInternet is the panel's own rule that turns one device's
+	// internet off (#53); see devices_internet.go.
+	roleNoInternet = "noInternet"
 )
 
 // configLabels name a whole configuration file in domain words, for a key we
@@ -768,6 +774,10 @@ func roleOf(config, section, sectionType, uplink string) string {
 		return roleHost
 	case config == "firewall" && sectionType == "redirect":
 		return rolePortForward
+	case config == "firewall" && sectionType == "rule" && isNoInternetSection(section):
+		// Before the general rule: it is the panel's own and says which
+		// device lost its internet, not "Block traffic through the router".
+		return roleNoInternet
 	case config == "firewall" && sectionType == "rule":
 		return roleRule
 	case config == "network" && (sectionType == "route" || sectionType == "route6"):
@@ -850,6 +860,9 @@ func isDigits(s string) bool {
 // inventing a description of a section we have no words for would be worse
 // than leaving the column as the device put it.
 func entryWords(e stagedEdit, values map[string]string) string {
+	if e.config == "firewall" && values[e.key] == "rule" && isNoInternetSection(e.section) {
+		return values[e.key+".src_mac"]
+	}
 	if e.config == "firewall" && values[e.key] == "rule" {
 		return ruleWords(values[e.key+".src"], values[e.key+".dest"],
 			values[e.key+".proto"], values[e.key+".dest_port"], values[e.key+".family"])
@@ -907,6 +920,7 @@ var wholeEntryOptions = map[string][]string{
 	"dhcp": {"mac", "ip", "name"},
 	"firewall": {
 		"name", "src", "dest", "proto", "dest_port", "target", "family", // rule
+		"src_mac", // a device's internet turned off (#53)
 		"src_dport", "dest_ip", // port forward
 	},
 }

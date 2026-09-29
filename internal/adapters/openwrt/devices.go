@@ -224,6 +224,12 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 			}
 		}
 	}
+	// Devices whose internet is off stay on the list even when nothing hears
+	// them: a block you cannot see is a block you cannot lift (#53).
+	blocked := m.net.blocked(ctx)
+	for mac := range blocked {
+		get(mac)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for mac, o := range obs {
@@ -253,7 +259,10 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 		WatchingSec: int64(now.Sub(m.started) / time.Second)}
 	for mac, o := range obs {
 		d := core.Device{MAC: mac, ReportedName: o.reported, ReservedIP: o.reserved,
-			Online: o.online, IPs: sortIPs(o.ips), Link: o.link}
+			Online: o.online, IPs: sortIPs(o.ips), Link: o.link, Internet: core.InternetAllowed}
+		if blocked[mac] {
+			d.Internet = core.InternetBlocked
+		}
 		if d.Link.Kind == "" {
 			d.Link.Kind = core.LinkUnknown
 		}
