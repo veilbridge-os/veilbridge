@@ -46,8 +46,13 @@ as a diff with the confirmation timer.
   history kept in RAM.
 - **Internet** (`Wan.vue`) — uplink type and addresses, staged through the
   apply bar.
-- **Local network** (`Lan.vue`) — router address, address handout, clients and
-  reserved addresses; devices as cards on a phone, expired leases said.
+- **Local network** (`Lan.vue`) — router address, address handout (pool, lease
+  time), how many devices hold a lease and how many addresses are reserved,
+  with a way to the devices screen; the device list itself lives there.
+- **Devices** (`Devices.vue`, #52) — who is online out of how many, who is
+  new, how each is connected; name a device in its row, mark devices as known,
+  reserve or release an address through the apply bar, details, forget; pages
+  of twenty, cards on a phone.
 - **Static routes** (`StaticRoutes.vue`, menu group *Network rules*) — each
   route's real state first (working, off, not working with the reason, not
   checked), add to a network or a host, one-click fix when a network is
@@ -58,8 +63,10 @@ as a diff with the confirmation timer.
   remove, move by dragging or with arrows), firmware rules read-only, zones as a
   reference.
 - **Nodes** — import `.conf`, activate (switches egress), remove; handshake age.
-- **Routing** — add/delete domain|subnet → tunnel|direct rules, Apply, and Probe
-  (egress-comparing path check, D-5).
+- **Routing** (`Routes.vue`) — the v0.1 domain|subnet → tunnel|direct rules,
+  each with its real state: none of them routes traffic yet (#47), so adding
+  is off with the reason beside it and the path check is gone (#49); existing
+  rules can still be deleted.
 
 Settings search (`Ctrl + K`) matches a section by its name and by the words
 people use for it (`shell.also.*` in the message bundles: "port forwarding",

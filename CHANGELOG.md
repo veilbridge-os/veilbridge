@@ -28,8 +28,9 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   device right in its row, mark one or all new devices as known, reserve or
   release its address (through the apply bar), open the details (IPv6
   addresses, the signal in dBm, what a private address means) or forget it.
-  Search by name, address or MAC address; pages for forty devices and more; on
-  a phone every device is a card. A board without a radio has no Wi-Fi filter.
+  Search by name, address or MAC address; pages of twenty when the list is
+  longer; on a phone every device is a card. A board without a radio has no
+  Wi-Fi filter.
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are
