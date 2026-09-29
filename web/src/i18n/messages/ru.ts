@@ -266,6 +266,9 @@ const ru: MessageSchema = {
     firewall: {
       section: 'Правило межсетевого экрана',
       setting: 'Настройка межсетевого экрана',
+      noInternet: {
+        section: 'Без интернета',
+      },
       redirect: {
         section: 'Переадресация порта',
         name: 'Название переадресации',

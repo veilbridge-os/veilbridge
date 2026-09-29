@@ -278,6 +278,9 @@ const en = {
     firewall: {
       section: 'Firewall rule',
       setting: 'Firewall setting',
+      noInternet: {
+        section: 'No internet for a device',
+      },
       redirect: {
         section: 'Port forward',
         name: 'Port forward name',
