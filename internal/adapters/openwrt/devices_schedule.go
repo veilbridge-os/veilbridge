@@ -221,7 +221,13 @@ func (m *deviceManager) StageDeviceSchedule(mac string, want *core.InternetSched
 	}
 	if want != nil {
 		e, mo := scheduleOptions(mac, local, *want)
-		for key, opts := range map[string]map[string]string{evening: e, morning: mo} {
+		// Evening first, then the morning after: the same draft every time,
+		// and the order a person reads the rules in LuCI.
+		for _, part := range []struct {
+			key  string
+			opts map[string]string
+		}{{evening, e}, {morning, mo}} {
+			key, opts := part.key, part.opts
 			if opts == nil {
 				continue
 			}
