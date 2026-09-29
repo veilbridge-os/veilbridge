@@ -14,9 +14,13 @@
 // device has internet now and when that changes; while that clock is not
 // checked against the internet it says so instead of pretending.
 //
-// What is NOT here, on purpose (D-87): the "traffic" column and waking a
-// device. They come with their own tasks (#55, #56); until the device can do
-// them, a button or a column for them would be exactly the kind of promise
+// Waking a device (#55) acts at once: it changes nothing on the router, the
+// router only sends a packet. The panel cannot know whether the device woke,
+// so it says the signal was sent and lets the row turn "online" by itself. A
+// device last seen on Wi-Fi gets the reason instead of the action.
+//
+// What is NOT here, on purpose (D-87): the "traffic" column (#56); until the
+// device can count it, a column for it would be exactly the kind of promise
 // #49 took back.
 //
 // A name and "I know this device" are the panel's own notes: they change
@@ -298,6 +302,28 @@ async function stageInternet(d: Device, allowed: boolean): Promise<boolean> {
   }
 }
 
+// --- waking (at once, #55) ------------------------------------------------
+
+const canWake = computed(() => !!list.value?.wakeControl)
+const rowNote = ref<Record<string, string>>({})
+/** Worth offering: not heard now, and not a device that sleeps on Wi-Fi. */
+const wakeable = (d: Device) => !d.online && d.link.kind !== 'wifi'
+const wifiAsleep = (d: Device) => !d.online && d.link.kind === 'wifi'
+
+async function wake(d: Device) {
+  saving.value = d.mac
+  rowError.value = {}
+  rowNote.value = {}
+  try {
+    await api.wakeDevice(d.mac)
+    rowNote.value[d.mac] = t('dev.wakeSent')
+  } catch (e) {
+    rowError.value[d.mac] = e instanceof Error ? e.message : String(e)
+  } finally {
+    saving.value = ''
+  }
+}
+
 // --- schedule (through the apply bar, #54) -------------------------------
 
 const clock = computed(() => list.value?.clock ?? null)
@@ -386,6 +412,7 @@ function onMenu(d: Device, cmd: string) {
   else if (cmd === 'inetOff') askBlock(d)
   else if (cmd === 'inetOn') void stageInternet(d, true)
   else if (cmd === 'schedule') askSchedule(d)
+  else if (cmd === 'wake') void wake(d)
 }
 
 // --- details --------------------------------------------------------------
@@ -646,11 +673,18 @@ const remembered = (d: Device) => !!d.name || !d.new
                           {{ d.schedule ? t('dev.scheduleEdit') : t('dev.schedule') }}
                         </el-dropdown-item>
                       </template>
+                      <el-dropdown-item v-if="canWake && wakeable(d)" command="wake">
+                        {{ t('dev.wake') }}
+                      </el-dropdown-item>
+                      <el-dropdown-item v-else-if="canWake && wifiAsleep(d)" disabled>
+                        {{ t('dev.wakeWifi') }}
+                      </el-dropdown-item>
                       <el-dropdown-item command="details" divided>{{ t('dev.details') }}</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
                 <p v-if="rowError[d.mac]" class="vb-dev__err">{{ rowError[d.mac] }}</p>
+                <p v-if="rowNote[d.mac]" class="vb-dev__hint vb-dev__note">{{ rowNote[d.mac] }}</p>
               </span>
             </template>
           </div>
@@ -765,6 +799,14 @@ const remembered = (d: Device) => !!d.name || !d.new
             </el-button>
           </template>
           <el-button
+            v-if="canWake && wakeable(detailed)"
+            :disabled="frozen"
+            :loading="saving === detailed.mac"
+            @click="wake(detailed)"
+          >
+            {{ t('dev.wake') }}
+          </el-button>
+          <el-button
             v-if="remembered(detailed)"
             :disabled="frozen"
             :loading="saving === detailed.mac"
@@ -774,6 +816,8 @@ const remembered = (d: Device) => !!d.name || !d.new
           </el-button>
         </div>
         <p v-if="remembered(detailed)" class="vb-dev__hint">{{ t('dev.forgetHint') }}</p>
+        <p v-if="canWake && wifiAsleep(detailed)" class="vb-dev__hint">{{ t('dev.wakeWifiHint') }}</p>
+        <p v-if="rowNote[detailed.mac]" class="vb-dev__hint">{{ rowNote[detailed.mac] }}</p>
         <p v-if="rowError[detailed.mac]" class="vb-dev__err">{{ rowError[detailed.mac] }}</p>
       </template>
     </el-drawer>
@@ -1103,6 +1147,11 @@ const remembered = (d: Device) => !!d.name || !d.new
 .vb-dev__grow {
   flex: 1;
 }
+.vb-dev__note {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
 .vb-dev__acts {
   display: flex;
   gap: 4px;
@@ -1187,6 +1236,9 @@ const remembered = (d: Device) => !!d.name || !d.new
   }
   .vb-dev__acts {
     justify-content: flex-start;
+  }
+  .vb-dev__note {
+    text-align: left;
   }
   .vb-dev__knowall {
     margin-left: 0;

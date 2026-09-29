@@ -554,6 +554,12 @@ const en = {
     private: 'private address',
     noInternet: 'no internet',
     here: 'you are here',
+    wake: 'Wake up',
+    wakeWifi: 'Wake up — only over a cable',
+    wakeWifiHint:
+      'This device was last on Wi-Fi. A device that sleeps on Wi-Fi cannot be woken over the network — only one on a cable.',
+    wakeSent:
+      'Wake signal sent. If waking over the network is switched on in the device, it shows up as online in a few seconds.',
     colInternet: 'Internet',
     inetYes: 'on',
     inetOffTag: 'internet off',

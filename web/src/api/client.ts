@@ -242,6 +242,8 @@ export const api = {
       throw e
     }
   },
+  // Not a configuration change (#55): the router sends the wake packet at once.
+  wakeDevice: (mac: string) => request<void>('POST', `/devices/${encodeURIComponent(mac)}/wake`),
   // Firewall changes too (#54): a schedule, or its removal.
   stageDeviceSchedule: (mac: string, s: { days: string[]; from: string; to: string }) =>
     request<unknown>('PUT', `/devices/${encodeURIComponent(mac)}/schedule`, s),
