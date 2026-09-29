@@ -123,7 +123,10 @@ func (m networkManager) StagePortForward(cfg core.PortForwardConfig) ([]core.Con
 		}
 	}
 
-	baseline := m.fw4Warnings(ctx)
+	baseline, err := m.fw4Warnings(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if fresh {
 		out, err := m.run(ctx, "uci", "add", "firewall", "redirect")
 		if err != nil {
@@ -267,23 +270,36 @@ func portForwardWords(proto, external, address, internal string) string {
 // fw4Warnings returns the lines `fw4 check` prints about sections it will
 // skip. Measured on 25.12.5: the check sees the uci draft, exits 0 even when a
 // section is unusable, and says so only as `[!] Section … skipped` (D-66).
-func (m networkManager) fw4Warnings(ctx context.Context) map[string]bool {
-	out, _ := m.run(ctx, fw4Program, "check")
+//
+// A check that could not run is an error, not an empty list of warnings:
+// reading it as "nothing to report" is how every draft passed unchecked on
+// every router until #61.
+func (m networkManager) fw4Warnings(ctx context.Context) (map[string]bool, error) {
+	out, err := m.run(ctx, fw4Program, "check")
+	if err != nil {
+		// Either the check could not start, or the ruleset fails it as a
+		// whole — then nothing staged on top of it can be called checked.
+		return nil, fmt.Errorf("openwrt: the router's firewall could not check this change, so it is not staged: %w", err)
+	}
 	warnings := map[string]bool{}
 	for _, line := range strings.Split(string(out), "\n") {
 		if line = strings.TrimSpace(line); strings.HasPrefix(line, "[!]") {
 			warnings[line] = true
 		}
 	}
-	return warnings
+	return warnings, nil
 }
 
 // fw4Accepts refuses a draft that makes the firewall report something it did
 // not report before. Warnings that were already there belong to somebody
 // else's section and must not block this change.
 func (m networkManager) fw4Accepts(ctx context.Context, baseline map[string]bool) error {
+	now, err := m.fw4Warnings(ctx)
+	if err != nil {
+		return err
+	}
 	var fresh []string
-	for w := range m.fw4Warnings(ctx) {
+	for w := range now {
 		if !baseline[w] {
 			fresh = append(fresh, w)
 		}

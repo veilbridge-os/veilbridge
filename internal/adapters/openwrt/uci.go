@@ -62,6 +62,12 @@ var allowedCommands = map[string]bool{
 	"uci":                 true,
 	"tar":                 true,
 	"/sbin/reload_config": true,
+	// The router's own firewall judges a draft before it is staged (D-66).
+	// It was missing from here from the start (#61): the check failed on
+	// every router, the failure read as "no warnings", and every draft
+	// passed — while the tests, whose fake runner accepts anything, passed
+	// too.
+	fw4Program: true,
 }
 
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {

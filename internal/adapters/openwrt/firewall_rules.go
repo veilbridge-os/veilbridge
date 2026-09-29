@@ -106,7 +106,10 @@ func (m networkManager) StageRule(cfg core.FirewallRuleConfig) ([]core.ConfigCha
 		}
 	}
 
-	baseline := m.fw4Warnings(ctx)
+	baseline, err := m.fw4Warnings(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if fresh {
 		out, err := m.run(ctx, "uci", "add", "firewall", "rule")
 		if err != nil {
@@ -287,7 +290,10 @@ func (m networkManager) MoveRule(id, before string) ([]core.ConfigChange, error)
 			place--
 		}
 	}
-	baseline := m.fw4Warnings(ctx)
+	baseline, err := m.fw4Warnings(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := m.run(ctx, "uci", "reorder", "firewall."+id+"="+strconv.Itoa(place)); err != nil {
 		_ = m.discardConfig(ctx, "firewall")
 		return nil, fmt.Errorf("openwrt: move the rule: %w", err)

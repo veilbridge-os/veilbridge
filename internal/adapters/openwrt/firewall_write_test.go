@@ -20,6 +20,12 @@ type fwRunner struct {
 }
 
 func (f *fwRunner) run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	// The real runner refuses a program outside its allow-list. A fake that
+	// accepts anything kept the firewall check green in every test while it
+	// never ran on a router (#61).
+	if !allowedCommands[name] {
+		return nil, errors.New("refusing to run " + name + ": not in the adapter's allow-list")
+	}
 	if name == fw4Program {
 		f.uci.calls = append(f.uci.calls, append([]string{name}, args...))
 		if len(f.check) == 0 {
@@ -135,6 +141,28 @@ func TestADraftTheFirewallWouldSkipIsDropped(t *testing.T) {
 	}
 	if !f.called("uci revert firewall") {
 		t.Error("the refused draft was left on the device")
+	}
+}
+
+// A check that cannot run is not a check that passed (#61): the draft is not
+// staged, and the reason says the firewall could not judge it.
+func TestAFirewallCheckThatCannotRunStagesNothing(t *testing.T) {
+	m, f := firewallWriter(t, fixture(t, "firewall-25.12.5.txt"))
+	inner := m.run
+	m.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if name == fw4Program {
+			return []byte("Error: syntax error\n"), errors.New("exit status 1")
+		}
+		return inner(ctx, name, args...)
+	}
+	_, err := m.StagePortForward(core.PortForwardConfig{
+		Enabled: true, Protocols: []string{"tcp"}, ExternalPort: "8443", ToAddress: "192.168.1.50",
+	})
+	if err == nil || !strings.Contains(err.Error(), "could not check") {
+		t.Fatalf("err = %v, want a refusal saying the check could not run", err)
+	}
+	if f.called("uci add firewall") {
+		t.Error("a draft was staged although the firewall could not check it")
 	}
 }
 
