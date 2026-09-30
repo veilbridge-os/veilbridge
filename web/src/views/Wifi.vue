@@ -251,6 +251,10 @@ const accessWho = computed<'self' | 'cable' | 'other'>(() => {
 })
 
 const after = ref<{ at: string; before: number; id: string } | null>(null)
+// The answer to the change can be lost with the Wi-Fi it changes: the router
+// replies before the access point restarts (about 2 s), but a slow phone may
+// miss it. A dropped connection here is the expected outcome, not an error.
+const dropped = ref<{ ssid: string; password: string } | null>(null)
 async function applyAccess() {
   const n = accessNet.value
   if (!n) return
@@ -275,7 +279,10 @@ async function applyAccess() {
     else if (e instanceof ApiError && Object.keys(e.fields).length) {
       formErr.value = Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [k, v]))
       accessStep.value = 'form'
-    } else accessFail.value = e instanceof Error ? e.message : String(e)
+    } else if (!(e instanceof ApiError)) {
+      dropped.value = { ssid: form.value.ssid, password: confirmPassword.value }
+      accessOpen.value = false
+    } else accessFail.value = e.message
   } finally {
     applying.value = false
   }
@@ -385,6 +392,14 @@ async function stageCountry() {
     </el-alert>
 
     <template v-else>
+      <el-alert
+        v-if="dropped"
+        type="info"
+        show-icon
+        :title="t('wifi.dropped', { ssid: dropped.ssid, password: dropped.password })"
+        @close="dropped = null"
+      />
+
       <!-- After a password change: who came back. Seen by whoever is not on
            that Wi-Fi (a cable, the internet side); the number is live. -->
       <el-card v-if="after && afterNet" shadow="never" class="vb-wifi__after">
@@ -614,7 +629,11 @@ async function stageCountry() {
           type="warning"
           :closable="false"
           show-icon
-          :title="t('wifi.whoAll', { count: devicesWord(accessNet?.devices ?? 0) })"
+          :title="
+            (accessNet?.devices ?? 0) > 1
+              ? t('wifi.whoAll', { count: devicesWord(accessNet?.devices ?? 0) })
+              : t('wifi.whoAllOne')
+          "
         />
         <el-alert v-else type="info" :closable="false" show-icon :title="t('wifi.whoNobody')" />
         <el-alert v-if="accessWho === 'cable'" type="info" :closable="false" :title="t('wifi.whoCable')" />

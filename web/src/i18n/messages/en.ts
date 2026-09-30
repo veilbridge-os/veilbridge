@@ -560,6 +560,10 @@ const en = {
       'Wi-Fi restarts on both bands — the connection drops for a few seconds. The change goes through the apply bar with confirmation.',
     whoSelfOne:
       'This device will be disconnected: you are on Wi-Fi {band} GHz. The panel will go away. Join the network with the new password and open the panel again.',
+    whoAllOne:
+      'The device on this network will be disconnected. Join it again with the new password: point a camera at the QR code or type it in.',
+    dropped:
+      'The connection to the router dropped — that is expected: the password has most likely been changed already. Join “{ssid}” with the password {password} and open the panel again.',
   },
   lan: {
     title: 'Local network',
