@@ -14,7 +14,8 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   the bridge: for each device its hardware address, the name it gave itself,
   its addresses (IPv4 and IPv6), how it is connected (cable, or Wi-Fi band and
   signal), whether it is online now or how long ago it was last heard, and
-  whether it uses a private (changing) hardware address. "Last heard" is kept
+  whether it uses a private (changing) hardware address. A device still
+  knocking on the Wi-Fi with an old password is not online. "Last heard" is kept
   in memory only, so it starts over when the panel restarts, and the answer
   says for how long the panel has been watching. Give a device a name, mark
   devices as known (a device is *new* until you do), or forget one — these are

@@ -328,6 +328,17 @@ func TestNotAssociatedIsNotOnline(t *testing.T) {
 	}
 }
 
+// Associated but not authorized is a device trying a password the access
+// point does not take — a phone after the Wi-Fi password changed (D-101).
+func TestAssociatedButNotAuthorizedIsNotOnline(t *testing.T) {
+	fx := newDevFixture(t, cudy(), "")
+	fx.runner.out["/bin/ubus call hostapd.phy1-ap0 get_clients"] = []byte(
+		`{"freq": 5180, "clients": {"02:aa:bb:cc:dd:ee": {"auth": true, "assoc": true, "authorized": false, "signal": -40}}}`)
+	if d, ok := fx.list()["02:aa:bb:cc:dd:ee"]; ok && d.Online {
+		t.Errorf("client with the wrong password = %+v, want not online", d)
+	}
+}
+
 // A lease outlives the device; an expired one gives a name but no address,
 // and says nothing about presence.
 func TestALeaseAloneIsNotPresence(t *testing.T) {

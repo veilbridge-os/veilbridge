@@ -397,15 +397,15 @@ func (m *deviceManager) accessPoints(ctx context.Context) []accessPoint {
 	return out
 }
 
-// parseClients reads `get_clients`. Shape captured on 25.12.5 (empty) and,
-// per client, as hostapd's ubus code writes it: a map keyed by address with
-// "assoc" and "signal" among many fields.
+// parseClients reads `get_clients`. Shape captured on 25.12.5: a map keyed by
+// address with "assoc", "authorized" and "signal" among many fields.
 func parseClients(body []byte) (accessPoint, bool) {
 	var v struct {
 		Freq    int `json:"freq"`
 		Clients map[string]struct {
-			Assoc  *bool `json:"assoc"`
-			Signal int   `json:"signal"`
+			Assoc      *bool `json:"assoc"`
+			Authorized *bool `json:"authorized"`
+			Signal     int   `json:"signal"`
 		} `json:"clients"`
 	}
 	if err := json.Unmarshal(body, &v); err != nil {
@@ -416,6 +416,13 @@ func parseClients(body []byte) (accessPoint, bool) {
 		// Authenticated but not associated is a device on its way in or
 		// out, not one that is here.
 		if c.Assoc != nil && !*c.Assoc {
+			continue
+		}
+		// Associated but not authorized is a device knocking with the wrong
+		// password: measured on the reference router while the password was
+		// changed under two phones (D-101), the access point listed each of
+		// them with assoc=true for as long as they kept trying the old one.
+		if c.Authorized != nil && !*c.Authorized {
 			continue
 		}
 		ap.clients[mac] = apClient{signal: c.Signal}
