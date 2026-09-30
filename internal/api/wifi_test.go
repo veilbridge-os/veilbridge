@@ -63,7 +63,7 @@ type wifiAdapter struct {
 	net  *draftNetwork
 }
 
-func (a wifiAdapter) WiFi() core.WiFiManager         { return a.wifi }
+func (a wifiAdapter) WiFi() core.WiFiManager       { return a.wifi }
 func (a wifiAdapter) Network() core.NetworkManager { return a.net }
 
 func wifiServer(t *testing.T) (base, token string, a wifiAdapter) {
@@ -195,8 +195,23 @@ func TestWiFiStatusHasNoPasswordAndThePasswordIsAskedFor(t *testing.T) {
 	}
 }
 
+// noWiFi hides the Wi-Fi manager: only the core.Adapter methods are promoted.
+type noWiFi struct{ core.Adapter }
+
 func TestWiFiWithoutRadioSupportSaysSo(t *testing.T) {
-	_, base := setup(t)
+	store := config.NewStore(filepath.Join(t.TempDir(), "config.json"))
+	doc := config.Default()
+	if err := doc.SetPassword(testPassword); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(doc); err != nil {
+		t.Fatal(err)
+	}
+	srv, err := api.New(noWiFi{mock.NewAdapter()}, store, api.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := newServer(t, srv).URL + "/api/v1"
 	token := login(t, base)
 	resp := do(t, http.MethodGet, base+"/wifi", token, nil)
 	resp.Body.Close()

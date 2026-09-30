@@ -40,6 +40,11 @@ export type StaticRouteConfig = components['schemas']['StaticRouteConfig']
 export type RouteInterface = components['schemas']['RouteInterface']
 export type Device = components['schemas']['Device']
 export type DeviceList = components['schemas']['DeviceList']
+export type WiFiStatus = components['schemas']['WiFiStatus']
+export type WiFiRadio = components['schemas']['WiFiRadio']
+export type WiFiNetwork = components['schemas']['WiFiNetwork']
+export type RadioConfig = components['schemas']['RadioConfig']
+export type AccessConfig = components['schemas']['AccessConfig']
 
 /** What the device will change if the draft is applied, described in the
  * panel's own words rather than in configuration keys (M3.1a). */
@@ -242,6 +247,26 @@ export const api = {
       throw e
     }
   },
+  // Wi-Fi (#57). 404 means the device has no radio — a state of the hardware.
+  async wifi(): Promise<WiFiStatus | null> {
+    try {
+      return await request<WiFiStatus>('GET', '/wifi')
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }
+  },
+  // The password is asked for only when somebody presses "Show" (D-103).
+  wifiPassword: (id: string) =>
+    request<{ password: string }>('GET', `/wifi/networks/${encodeURIComponent(id)}/password`),
+  // A radio edit is a draft, applied through the apply bar with its window.
+  stageWiFiRadio: (id: string, cfg: RadioConfig) =>
+    request<StagedChanges>('PUT', `/wifi/radios/${encodeURIComponent(id)}`, cfg),
+  stageWiFiCountry: (country: string) =>
+    request<StagedChanges>('PUT', '/wifi/country', { country }),
+  // A network's name and password apply AT ONCE, with no window (D-100).
+  setWiFiAccess: (id: string, cfg: AccessConfig) =>
+    request<{ changes: ConfigChange[] }>('PUT', `/wifi/networks/${encodeURIComponent(id)}`, cfg),
   // Not a configuration change (#55): the router sends the wake packet at once.
   wakeDevice: (mac: string) => request<void>('POST', `/devices/${encodeURIComponent(mac)}/wake`),
   // Firewall changes too (#54): a schedule, or its removal.

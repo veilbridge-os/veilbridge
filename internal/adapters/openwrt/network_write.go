@@ -110,10 +110,10 @@ var optionLabels = map[string]string{
 	// Wi-Fi (#57). A radio's settings go through the confirmation window; a
 	// network's name and password are applied at once (D-100), but a draft
 	// written elsewhere (LuCI) still has to read in words.
-	"wireless.radio.disabled": "Wi-Fi band is on",
-	"wireless.radio.channel":  "Channel",
-	"wireless.radio.htmode":   "Channel width",
-	"wireless.radio.country":  "Wi-Fi country",
+	"wireless.radio.disabled":     "Wi-Fi band is on",
+	"wireless.radio.channel":      "Channel",
+	"wireless.radio.htmode":       "Channel width",
+	"wireless.radio.country":      "Wi-Fi country",
 	"wireless.wifiNet.ssid":       "Network name",
 	"wireless.wifiNet.key":        "Wi-Fi password",
 	"wireless.wifiNet.encryption": "Network security",

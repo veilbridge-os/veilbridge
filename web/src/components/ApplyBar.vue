@@ -12,10 +12,11 @@ import { useI18n } from 'vue-i18n'
 import { ApiError, api, type ConfigChange } from '@/api/client'
 import { deviceSeconds, useDuration } from '@/lib/duration'
 import { parseWords, scheduleWords } from '@/lib/schedule'
+import { bandWord, countryName, securityWord } from '@/lib/wifi'
 import { deviceNames } from '@/stores/deviceNames'
 import { refreshApply, refreshStaged, useLive } from '@/stores/live'
 
-const { t, te } = useI18n()
+const { t, te, locale } = useI18n()
 const { fmtDuration } = useDuration()
 const { applyState, reachable, staged } = useLive()
 
@@ -42,6 +43,10 @@ function labelOf(c: ConfigChange): string {
  * the device, by the name the panel knows it by, with the address so two
  * phones both called "iPhone" stay apart. */
 function subjectOf(c: ConfigChange): string {
+  // A radio row names its band: the device says "Wi-Fi 5 GHz" in English.
+  const band = /^Wi-Fi ([\d.]+) GHz$/.exec(c.subject ?? '')
+  if (band && (c.labelKey ?? '').startsWith('wireless.'))
+    return t('wifi.bandName', { band: bandWord(band[1] ?? '', locale.value) })
   if (c.labelKey !== NO_INTERNET && c.labelKey !== SCHEDULE) return c.subject ?? ''
   const mac = c.labelKey === SCHEDULE ? (c.subject ?? '') : c.to || c.from
   const name = deviceNames.get(mac)
@@ -64,6 +69,8 @@ function shownValue(c: ConfigChange, value: string): string {
   if (fw !== null) return fw
   const route = routeValue(c.labelKey ?? '', value)
   if (route !== null) return route
+  const wifi = wifiValue(c.labelKey ?? '', value)
+  if (wifi !== null) return wifi
   if (!value) return ''
   const option = (c.labelKey ?? '').split('.').at(-1)
   if (option === 'proto') {
@@ -119,6 +126,25 @@ function firewallValue(key: string, value: string): string | null {
     case 'position':
       // A rule's number in the list, as the screen numbers it (#46).
       return value ? t('apply.fwPlace', { n: value }) : ''
+  }
+  return null
+}
+
+/** wifiValue says a Wi-Fi setting in words (#57): the width in MHz (the
+ * device already sends a number, never "HE80"), "auto" as a word, the band
+ * switch as on/off, a country by its name, security by the name on the box. */
+function wifiValue(key: string, value: string): string | null {
+  switch (key) {
+    case 'wireless.radio.htmode':
+      return value ? t('wifi.mhz', { n: value }) : ''
+    case 'wireless.radio.channel':
+      return value === 'auto' || value === '' ? t('wifi.auto') : value
+    case 'wireless.radio.disabled':
+      return value === '1' ? t('apply.flagOff') : t('apply.flagOn')
+    case 'wireless.radio.country':
+      return countryName(value, locale.value) || value
+    case 'wireless.wifiNet.encryption':
+      return securityWord(t, value)
   }
   return null
 }

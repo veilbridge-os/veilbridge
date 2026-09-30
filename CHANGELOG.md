@@ -77,7 +77,19 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   window: phones that saw the new password refused do not come back when the
   old one is restored, so an automatic revert would not help anybody. It is
   refused while other changes wait in the draft. Security is offered as
-  WPA2 or WPA2/WPA3. The screen follows.
+  WPA2 or WPA2/WPA3.
+- **Wi-Fi screen** (menu: Local network → Wi-Fi, #57): the main network with
+  its name, security, the password behind "Show" and a QR code to join by
+  camera (made in the browser, printable); each radio with the channel it is
+  on, the width and how many devices are connected; the country. How you are
+  connected is at the top, and every warning names it. Changing a radio goes
+  into the draft and through the apply bar; if you are on that band, the
+  dialog says the connection will drop for a few seconds. Changing the name or
+  the password first shows the new password and its QR code and says who will
+  be disconnected — you too, if you are on that network — then applies at once
+  with no automatic revert. It is refused while other changes wait in the
+  draft. Without a country, only channels 36–48 are offered on 5 GHz, and the
+  screen says so. A router without Wi-Fi has no such menu item.
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are

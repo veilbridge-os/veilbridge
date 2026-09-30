@@ -60,6 +60,13 @@ as a diff with the confirmation timer.
   in each row and sorting by it (#56, since when it is counted said below the
   list), "you are here" on the device the panel is used from, details,
   forget; pages of twenty, cards on a phone.
+- **Wi-Fi** (`Wifi.vue`, #57, only where the device has a radio) — the main
+  network (name, security, password behind "Show", a QR code made in the
+  browser and printable), each radio (channel it is on, width, devices), the
+  country; how you are connected at the top. A radio edit goes into the draft;
+  a name or password change shows the new password and its QR code, says who
+  will be disconnected, and applies at once without an automatic revert (it is
+  refused while the draft holds other changes).
 - **Static routes** (`StaticRoutes.vue`, menu group *Network rules*) — each
   route's real state first (working, off, not working with the reason, not
   checked), add to a network or a host, one-click fix when a network is
@@ -160,6 +167,14 @@ screen with a drawer, a dropdown menu, pagination and check tags, and the
 local network screen lost its device list at the same time. The binary figure
 came out lower than the previous column (both measured the same way on
 2026-09-28); the linker rounds to pages, so read it as "about a megabyte".
+
+Between that column and the Wi-Fi screen the devices actions (#53–#56) grew the
+bundle to 853 kB of JS (262 gzip) and 200 kB of CSS (29 gzip) without a column
+of their own. The Wi-Fi screen (#57) then cost +41 kB of JS and +6 kB of CSS —
+894 kB (273 gzip) and 206 kB (30 gzip) by `gzip -c`, measured with `vite build` against `13f9479`
+on 2026-09-30. The QR code generator (`qrcode-generator`, MIT, 20.6 kB, 7.3
+gzip) is a separate chunk loaded only when a code is shown; the code is drawn by
+the page itself from the module grid, no markup from the library is injected.
 
 Element Plus is registered per component (`unplugin-vue-components`) rather than
 globally: the global registration shipped every component the panel never renders.

@@ -443,6 +443,44 @@ func (a *Adapter) Network() core.NetworkManager { return a.network }
 func (a *Adapter) Device() core.DeviceManager   { return a.device }
 func (a *Adapter) Applier() core.ConfigApplier  { return a.applier }
 
+// WiFi offers the demo Wi-Fi (#57): read-only, like the rest of the demo
+// network — edits answer "not in this version".
+func (*Adapter) WiFi() core.WiFiManager { return WiFi{} }
+
+// WiFi is a demo router with two radios and one network on both. The numbers
+// agree with the demo devices on Wi-Fi.
+type WiFi struct{}
+
+func (WiFi) Status() (core.WiFiStatus, error) {
+	ch := func(radar bool, nums ...int) []core.WiFiChannel {
+		out := make([]core.WiFiChannel, 0, len(nums))
+		for _, n := range nums {
+			out = append(out, core.WiFiChannel{Channel: n, Radar: radar && n >= 52})
+		}
+		return out
+	}
+	return core.WiFiStatus{
+		Country: "DE",
+		Radios: []core.WiFiRadio{
+			{ID: "radio0", Band: "2.4", Enabled: true, Auto: true, ChannelNow: 6, Width: 20, Widths: []int{20, 40},
+				Channels: ch(false, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13), Devices: 1, State: core.RadioUp},
+			{ID: "radio1", Band: "5", Enabled: true, Auto: true, ChannelNow: 44, Width: 80, Widths: []int{20, 40, 80, 160},
+				Channels: ch(true, 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112), Devices: 2, State: core.RadioUp},
+		},
+		Networks: []core.WiFiNetwork{{ID: "default_radio0", Kind: core.WiFiKindMain, SSID: "Home-Net",
+			Security: core.WiFiWPA2WPA3, Radios: []string{"radio0", "radio1"}, Devices: 3, HasPassword: true}},
+		Here: nil,
+	}, nil
+}
+func (WiFi) WiFiPassword(string) (string, error) { return "river-lamp-2026", nil }
+func (WiFi) StageRadio(string, core.RadioConfig) ([]core.ConfigChange, error) {
+	return nil, core.ErrNotImplemented
+}
+func (WiFi) StageCountry(string) ([]core.ConfigChange, error) { return nil, core.ErrNotImplemented }
+func (WiFi) StageAccess(string, core.AccessConfig) ([]core.ConfigChange, error) {
+	return nil, core.ErrNotImplemented
+}
+
 // Compile-time guarantees that the mocks satisfy the core interfaces.
 var (
 	_ core.VPNManager      = (*VPN)(nil)
@@ -455,4 +493,5 @@ var (
 	_ core.DeviceManager   = (*Device)(nil)
 	_ core.Adapter         = (*Adapter)(nil)
 	_ core.CapabilityProbe = (*Adapter)(nil)
+	_ core.WiFiProvider    = (*Adapter)(nil)
 )

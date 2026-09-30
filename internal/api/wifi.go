@@ -93,9 +93,9 @@ func (s *Server) registerWiFi(authed huma.Middlewares, authSec []map[string][]st
 	}, s.getWiFiPassword)
 	huma.Register(s.api, huma.Operation{
 		OperationID: "stageWiFiRadio", Method: http.MethodPut, Path: "/wifi/radios/{id}",
-		Summary: "Stage a radio edit: on or off, channel, width (does not apply it)",
+		Summary:     "Stage a radio edit: on or off, channel, width (does not apply it)",
 		Description: "Goes through the apply bar and its confirmation window. The channel is \"auto\" or one of the radio's channels.",
-		Tags: []string{"wifi"}, Middlewares: authed, Security: authSec,
+		Tags:        []string{"wifi"}, Middlewares: authed, Security: authSec,
 		Errors: []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusNotImplemented},
 	}, s.stageWiFiRadio)
 	huma.Register(s.api, huma.Operation{
