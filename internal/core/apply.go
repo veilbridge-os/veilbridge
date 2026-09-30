@@ -317,6 +317,46 @@ func (c *ApplyCoordinator) Confirm(token string) (ApplyState, error) {
 	return c.stateLocked(), nil
 }
 
+// ApplyNow stages and commits in one step, with no watchdog. It exists for the
+// one edit a revert cannot fix: the Wi-Fi name and password (D-100) — devices
+// that saw the new password refused do not come back when the old one is put
+// back. stage runs under the coordinator's lock, so no transaction can start
+// between staging and committing and sweep this edit into its snapshot.
+//
+// A snapshot is still taken first: if the commit itself fails, the device is
+// put back rather than left half-written, exactly as Apply does.
+func (c *ApplyCoordinator) ApplyNow(stage func() error) (ApplyState, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.phase == PhaseAwaitingConfirm {
+		return c.stateLocked(), ErrApplyInFlight
+	}
+	if err := stage(); err != nil {
+		return c.stateLocked(), err
+	}
+	snap, err := c.applier.Snapshot()
+	if err != nil {
+		return c.stateLocked(), fmt.Errorf("snapshot before applying: %w", err)
+	}
+	c.lastSnapshotID = snap.ID
+	if err := c.applier.Commit(); err != nil {
+		if revertErr := c.applier.Revert(snap); revertErr != nil {
+			c.phase = PhaseRevertFailed
+			c.lastErr = fmt.Errorf("commit failed (%v) and revert failed too: %w", err, revertErr)
+			return c.stateLocked(), c.lastErr
+		}
+		c.phase = PhaseReverted
+		c.lastErr = fmt.Errorf("commit failed, configuration restored: %w", err)
+		return c.stateLocked(), c.lastErr
+	}
+	// Applied and final. The bar forgets an older outcome: "reverted" from a
+	// previous transaction would otherwise sit above a change that holds.
+	c.phase = PhaseIdle
+	c.lastErr = nil
+	return c.stateLocked(), nil
+}
+
 // Revert restores the snapshot immediately — the "undo" button, used when the
 // human can still see the panel and does not like what happened.
 func (c *ApplyCoordinator) Revert() (ApplyState, error) {

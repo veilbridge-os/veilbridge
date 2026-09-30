@@ -99,8 +99,23 @@ func NewWithRunner(r Runner) *Client { return &Client{run: r, timeout: 10 * time
 // Call invokes path.method and decodes the JSON reply into out. Pass a nil out
 // to ignore the reply.
 func (c *Client) Call(ctx context.Context, path, method string, out any) error {
+	return c.CallWith(ctx, path, method, nil, out)
+}
+
+// CallWith is Call with arguments: args is encoded as the JSON object ubus
+// takes after the method (`ubus call iwinfo freqlist '{"device":"…"}'`). It
+// goes to the program as one argument, never through a shell.
+func (c *Client) CallWith(ctx context.Context, path, method string, args, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
+	argv := []string{"call", path, method}
+	if args != nil {
+		raw, err := json.Marshal(args)
+		if err != nil {
+			return fmt.Errorf("ubus %s %s: encode arguments: %w", path, method, err)
+		}
+		argv = append(argv, string(raw))
+	}
 
 	// Deliberately WITHOUT -S. The flag produces compact output, but measured
 	// on 25.12.5 it also throws the failure message away: `ubus -S call nosuch
@@ -108,7 +123,7 @@ func (c *Client) Call(ctx context.Context, path, method string, out any) error {
 	// without -S prints "Command failed: Not found" on stderr. A few saved
 	// bytes are not worth a silent failure on a device nobody can attach a
 	// debugger to.
-	raw, err := c.run(ctx, ubusBin, "call", path, method)
+	raw, err := c.run(ctx, ubusBin, argv...)
 	if err != nil {
 		return err
 	}

@@ -24,6 +24,7 @@ type Adapter struct {
 	system   *systemManager
 	network  networkManager
 	device   *deviceManager
+	wifi     *wifiManager
 	applier  *uciApplier
 	platform string
 	// caps is detected once, when the adapter is built: the probes walk /sys,
@@ -51,6 +52,7 @@ func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapt
 		system:   s,
 		network:  n,
 		device:   newDeviceManager(n, bus),
+		wifi:     newWiFiManager(n, bus),
 		applier:  newUCIApplier(),
 		platform: platform,
 		caps:     newSysProbe().Capabilities(),
@@ -63,6 +65,9 @@ func (a *Adapter) Routing() core.RoutingManager { return a.routing }
 func (a *Adapter) System() core.SystemManager   { return a.system }
 func (a *Adapter) Network() core.NetworkManager { return a.network }
 func (a *Adapter) Device() core.DeviceManager   { return a.device }
+
+// WiFi offers the Wi-Fi manager (#57); asked for by type assertion.
+func (a *Adapter) WiFi() core.WiFiManager { return a.wifi }
 
 // Capabilities reports what this particular device can do (D-17). The answer
 // is fixed at start up; a radio does not appear in a router while it runs, and
@@ -102,4 +107,5 @@ var (
 	_ core.NetworkManager  = networkManager{}
 	_ core.DeviceManager   = (*deviceManager)(nil)
 	_ core.DeviceObserver  = (*deviceManager)(nil)
+	_ core.WiFiProvider    = (*Adapter)(nil)
 )

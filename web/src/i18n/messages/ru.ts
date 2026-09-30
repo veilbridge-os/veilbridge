@@ -333,7 +333,17 @@ const ru: MessageSchema = {
         name: 'Имя устройства',
       },
     },
-    wireless: { section: 'Сеть Wi-Fi', setting: 'Настройка Wi-Fi' },
+    wireless: {
+      section: 'Сеть Wi-Fi',
+      setting: 'Настройка Wi-Fi',
+      radio: {
+        disabled: 'Диапазон Wi-Fi включён',
+        channel: 'Канал',
+        htmode: 'Ширина канала',
+        country: 'Страна Wi-Fi',
+      },
+      wifiNet: { ssid: 'Имя сети', key: 'Пароль Wi-Fi', encryption: 'Защита сети' },
+    },
     system: { setting: 'Настройка устройства' },
   },
   wan: {

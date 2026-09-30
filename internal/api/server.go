@@ -339,6 +339,7 @@ func (s *Server) register() {
 		Tags:    []string{"network"}, Middlewares: authed, Security: authSec,
 	}, s.removeReservation)
 	s.registerDevices(authed, authSec)
+	s.registerWiFi(authed, authSec)
 	huma.Register(s.api, huma.Operation{
 		OperationID: "getStaticRoutes", Method: http.MethodGet, Path: "/network/routes",
 		Summary: "Static routes, each with whether the kernel is using it, and the connections a route can use",

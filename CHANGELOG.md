@@ -66,6 +66,18 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   "Who uses the most" lists the top five from the same counters. The counting
   is a table of the panel's own in the router's firewall; fw4's rules are not
   touched.
+- **Wi-Fi in the API** (#57): `GET /wifi` — the networks (one network when the
+  radios share a name, password and security), each radio's band, channel
+  (set, and the one it transmits on now), width, the channels its country
+  allows, how many devices are connected, and how the caller is connected.
+  Passwords are not in that answer; `GET /wifi/networks/{id}/password` gives
+  one when asked. A radio edit (on or off, channel, width) and the Wi-Fi
+  country go through the apply bar and its confirmation window. A network's
+  name, password and security are applied at once, without a confirmation
+  window: phones that saw the new password refused do not come back when the
+  old one is restored, so an automatic revert would not help anybody. It is
+  refused while other changes wait in the draft. Security is offered as
+  WPA2 or WPA2/WPA3. The screen follows.
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are

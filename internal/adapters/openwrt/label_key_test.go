@@ -230,7 +230,7 @@ func TestDiffLabelKeysFileIsCurrent(t *testing.T) {
 func TestDiscardResetsEveryFileThePanelWrites(t *testing.T) {
 	for key := range optionLabels {
 		config, _, _ := strings.Cut(key, ".")
-		if !slices.Contains(writtenConfigs, config) {
+		if !slices.Contains(draftConfigs, config) {
 			t.Errorf("the panel has words for %q but discarding a draft leaves %s alone", key, config)
 		}
 	}
@@ -238,7 +238,7 @@ func TestDiscardResetsEveryFileThePanelWrites(t *testing.T) {
 	if err := m.DiscardStaged(); err != nil {
 		t.Fatal(err)
 	}
-	for _, config := range writtenConfigs {
+	for _, config := range draftConfigs {
 		found := false
 		for _, c := range r.calls {
 			if strings.Join(c, " ") == "uci revert "+config {

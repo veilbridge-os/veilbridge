@@ -1,0 +1,43 @@
+{
+	"phy": "phy1",
+	"bssid": "00:00:5E:00:53:01",
+	"country": "00",
+	"mode": "Master",
+	"channel": 36,
+	"center_chan1": 42,
+	"frequency": 5180,
+	"frequency_offset": 0,
+	"txpower": 20,
+	"txpower_offset": 0,
+	"quality_max": 70,
+	"noise": 0,
+	"htmodes": [
+		"HT20",
+		"HT40",
+		"VHT20",
+		"VHT40",
+		"VHT80",
+		"VHT160",
+		"HE20",
+		"HE40",
+		"HE80",
+		"HE160"
+	],
+	"hwmodes": [
+		"n",
+		"ac",
+		"ax"
+	],
+	"hwmodes_text": "ac/ax/n",
+	"hwmode": "ax",
+	"htmode": "HE80",
+	"hardware": {
+		"id": [
+			0,
+			0,
+			0,
+			0
+		],
+		"name": "MediaTek MT7981"
+	}
+}

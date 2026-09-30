@@ -68,6 +68,13 @@ export const DIFF_LABEL_KEYS = [
   'section',
   'setting',
   'system.setting',
+  'wireless.radio.channel',
+  'wireless.radio.country',
+  'wireless.radio.disabled',
+  'wireless.radio.htmode',
   'wireless.section',
   'wireless.setting',
+  'wireless.wifiNet.encryption',
+  'wireless.wifiNet.key',
+  'wireless.wifiNet.ssid',
 ] as const

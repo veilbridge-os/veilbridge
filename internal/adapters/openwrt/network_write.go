@@ -106,6 +106,17 @@ var optionLabels = map[string]string{
 	"network.route.gateway":   "Gateway",
 	"network.route.interface": "Connection",
 	"network.route.metric":    "Metric",
+
+	// Wi-Fi (#57). A radio's settings go through the confirmation window; a
+	// network's name and password are applied at once (D-100), but a draft
+	// written elsewhere (LuCI) still has to read in words.
+	"wireless.radio.disabled": "Wi-Fi band is on",
+	"wireless.radio.channel":  "Channel",
+	"wireless.radio.htmode":   "Channel width",
+	"wireless.radio.country":  "Wi-Fi country",
+	"wireless.wifiNet.ssid":       "Network name",
+	"wireless.wifiNet.key":        "Wi-Fi password",
+	"wireless.wifiNet.encryption": "Network security",
 }
 
 // entryRoles are the kinds of section that appear and disappear as ONE thing
@@ -170,6 +181,9 @@ const (
 	// roleSchedule is the panel's own schedule for one device (#54); see
 	// devices_schedule.go.
 	roleSchedule = "schedule"
+	// roleRadio is a `wifi-device`, roleWiFiNet a `wifi-iface` (#57).
+	roleRadio   = "radio"
+	roleWiFiNet = "wifiNet"
 )
 
 // configLabels name a whole configuration file in domain words, for a key we
@@ -268,7 +282,10 @@ func secretOption(option string) bool {
 // transaction. Renaming the device cannot lock anybody out; changing the
 // network or the firewall can.
 func dangerousConfig(config string) bool {
-	return config == "network" || config == "firewall"
+	// Wi-Fi too (D-14): the radio can carry the only link to the panel. The
+	// name and password never wait in the draft — they are applied at once
+	// (D-100) — so everything wireless that is staged is a radio setting.
+	return config == "network" || config == "firewall" || config == "wireless"
 }
 
 // StageWAN validates cfg and stages it. It returns the list of edits in the
@@ -689,6 +706,18 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 			subject = entrySubject(values[sec+".name"],
 				entryWords(stagedEdit{key: sec, config: e.config, section: e.section}, values))
 		}
+		if role == roleRadio {
+			// "HE80" is the operating system talking (D-3): the row says
+			// the width, and whose radio it is.
+			if e.option == "htmode" {
+				from, to = widthWords(from), widthWords(to)
+			}
+			sec := e.config + "." + e.section
+			subject = "Wi-Fi " + bandWord(firstNonEmpty(before[sec+".band"], after[sec+".band"])) + " GHz"
+		}
+		if role == roleWiFiNet && e.option == "encryption" {
+			from, to = securityOf(from), securityOf(to)
+		}
 		changes = append(changes, core.ConfigChange{
 			Label:     said.words,
 			LabelKey:  said.key,
@@ -811,6 +840,10 @@ func roleOf(config, section, sectionType, uplink string) string {
 		return roleRule
 	case config == "network" && (sectionType == "route" || sectionType == "route6"):
 		return roleRoute
+	case config == "wireless" && sectionType == "wifi-device":
+		return roleRadio
+	case config == "wireless" && sectionType == "wifi-iface":
+		return roleWiFiNet
 	case section == lanSection:
 		return roleLAN
 	case config == "network" && uplink != "" && section == uplink:
@@ -1204,6 +1237,12 @@ func parseUCIShow(config, out string) map[string]string {
 // edit in is a file it writes, and must be discarded with the rest.
 var writtenConfigs = []string{"network", "dhcp", "firewall"}
 
+// draftConfigs are the files a draft can hold edits in: the ones above and
+// Wi-Fi. Wi-Fi is not among the files the emergency restore puts back
+// (D-77): a password restored that way strands every device that took the
+// new one, the very thing D-100 avoids.
+var draftConfigs = append(append([]string{}, writtenConfigs...), "wireless")
+
 func (m networkManager) DiscardStaged() error {
 	if m.run == nil {
 		return core.ErrNotImplemented
@@ -1215,7 +1254,7 @@ func (m networkManager) DiscardStaged() error {
 	// next apply then commits. It happened twice: once for the local network
 	// (M3.2), and again for the firewall (#35) — the port forward survived a
 	// "discard" on the router, nine staged lines of it.
-	for _, config := range writtenConfigs {
+	for _, config := range draftConfigs {
 		if err := m.discardConfig(ctx, config); err != nil {
 			return err
 		}

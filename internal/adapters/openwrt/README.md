@@ -70,6 +70,16 @@ Files:
   handed to a device through the addresses it was known by. When counting
   started (uptime) and the device it names live in the table's comment; a
   missing or stale table is made again
+- `wifi.go` — Wi-Fi (M4, #57): radios and networks from `uci show wireless`,
+  what each radio is doing from `network.wireless status` and `hostapd.<if>
+  get_status`, widths and allowed channels from `iwinfo info`/`freqlist` by
+  phy name. freqlist marks no-IR channels but not radar ones, so radar is known
+  by frequency, and without a country radar channels are not offered (D-102).
+  The same name, password and security on several radios is one network. A
+  radio edit is staged like any other; a network's name and password are
+  staged here and applied at once by the API (D-100). `wireless` is in the
+  draft but not in the emergency restore: a password put back that way would
+  strand every device that took the new one
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon

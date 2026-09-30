@@ -347,7 +347,17 @@ const en = {
         name: 'Device name',
       },
     },
-    wireless: { section: 'Wi-Fi network', setting: 'Wi-Fi setting' },
+    wireless: {
+      section: 'Wi-Fi network',
+      setting: 'Wi-Fi setting',
+      radio: {
+        disabled: 'Wi-Fi band is on',
+        channel: 'Channel',
+        htmode: 'Channel width',
+        country: 'Wi-Fi country',
+      },
+      wifiNet: { ssid: 'Network name', key: 'Wi-Fi password', encryption: 'Network security' },
+    },
     system: { setting: 'Device setting' },
   },
   wan: {
