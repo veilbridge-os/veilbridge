@@ -181,6 +181,10 @@ jobs:
           grep -q 'was-running' preinst
           tar tzf data.tar.gz | grep -qx './usr/bin/veilbridged'
           tar tzf data.tar.gz | grep -qx './etc/init.d/veilbridge'
+          # Without the keep.d entry a firmware upgrade that keeps settings
+          # drops the panel's password, VPN keys and restore points (#62).
+          tar xzOf data.tar.gz ./lib/upgrade/keep.d/veilbridge |
+            grep -qx '/etc/veilbridge/'
           echo 'ipk layout ok'
 
           # apk runs .pre-upgrade/.post-upgrade instead of .pre-install and
@@ -196,6 +200,7 @@ jobs:
           grep -q "PKG_ARCH='arm64'" .pre-upgrade
           grep -q 'rescue-bin' .pre-upgrade
           grep -q 'rescue-bin' .post-upgrade
+          grep -qx '/etc/veilbridge/' lib/upgrade/keep.d/veilbridge
           echo 'apk layout ok'
 
       - name: Checksums

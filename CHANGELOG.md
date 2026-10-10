@@ -50,6 +50,10 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   (it followed the browser's, e.g. "08:22 PM" in a Russian panel).
 
 ### Fixed
+- **A firmware upgrade that keeps settings now keeps the panel's too** (#62).
+  The package adds `/etc/veilbridge` to OpenWrt's backup list, so the admin
+  password, VPN keys and restore points are no longer dropped
+  by `sysupgrade`. The backup now contains secrets; keep it private.
 - "In the network now" on the local network screen counted address leases, so
   a phone that left an hour ago was still counted there while the devices
   screen showed it away (#60). Both screens now count the same devices — the
