@@ -17,7 +17,7 @@ and proof of where your traffic actually leaves.
 ## Status
 
 🧪 **Stable: [`v0.1.2`](https://github.com/veilbridge-os/veilbridge/releases/latest).
-Pre-release for testers: [`v0.2.0-beta2`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-beta2).**
+Pre-release for testers: [`v0.2.0-beta3`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-beta3).**
 Recorded feature acceptances use an x86 OpenWrt VM and a Cudy WR3000S router;
 Wi-Fi scenarios use the physical router. The current development bench is a
 Xiaomi AX3000T on OpenWrt 25.12.5 with a local `main` build: installation and
@@ -30,7 +30,7 @@ unreleased work and remaining acceptance gaps are distinguished below. What chan
 engine, `awg0` appears, and the dashboard confirms traffic egresses through it
 by comparing egress IPs rather than trusting a `200 OK`.
 
-**In `v0.2.0-beta2`:** the platform layer — configuration changes go
+**In `v0.2.0-beta3`:** the platform layer — configuration changes go
 through a transaction that undoes itself if nobody confirms (proven by
 deliberately cutting the router's own management link and watching it come
 back), device capabilities the UI branches on, a live update stream, and a
@@ -88,7 +88,7 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   that a LAN device or a routing rule takes that path (#47)
 - **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
-### Added in the `v0.2` line (pre-release `v0.2.0-beta2`)
+### Added in the `v0.2` line (pre-release `v0.2.0-beta3`)
 
 - **Safe apply** — a dangerous change is applied with a confirmation window; no
   confirmation, and the device restores the previous settings by itself
@@ -142,7 +142,7 @@ remain. None of the features in this section has shipped in a release yet.
 | Version | Highlights | Status |
 | --- | --- | --- |
 | `v0.1` | AmneziaWG engine, own routing, dashboard, OpenWrt adapter | ✅ released |
-| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-beta2`: the whole version — uplink, local network/DHCP, firewall, static routes, emergency access; stable `v0.2.0` after testing |
+| `v0.2` | Platform layer (uci/ubus) with safe apply + rollback, capabilities, live updates, rebuilt panel, router network | 🟡 pre-release `v0.2.0-beta3`: the whole version — uplink, local network/DHCP, firewall, static routes, emergency access; stable `v0.2.0` after testing |
 | `v0.3` | Devices & Wi-Fi; exit-node policies, health-check failover; VPN connections for two purposes — an internet exit, or access to a network such as your workplace's (WireGuard, OpenVPN), several at once; rules that really send traffic into the tunnel; first firmware image with a first-run wizard; signed package feed | 🟡 in progress: devices and Wi-Fi |
 | `v0.4` | FakeIP and domain routing; DNS with per-device profiles and filters | planned |
 | `v0.5+` | App platform and market (VLESS/Xray, auto-bypass as apps), VPN servers, QoS, remote access | planned |
@@ -205,7 +205,7 @@ It installs the latest **stable** release. To try a pre-release, or to go back
 to an older version on purpose:
 
 ```sh
-wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-beta2 sh
+wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.2.0-beta3 sh
 wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/scripts/install.sh | VB_VERSION=v0.1.2 VB_ALLOW_DOWNGRADE=1 sh
 ```
 

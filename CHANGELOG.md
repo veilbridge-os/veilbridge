@@ -101,15 +101,24 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   (it followed the browser's, e.g. "08:22 PM" in a Russian panel).
 
 ### Fixed
-- **A firmware upgrade that keeps settings now keeps the panel's too** (#62).
-  The package adds `/etc/veilbridge` to OpenWrt's backup list, so the admin
-  password, VPN keys, device names and restore points are no longer dropped
-  by `sysupgrade`. The backup now contains secrets; keep it private.
 - "In the network now" on the local network screen counted address leases, so
   a phone that left an hour ago was still counted there while the devices
   screen showed it away (#60). Both screens now count the same devices — the
   ones the access points and the bridge hear — and say "nobody" instead of
   "0 devices".
+
+## [0.2.0-beta3] — 2026-10-10 — pre-release
+
+`v0.2.0-beta2` with one packaging fix, built from the `release/v0.2` branch.
+Nothing new; the daemon is the same code as beta2.
+
+### Fixed
+- A firmware upgrade that keeps settings now keeps the panel's data too (#62).
+  The package adds `/etc/veilbridge` to OpenWrt's backup list, so the admin
+  password hash, VPN keys and restore points are no longer dropped by
+  `sysupgrade`. Only a package that already has the fix protects the data:
+  upgrade before flashing, reinstall after. The backup now contains secrets;
+  keep it private.
 
 ## [0.2.0-beta2] — 2026-09-29 — pre-release
 
@@ -422,6 +431,7 @@ First public release.
 - `-demo` mode, `-version`, static binaries for amd64 and arm64 with the UI embedded.
 
 [Unreleased]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta1...HEAD
+[0.2.0-beta3]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta2...v0.2.0-beta3
 [0.2.0-beta2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-beta1...v0.2.0-beta2
 [0.2.0-beta1]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha2...v0.2.0-beta1
 [0.2.0-alpha2]: https://github.com/veilbridge-os/veilbridge/compare/v0.2.0-alpha1...v0.2.0-alpha2
