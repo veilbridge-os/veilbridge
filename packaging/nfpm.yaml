@@ -62,6 +62,15 @@ contents:
     file_info:
       mode: 0700
 
+  # Everything in /etc/veilbridge is created after installation, so neither
+  # opkg nor apk knows about it, and a firmware upgrade that keeps settings
+  # used to drop it (#62). keep.d is how an OpenWrt package adds its own paths
+  # to that backup; it lives in /lib, so the package owns and removes it.
+  - src: packaging/openwrt/lib/upgrade/keep.d/veilbridge
+    dst: /lib/upgrade/keep.d/veilbridge
+    file_info:
+      mode: 0644
+
 scripts:
   # Generated at build time from packaging/scripts/preinst.sh.in with the target
   # CPU substituted: nfpm does not expand env vars inside script files, so the

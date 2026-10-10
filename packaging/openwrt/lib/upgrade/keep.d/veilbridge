@@ -1,0 +1,6 @@
+# sysupgrade keeps every file under the listed paths when settings are kept.
+# The whole directory, not just config.json: the restore points are what
+# emergency restore uses after a bad upgrade, and a change still waiting for
+# confirmation must come back with its snapshot so the daemon undoes it on
+# the new firmware instead of it silently becoming the saved configuration.
+/etc/veilbridge/

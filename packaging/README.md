@@ -81,21 +81,35 @@ working binary to `/tmp/veilbridge.rescue-bin` before the overwrite, and
 database. Verified on the router: after installing the amd64 package on aarch64
 the panel is running again on a restored arm64 binary, with a new PID.
 
-## Firmware upgrades: known configuration-preservation gap
+## Firmware upgrades keep the panel's data
 
-Package-to-package upgrades are not the same as OpenWrt firmware sysupgrade.
-The current package creates `/etc/veilbridge` but does not register its generated
-configuration/data with OpenWrt's keep list. On OpenWrt 25.12.5, `sysupgrade -l`
-and an actual backup archive omitted `config.json`
-([#62](https://github.com/veilbridge-os/veilbridge/issues/62)); the older package-manager
-branch still needs the same check. No destructive firmware test was performed.
+Package-to-package upgrades are not the same as OpenWrt firmware sysupgrade:
+everything in `/etc/veilbridge` (the settings, VPN keys, device names, the
+restore points and a change still waiting for confirmation) is created after
+installation, so neither opkg nor apk knows about it. The package therefore
+ships `/lib/upgrade/keep.d/veilbridge`, which adds the whole directory to the
+files a firmware upgrade keeps when settings are kept ([#62](https://github.com/veilbridge-os/veilbridge/issues/62)).
 
-**Before changing firmware, save `/etc/veilbridge/` separately in addition to the
-normal OpenWrt backup.** It contains sensitive data: protect the archive and do not
-publish it. Plan to reinstall the package after flashing. `sysupgrade -k` records
-the installed package list; it does not preserve package binaries or undeclared
-application data. A package-shipped keep declaration and upgrade/restore proof
-are still to be implemented, not a completed fix.
+- Measured on OpenWrt 25.12.5 (apk): `sysupgrade -l` lists
+  `/etc/veilbridge/config.json`, and a real `sysupgrade -b` archive contains it
+  with mode 0600 and the same content.
+- Rehearsed on OpenWrt 23.05.5 (opkg, x86-64 VM): a keep-settings sysupgrade
+  brought back the settings and all five restore points byte for byte, with
+  mode 0600; after reinstalling the package the old admin password logged in
+  and emergency restore listed every restore point.
+- **The standard backup now holds the panel's password hash and VPN private
+  keys.** Store and share it like a secret.
+- A change still waiting for confirmation is kept together with its snapshot,
+  so the panel on the new firmware undoes it, exactly as after a reboot in the
+  confirmation window. Confirm or cancel changes before flashing.
+- Only a package that already has this file protects the data: upgrade the
+  package **before** flashing.
+- The firmware itself does not bring the package back: reinstall it after
+  flashing (`sysupgrade -k` records the package list, not the package). The
+  kept settings are picked up as they are. The backup keeps file modes (0600)
+  but not the directory's; reinstalling the package restores its 0700.
+- Removing the package removes the keep.d entry too; the directory the removal
+  leaves behind is then no longer part of backups.
 
 ## Not yet built (roadmap D1+)
 
