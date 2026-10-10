@@ -138,11 +138,11 @@ Measured on the reference device (Cudy WR3000S v1, OpenWrt 25.12.5, aarch64 — 
 RAM, 46 MB writable overlay). Numbers, not adjectives: this panel is stored on the
 device's flash and parsed by whatever phone the operator happens to hold.
 
-| What | Before on-demand imports | At M2.6 | + internet screen | + visual layer, icons | + local network | + firewall | + static routes | Now (+ devices) |
+| What | Before on-demand imports | At M2.6 | + internet screen | + visual layer, icons | + local network | + firewall | + static routes | + devices (#52, 2026-09-28) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | 659 kB (212 gzip) | 692 kB (220 gzip) | 746 kB (234 gzip) | 780 kB (243 gzip) | **814 kB (252 gzip)** |
-| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | 149 kB (22 gzip) | 155 kB (23 gzip) | 162 kB (24 gzip) | 172 kB (25 gzip) | **187 kB (27 gzip)** |
-| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | 874 kB | 946 kB | — | ~1.1 MB | **~1.0 MB** |
+| JS bundle | 1 156 kB (366 gzip) | 609 kB (198 gzip) | 643 kB (207 gzip) | 659 kB (212 gzip) | 692 kB (220 gzip) | 746 kB (234 gzip) | 780 kB (243 gzip) | 814 kB (252 gzip) |
+| CSS bundle | 368 kB (49 gzip) | 135 kB (19 gzip) | 144 kB (21 gzip) | 149 kB (22 gzip) | 155 kB (23 gzip) | 162 kB (24 gzip) | 172 kB (25 gzip) | 187 kB (27 gzip) |
+| UI's contribution to the binary | ~1.5 MB | 873 kB | 876 kB | 874 kB | 946 kB | — | ~1.1 MB | ~1.0 MB |
 
 The internet screen cost +34 kB of JS and +9 kB of CSS: it is the first screen
 with a form, so it pulls in the form, radio-group and skeleton components. The
@@ -157,8 +157,9 @@ where that shows up.
 It did show up: the firewall screen, together with the smaller changes that
 landed alongside it (#26–#34), cost +54 kB of JS and +7 kB of CSS, and the
 static routes screen another +33 kB and +8 kB, so the forecast above did not
-hold. What those kilobytes are made of has not been broken down yet. The last
-two columns were measured on 2026-09-27 with `vite build` at `0278c97` and
+hold. These are dated measurements, not a claim that later screens cost nothing.
+What those kilobytes are made of has not been broken down yet. The firewall and
+static-routes columns were measured on 2026-09-27 with `vite build` at `0278c97` and
 `065cbd3`; the binary figure is the difference between `-tags ui` and plain
 linux/arm64 builds with `-trimpath -ldflags '-s -w'`.
 
@@ -171,10 +172,18 @@ came out lower than the previous column (both measured the same way on
 Between that column and the Wi-Fi screen the devices actions (#53–#56) grew the
 bundle to 853 kB of JS (262 gzip) and 200 kB of CSS (29 gzip) without a column
 of their own. The Wi-Fi screen (#57) then cost +41 kB of JS and +6 kB of CSS —
-894 kB (273 gzip) and 206 kB (30 gzip) by `gzip -c`, measured with `vite build` against `13f9479`
-on 2026-09-30. The QR code generator (`qrcode-generator`, MIT, 20.6 kB, 7.3
+**894 kB (273 gzip) and 206 kB (30 gzip)** by `gzip -c`, the recorded September
+baseline (`vite build` against `13f9479`, on 2026-09-30). The QR code generator (`qrcode-generator`, MIT, 20.6 kB, 7.3
 gzip) is a separate chunk loaded only when a code is shown; the code is drawn by
 the page itself from the module grid, no markup from the library is injected.
+
+A fresh local `main` build at `1b72f89` on 2026-10-08 reported **894.81 kB JS
+(275.59 gzip), a separate 20.62 kB QR chunk (7.29 gzip), and 206.07 kB CSS
+(29.74 gzip)** using Vite's size report. The QR chunk is not part of the main
+chunk figure. Build/typecheck passed; the existing large-chunk advisory and a
+CSS-minifier warning about a leaked `:deep()` selector were recorded, not fixed
+or presented as a warning-free build. These are build measurements, not a new
+phone-performance or daemon-RSS benchmark on the Xiaomi development bench.
 
 Element Plus is registered per component (`unplugin-vue-components`) rather than
 globally: the global registration shipped every component the panel never renders.

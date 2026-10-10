@@ -43,13 +43,22 @@ Layout:
   the list says `wakeControl` only where the adapter has it. Per-device
   `rxBytes`/`txBytes` come with `traffic` (how long counted, since boot or not,
   offloading hiding part of it) — #56.
+- `wifi.go` — the optional `WiFiProvider` / `WiFiManager` (#57): radios,
+  networks, allowed channels and how the caller is connected. Passwords are
+  requested separately, never returned by the polling status call. Radio and
+  country edits are staged for the confirmation window; name/password/security
+  edits are staged by the adapter and applied at once by the API through
+  `ApplyCoordinator.ApplyNow`, only with an empty draft. Guest-network
+  management is not implemented yet (#58).
 - `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
   field it is about, returned by the API as `errors[].location`.
 - `capabilities.go` — what a device can do, and why not when it cannot. The
   `reason` is written in the panel's own words; device nodes, package names and
   errno values live in `detail`.
 - `apply.go` — the transaction: snapshot → stage → commit → confirm, with an
-  automatic revert when nobody confirms in time.
+  automatic revert when nobody confirms in time. `ApplyNow` uses the same
+  coordinator to serialize an immediate edit with other applies, but has no
+  confirmation window (Wi-Fi access edits, not radio edits).
 - `mock/` — in-memory implementations so the API layer can be tested without a
   real OS or VPN engine (with compile-time interface assertions). It is also
   what `-demo` serves, which is why its data is kept plausible and inside the

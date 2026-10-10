@@ -96,8 +96,14 @@ hardware:
 
 1. **Staging and committing are different verbs.** Everything in `*_write.go`
    writes to the uci staging area only; the transaction in `uci.go` is the one
-   thing that commits, and it does so under a watchdog that restores a
-   snapshot when nobody confirms the panel survived.
+   thing that commits. Network, firewall and Wi-Fi radio/country edits use a
+   watchdog that restores a snapshot when nobody confirms the panel survived.
+   **Wi-Fi access edits are the deliberate exception (#57):** name, password
+   and security are staged by the adapter, then committed at once through the
+   API's `ApplyCoordinator.ApplyNow`, without a confirmation window and only
+   when no other draft or apply is pending. Reverting a password does not
+   automatically bring phones back; the dialog shows the new password/QR
+   before disconnecting them.
 2. **The panel's words live in one table.** `optionLabels` in
    `network_write.go` is keyed by configuration, section ROLE and option, and
    is read both when an edit is staged and when a draft is read back off the

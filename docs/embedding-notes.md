@@ -1,7 +1,12 @@
 # Embedding the VPN engines in-process
 
-VeilBridge runs its VPN engines **inside the agent binary** — no sidecar process,
-no `exec`. This was verified empirically (a combined binary was built and run).
+> **Historical Phase 3/4 research**, not the current delivery architecture or
+> a claim that Xray ships today. The current OpenWrt product uses the AmneziaWG
+> kernel-TUN engine by default, with an in-process userspace fallback. Xray is
+> not in the shipped daemon; it is planned as a separate supervised market app
+> on the public SDK (v0.5). The combined build below was an early experiment.
+> The userspace smoke test proves that engine's own traffic, not LAN-client
+> routing (the latter is still tracked in [#47](https://github.com/veilbridge-os/veilbridge/issues/47)).
 
 ## AmneziaWG (amneziawg-go, MIT)
 
@@ -11,7 +16,8 @@ no `exec`. This was verified empirically (a combined binary was built and run).
   `s1`–`s4`, `h1`–`h4`. They parse and apply in-process.
 - **Userspace path (no root TUN):** `netstack.CreateNetTUN(...)` returns a `*Net`
   with `DialContext` / `Dial` / `ListenTCP` / `DialUDP`. The whole tunnel lives in
-  the process. This is the path VeilBridge uses.
+  the process. This is the fallback/smoke-test path, not the default engine on
+  OpenWrt devices with kernel TUN.
 
 ## Xray-core (VLESS + REALITY, MPL-2.0)
 
@@ -54,7 +60,9 @@ against the upstream `tun/netstack/tun.go`; only that one line should differ.
 - **Go toolchain:** ≥ 1.26 required (Xray declares `go 1.26`).
 - **`CGO_ENABLED=0`** → fully static binary, good for OpenWrt/musl cross-builds.
 - **Binary size (stripped `-s -w`):** Xray dominates (~27MB); AmneziaWG adds ~2MB;
-  combined ≈ **29MB**. Fine on router flash.
+  combined ≈ **29MB** in that experiment, not today's package size. Whether it
+  fits writable flash must be measured on the target, not inferred from nominal
+  flash capacity.
 - **Pin exact versions** in go.mod; gate dependency bumps behind a CI build, because
   the gVisor pin is the fragile joint between the two engines.
 

@@ -81,6 +81,22 @@ working binary to `/tmp/veilbridge.rescue-bin` before the overwrite, and
 database. Verified on the router: after installing the amd64 package on aarch64
 the panel is running again on a restored arm64 binary, with a new PID.
 
+## Firmware upgrades: known configuration-preservation gap
+
+Package-to-package upgrades are not the same as OpenWrt firmware sysupgrade.
+The current package creates `/etc/veilbridge` but does not register its generated
+configuration/data with OpenWrt's keep list. On OpenWrt 25.12.5, `sysupgrade -l`
+and an actual backup archive omitted `config.json`
+([#62](https://github.com/veilbridge-os/veilbridge/issues/62)); the older package-manager
+branch still needs the same check. No destructive firmware test was performed.
+
+**Before changing firmware, save `/etc/veilbridge/` separately in addition to the
+normal OpenWrt backup.** It contains sensitive data: protect the archive and do not
+publish it. Plan to reinstall the package after flashing. `sysupgrade -k` records
+the installed package list; it does not preserve package binaries or undeclared
+application data. A package-shipped keep declaration and upgrade/restore proof
+are still to be implemented, not a completed fix.
+
 ## Not yet built (roadmap D1+)
 
 Signed package feed (apk index; opkg index only if 24.10 support stays worth

@@ -62,7 +62,8 @@ wget -qO- https://raw.githubusercontent.com/veilbridge-os/veilbridge/main/script
 
 All of these, on the exact commit that will be tagged:
 
-1. **CI is green** on that commit on `main`.
+1. **CI is green** on that commit on `main`; on a `release/vX.Y` branch,
+   run the equivalent checks manually on the exact commit (see below).
 2. **The risk gate passed** on a VM *and* on a physical router, if anything in
    `internal/adapters` or `internal/core` changed since the previous tag:
    `scripts/m1-rollback-e2e.sh` (see its header). A VM alone is not enough — it
@@ -75,7 +76,10 @@ All of these, on the exact commit that will be tagged:
 5. **No private infrastructure leaked**: no real addresses of test machines,
    passwords or hostnames anywhere in the tree. Examples use the documentation
    ranges from RFC 5737 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`).
-6. For a **stable** release: every epic in the milestone is closed.
+6. For a **stable** release: every epic in the milestone is closed and proven.
+   Review standalone tasks/defects too; any remaining scope must be explicitly
+   handled or deferred, not silently treated as accepted. An empty open-issue
+   count alone does not replace testing the exact release commit.
 
 ## Cutting a release
 
@@ -116,9 +120,12 @@ and CPU guard, writes `SHA256SUMS` and publishes the release.
 Fixes for a line that `main` has moved past — stable or still in beta — go on
 a `release/vX.Y` branch cut from the last tag of that line (`release/v0.1` for
 `v0.1.2`, `release/v0.2` for `v0.2.0-beta2` and the rest of `v0.2`).
-Cherry-pick the fix and the release tooling, take the notes file and
-`CHANGELOG.md` from `main`, and tag from that branch. `main` keeps the
-changelog for every line.
+Cherry-pick the fix and any needed release-tooling changes; bring over the
+notes for that tag and its changelog entry, then tag from that branch. Do not
+copy `main`'s next-version `Unreleased` scope or README wholesale into an older
+line: they describe code that is not in that release. `main` keeps the
+changelog for every line. In particular, `v0.2` is stabilised on `release/v0.2`;
+the devices and Wi-Fi work on `main` belongs to `v0.3`.
 
 CI runs on `main` only, so on a release branch run its checks by hand before
 tagging, in a clean worktree: `gofmt -l`, `go vet ./...`, `go test ./...`, the

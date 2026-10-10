@@ -56,6 +56,8 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   the local network only. It acts at once, since it changes no settings. The
   panel says the signal was sent, not that the device woke: the row turns
   online if it does. A device last seen on Wi-Fi says "only over a cable".
+  Packet delivery is verified; waking a real sleeping computer on the
+  reference router is still awaiting hardware acceptance (#55 remains open).
 - **Traffic per device** (#56): received and sent, counted by the router
   itself over IPv4 and IPv6 and kept in its memory only (nothing written to
   flash), so a reboot starts it over. The count shows in each device's row,

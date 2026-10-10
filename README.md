@@ -18,8 +18,12 @@ and proof of where your traffic actually leaves.
 
 🧪 **Stable: [`v0.1.2`](https://github.com/veilbridge-os/veilbridge/releases/latest).
 Pre-release for testers: [`v0.2.0-beta2`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-beta2).**
-Everything below is verified on real hardware — an x86 OpenWrt VM and a Cudy
-WR3000S router — not on a developer's laptop. What changed in each version:
+Recorded feature acceptances use an x86 OpenWrt VM and a Cudy WR3000S router;
+Wi-Fi scenarios use the physical router. The current development bench is a
+Xiaomi AX3000T on OpenWrt 25.12.5 with a local `main` build: installation and
+read-only API/UI smoke checks have passed, not Wi-Fi, Wake-on-LAN or rollback
+acceptance on that model. This is not a published release. Released features,
+unreleased work and remaining acceptance gaps are distinguished below. What changed in each version:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
 **In the stable line (`v0.1.x`):** the tunnel comes up through the kernel
@@ -59,9 +63,10 @@ And if a confirmed change still cuts you off, `veilbridged -restore-network`
 puts the network settings back from ssh, a console or failsafe mode:
 [getting back into a router](docs/emergency-access.md).
 
-VeilBridge does **not** yet manage Wi-Fi, and no release has the devices
-screen yet: the list of who is on your network, turning off a device's
-internet and its schedule are on `main`, for `v0.3` (below). Keep LuCI around for those. See [Install](#install)
+No published release has the devices or Wi-Fi screens yet. On `main`, for
+`v0.3`, the devices list, internet block and schedule, traffic counters and
+main-network Wi-Fi settings are implemented (below); **guest Wi-Fi is not**.
+Keep LuCI around for those features when running a release. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
 ## Features (v0.1)
@@ -78,7 +83,9 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   path check and the dashboard's egress address measure the tunnel itself, not
   the traffic of your devices. Until the fix the panel stops claiming otherwise
   ([#49](https://github.com/veilbridge-os/veilbridge/issues/49))
-- **Path-aware checks** — verify traffic *actually* egresses through the tunnel, by comparing the egress IP, not by trusting `200 OK`
+- **Tunnel-egress checks** — compare the egress IP of a socket sent through
+  the tunnel with the direct IP, not just `200 OK`; this does not yet prove
+  that a LAN device or a routing rule takes that path (#47)
 - **13 languages** — UI localized (full en/ru, the rest fall back to English)
 
 ### Added in the `v0.2` line (pre-release `v0.2.0-beta2`)
@@ -114,9 +121,21 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **Internet schedule per device** — "weekdays 22:00–07:00", in the router's
   local time; the panel shows the router's clock and says when it is not
   checked against the internet
-- **Wake up a device on a cable** — Wake-on-LAN sent by the router itself
+- **Wake up a device on a cable** — Wake-on-LAN sent by the router itself;
+  the packet is verified, but waking a real sleeping computer on the reference
+  router is still awaiting hardware acceptance ([#55](https://github.com/veilbridge-os/veilbridge/issues/55))
 - **Traffic per device and "who uses the most"** — counted by the router in
-  memory only, labelled since when
+  memory only, labelled since when; with flow offloading enabled, the panel
+  warns that part of the traffic bypasses the counters
+- **Main-network Wi-Fi settings** — name, password, security, a QR code made
+  in the browser, radio on/off, channel, width and country. Radio changes use
+  the confirmation window; name/password/security changes apply at once after
+  a warning and showing the new password/QR, without automatic revert
+
+The devices and Wi-Fi epic is still open: real-machine Wake-on-LAN acceptance
+([#55](https://github.com/veilbridge-os/veilbridge/issues/55)) and guest-network
+implementation ([#58](https://github.com/veilbridge-os/veilbridge/issues/58))
+remain. None of the features in this section has shipped in a release yet.
 
 ## Roadmap
 
@@ -145,7 +164,7 @@ are cut: [`RELEASING.md`](./RELEASING.md).
    ├─ embedded UI (go:embed)
    ├─ managers (interfaces)  ← VPN / Routing / Network / System
    ├─ apply transaction      ← snapshot → commit → confirm or auto-revert
-   └─ VPN engines            ← AmneziaWG (Xray-core later)
+   └─ VPN engine             ← AmneziaWG: kernel TUN + userspace fallback
             │
             ▼
       OpenWrt adapter     ← uci / ubus / nftables / procd live here only
@@ -159,13 +178,16 @@ needs one.
 
 - **Backend / agent:** Go (single static binary, cross-compiled for x86 / ARM)
 - **Frontend:** Vue 3 + Element Plus (built to static assets, embedded into the binary)
-- **VPN:** [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) (MIT); [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0) from v0.5
+- **VPN:** [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) (MIT);
+  [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0) is planned as a
+  separate market app on the public SDK from v0.5, not embedded in today's daemon
 
 ## Install
 
-Grab a static binary from the
-[latest release](https://github.com/veilbridge-os/veilbridge/releases/latest) —
-no runtime, no dependencies, the web UI is inside the binary:
+The recommended install uses the OpenWrt package from the
+[latest release](https://github.com/veilbridge-os/veilbridge/releases/latest).
+It includes the static binary with its web UI, the service and the target's
+package dependencies; standalone binaries are also published.
 
 Run this **on the router** (`ssh root@192.168.1.1`):
 

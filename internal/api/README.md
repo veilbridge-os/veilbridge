@@ -20,6 +20,12 @@ Files:
   (`/auth/login` is the one open endpoint), handlers delegating to the adapter's
   managers, `OpenAPIYAML()` for the snapshot.
 - `dto.go` — typed input/output shapes (Huma derives schemas from these).
+- `wifi.go` — authenticated Wi-Fi operations (#57): `GET /wifi` (no
+  passwords), `GET /wifi/networks/{id}/password`, `PUT /wifi/radios/{id}` and
+  `PUT /wifi/country` (stage only), `PUT /wifi/networks/{id}` (name, password,
+  security applied at once without a confirmation window; 409 while a draft
+  or another apply is pending). Paths share the `/api/v1` prefix. Guest-network
+  operations are not implemented yet (#58).
 - `tokens.go` — HS256 JWT issue/verify; signing key derived from the bcrypt
   password hash, so changing the password invalidates outstanding tokens.
 
