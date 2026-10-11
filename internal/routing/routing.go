@@ -23,16 +23,23 @@ import (
 // wholesale on each Apply, so the operation is idempotent.
 const TableName = "veilbridge"
 
-// fwmark tags packets destined for the tunnel. The kernel engine's interface is
-// pointed at by an ip rule on this mark (set up by the OS adapter, not here).
-const TunnelMark = "0x1"
+// TunnelMark tags packets destined for the tunnel; the OS adapter routes it
+// with an ip rule into the connection's own table (D-82, D-107). It is one bit
+// of the mark, set with OR and matched under the same mask, so marks other
+// packages put on the same packets (mwan3, pbr, podkop) survive (D-73).
+const TunnelMark = "0x40000000"
 
 // Generator renders a rule set to an `nft -f` script. It holds no state; the
-// rule set is passed in so callers (adapters) own persistence.
+// rule set is passed in so callers (adapters) own persistence. Where marked
+// traffic goes is the OS adapter's business (its own routing table, #47).
 type Generator struct {
-	// TunnelIface is the name of the tunnel interface marks route to. Empty is
-	// allowed (e.g. userspace v0.1) — the script then only marks, no oif rule.
-	TunnelIface string
+	// Ingress names the interfaces of the local network. Only traffic that
+	// enters through one of them is marked: a reply coming back out of the
+	// tunnel, a port forwarded from the uplink or a guest's traffic would
+	// otherwise match a broad rule ("everything → tunnel") too and be sent
+	// back into the tunnel (#47). Empty means the local network is unknown,
+	// and Render refuses rather than marking everything.
+	Ingress []string
 }
 
 // Render produces a complete, idempotent `nft -f` script for the given rules.
@@ -42,6 +49,10 @@ type Generator struct {
 // re-apply fully replaces prior state.
 func (g Generator) Render(rules []core.RouteRule) (string, error) {
 	tunnelV4, tunnelV6, directV4, directV6, domains, err := classify(rules)
+	if err != nil {
+		return "", err
+	}
+	ingress, err := quoteIfaces(g.Ingress)
 	if err != nil {
 		return "", err
 	}
@@ -64,6 +75,11 @@ func (g Generator) Render(rules []core.RouteRule) (string, error) {
 	// an explicit direct rule wins over an overlapping tunnel rule.
 	fmt.Fprintf(&b, "  chain prerouting {\n")
 	fmt.Fprintf(&b, "    type filter hook prerouting priority mangle; policy accept;\n")
+	fmt.Fprintf(&b, "    iifname != { %s } return\n", ingress)
+	// A reply is not the LAN's choice of destination: the answer of a LAN
+	// service to a port forwarded from the uplink must leave the way the
+	// question came, not by the tunnel a broad rule names.
+	fmt.Fprintf(&b, "    ct direction reply return\n")
 	if len(directV4) > 0 {
 		fmt.Fprintf(&b, "    ip daddr @direct4 return\n")
 	}
@@ -71,10 +87,10 @@ func (g Generator) Render(rules []core.RouteRule) (string, error) {
 		fmt.Fprintf(&b, "    ip6 daddr @direct6 return\n")
 	}
 	if len(tunnelV4) > 0 {
-		fmt.Fprintf(&b, "    ip daddr @tunnel4 meta mark set %s\n", TunnelMark)
+		fmt.Fprintf(&b, "    ip daddr @tunnel4 meta mark set meta mark | %s\n", TunnelMark)
 	}
 	if len(tunnelV6) > 0 {
-		fmt.Fprintf(&b, "    ip6 daddr @tunnel6 meta mark set %s\n", TunnelMark)
+		fmt.Fprintf(&b, "    ip6 daddr @tunnel6 meta mark set meta mark | %s\n", TunnelMark)
 	}
 	fmt.Fprintf(&b, "  }\n")
 	fmt.Fprintf(&b, "}\n")
@@ -139,4 +155,21 @@ func writeSet(b *strings.Builder, name, typ string, elems []string) {
 		fmt.Fprintf(b, " elements = { %s };", strings.Join(elems, ", "))
 	}
 	fmt.Fprintf(b, " }\n")
+}
+
+// quoteIfaces renders interface names for an nft set. Names come from the
+// router's own configuration; anything outside what a Linux interface name
+// can hold is refused rather than written into the script.
+func quoteIfaces(names []string) (string, error) {
+	if len(names) == 0 {
+		return "", fmt.Errorf("routing: the local network's interfaces are unknown")
+	}
+	q := make([]string, 0, len(names))
+	for _, n := range names {
+		if n == "" || len(n) > 15 || strings.ContainsAny(n, "\"\\ \t\n;{}") {
+			return "", fmt.Errorf("routing: bad interface name %q", n)
+		}
+		q = append(q, `"`+n+`"`)
+	}
+	return strings.Join(q, ", "), nil
 }

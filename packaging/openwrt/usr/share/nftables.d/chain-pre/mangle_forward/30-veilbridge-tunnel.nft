@@ -1,0 +1,9 @@
+# VeilBridge (#47): the tunnel's MTU (1420, set by the engine) is smaller than
+# the LAN's; clamp TCP's segment size to it, as fw4 does for a zone with
+# mtu_fix. Out of the tunnel's interface the route's MTU is the tunnel's. Into
+# it, the answer's route points at the LAN (1500), and the tunnel's own route
+# is in its table, not main, so the size is stated: 1420 minus the IPv4 (40)
+# or IPv6 (60) headers.
+oifname "awg0" tcp flags syn tcp option maxseg size set rt mtu comment "VeilBridge: MSS clamping into the tunnel"
+iifname "awg0" meta nfproto ipv4 tcp flags syn tcp option maxseg size > 1380 tcp option maxseg size set 1380 comment "VeilBridge: MSS clamping from the tunnel (IPv4)"
+iifname "awg0" meta nfproto ipv6 tcp flags syn tcp option maxseg size > 1360 tcp option maxseg size set 1360 comment "VeilBridge: MSS clamping from the tunnel (IPv6)"

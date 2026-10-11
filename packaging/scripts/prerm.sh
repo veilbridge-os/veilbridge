@@ -27,4 +27,23 @@ if [ -x /etc/init.d/veilbridge ]; then
 	fi
 fi
 
+# A real removal also takes out the routing the panel put in the kernel (#47):
+# the rules that send marked traffic into the tunnel's table or refuse it, the
+# two tables, and the table that marks the traffic. Left behind, addresses a
+# rule sent to the tunnel would stay unreachable with no panel to say why.
+# An upgrade keeps them: the new panel puts back the same ones on start.
+if [ "${1:-remove}" != "upgrade" ]; then
+	for fam in -4 -6; do
+		for prio in 30089 30090 30100 30101 30102 30103; do
+			i=0
+			while [ $i -lt 8 ] && ip $fam rule del priority $prio >/dev/null 2>&1; do
+				i=$((i + 1))
+			done
+		done
+		ip $fam route flush table 147 >/dev/null 2>&1 || true
+		ip $fam route flush table 148 >/dev/null 2>&1 || true
+	done
+	nft delete table inet veilbridge >/dev/null 2>&1 || true
+fi
+
 exit 0

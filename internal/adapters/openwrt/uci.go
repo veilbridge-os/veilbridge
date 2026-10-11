@@ -71,6 +71,9 @@ var allowedCommands = map[string]bool{
 	// Per-device traffic (#56, D-99): the panel's own counting table, read
 	// and put in place with nft. Nothing else in fw4's tables is touched.
 	nftProgram: true,
+	// The connection's own routing table and rules (#47, D-107); main is
+	// netifd's and is not written.
+	ipProgram: true,
 }
 
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {

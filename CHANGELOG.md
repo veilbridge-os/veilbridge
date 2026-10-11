@@ -124,6 +124,23 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   other edits are refused until it is applied or discarded.
 
 ### Fixed
+- **A subnet rule "through the tunnel" now sends the traffic through the
+  tunnel** (#47). Until now it marked the packets and nothing routed the mark,
+  so the traffic left by the uplink, and devices on the local network could
+  not reach the tunnel at all (the router's firewall refused it). The tunnel
+  now has its own routing table: the networks of a connection are reachable
+  from the whole local network (under the router's address), and only traffic
+  a rule sends there leaves by a connection to the internet. When the
+  connection is down, traffic a rule sends to it is refused instead of
+  quietly leaving by the provider, as with a Keenetic policy that holds one
+  connection. The panel's own screen still says the rules are not in effect;
+  it is redone separately before the release, together with a check of a
+  given address.
+- **The tunnel comes back after the panel restarts** (#47). The panel did not
+  bring the active node up again when it started, and it restarted on its own
+  after a change of the network settings that followed an import or an
+  activation, so the tunnel silently stayed down. It also stops at once now,
+  instead of being killed after five seconds.
 - "In the network now" on the local network screen counted address leases, so
   a phone that left an hour ago was still counted there while the devices
   screen showed it away (#60). Both screens now count the same devices — the

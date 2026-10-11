@@ -60,6 +60,19 @@ chmod 0700 /etc/veilbridge 2>/dev/null || true
 
 /etc/init.d/veilbridge enable 2>/dev/null || true
 
+# The package ships rules for the tunnel into fw4's include directory (#47);
+# fw4 reads them on reload only.
+# fw4 builds its ruleset from the uci view that includes a draft staged in
+# the panel and not applied yet (measured), so reloading it here would put
+# that draft live with no confirmation window. With a draft pending, the
+# tunnel's rules wait for the next apply, which reloads the firewall anyway.
+if [ -z "$(uci -q changes firewall)" ]; then
+	fw4 -q reload >/dev/null 2>&1 || true
+else
+	echo "veilbridge: the firewall has changes that are not applied yet; the tunnel's"
+	echo "  firewall rules take effect with the next apply (or: fw4 reload after it)."
+fi
+
 if [ -f "$CONF" ]; then
 	# Upgrade path: the panel was already configured, so bring it back up.
 	# Quietly — prerm already stopped it, so procd's stop step would otherwise

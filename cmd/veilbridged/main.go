@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -119,6 +120,16 @@ func main() {
 			"(the daemon stopped inside the confirmation window)")
 	}
 
+	// Bring back what a restart loses: the tunnel's rules, the routing rules
+	// and the active node (#47, D-107). After the pending-apply recovery, so
+	// it restores the configuration that is actually in force. Only adapters
+	// that hold such state offer it.
+	if r, ok := adapter.(interface{ Restore() error }); ok {
+		if err := r.Restore(); err != nil {
+			log.Printf("WARNING: could not restore the tunnel and routing: %v", err)
+		}
+	}
+
 	// Start recording the device's vitals before serving. Sampling is not tied
 	// to a connected client: a dashboard opened at 09:00 has to show what the
 	// router was doing at 08:00, and a graph that only records while somebody
@@ -134,11 +145,19 @@ func main() {
 		addr = ":8080"
 	}
 
+	// Every request's context derives from this one, and shutting down cancels
+	// it: live streams (SSE) end at once instead of holding Shutdown until its
+	// deadline. Before, procd's 5 s stop timeout ran out first and the daemon
+	// was killed on every restart (D-107).
+	baseCtx, cancelRequests := context.WithCancel(context.Background())
+	defer cancelRequests()
 	httpSrv := &http.Server{
 		Addr:              addr,
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return baseCtx },
 	}
+	httpSrv.RegisterOnShutdown(cancelRequests)
 
 	// Graceful shutdown on SIGINT/SIGTERM.
 	go func() {
@@ -153,11 +172,10 @@ func main() {
 	<-stop
 	log.Println("shutting down…")
 
-	// Live streams (SSE) are long-lived by design, so a graceful shutdown will
-	// routinely hit this deadline rather than exceptionally: Shutdown waits for
-	// open connections, and an EventSource holds one open for as long as the
-	// tab is. The timeout is what turns "wait for clients" into "leave anyway".
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Live streams end when their context is cancelled (above); the timeout
+	// still bounds a handler that does not watch its context. procd sends
+	// SIGKILL 5 s after SIGTERM, so stay well inside that.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := httpSrv.Shutdown(ctx); err != nil {
 		log.Printf("shutdown (live streams may have been cut): %v", err)

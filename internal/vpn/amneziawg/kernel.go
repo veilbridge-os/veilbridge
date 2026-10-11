@@ -33,6 +33,8 @@ type kernelEngine struct {
 
 // NewKernelEngine returns an Engine that tunnels via a kernel TUN interface.
 func NewKernelEngine() vpn.Engine {
+	// The package's firewall include states the MSS for this MTU and matches
+	// this name (packaging/openwrt/usr/share/nftables.d): change them together.
 	return &kernelEngine{mtu: 1420, name: "awg0"}
 }
 
@@ -62,6 +64,9 @@ func (e *kernelEngine) Up(cfg vpn.NodeConfig) error {
 		dev.Close()
 		return fmt.Errorf("amneziawg: build uapi: %w", err)
 	}
+	// Mark the encrypted socket so it is routed outside the tunnel (see
+	// vpn.BypassMark). An interface-level key, so it goes before the peer.
+	uapi = fmt.Sprintf("fwmark=%d\n", vpn.BypassMark) + uapi
 	if err := dev.IpcSet(uapi); err != nil {
 		dev.Close()
 		return fmt.Errorf("amneziawg: ipc set: %w", err)
@@ -71,9 +76,9 @@ func (e *kernelEngine) Up(cfg vpn.NodeConfig) error {
 		return fmt.Errorf("amneziawg: device up: %w", err)
 	}
 
-	// Bring the OS interface up with its tunnel address and route the AllowedIPs
-	// into it. `ip` is present on OpenWrt (busybox or ip-full), so this stays
-	// portable across targets instead of binding to a netlink library.
+	// Bring the OS interface up with its tunnel address. `ip` is present on
+	// OpenWrt (busybox or ip-full), so this stays portable across targets
+	// instead of binding to a netlink library.
 	if err := e.configureLink(cfg); err != nil {
 		dev.Close()
 		return fmt.Errorf("amneziawg: configure link: %w", err)
@@ -84,32 +89,15 @@ func (e *kernelEngine) Up(cfg vpn.NodeConfig) error {
 	return nil
 }
 
-// configureLink assigns the tunnel address and AllowedIPs routes to the kernel
-// interface. The endpoint route (so the encrypted UDP itself doesn't recurse
-// into the tunnel) is the routing manager's job, not the engine's.
+// configureLink assigns the tunnel address and brings the interface up. It
+// routes nothing: the connection's networks go into its own table, which the
+// OS adapter owns (D-73, D-82). Writing them into the main table took the
+// table away from netifd and made marked traffic follow the uplink (#47).
 func (e *kernelEngine) configureLink(cfg vpn.NodeConfig) error {
 	if err := ipCmd("addr", "add", cfg.Address, "dev", e.name); err != nil {
 		return err
 	}
-	if err := ipCmd("link", "set", "up", "dev", e.name); err != nil {
-		return err
-	}
-	allowed := cfg.AllowedIPs
-	if len(allowed) == 0 {
-		allowed = []string{"0.0.0.0/0", "::/0"}
-	}
-	for _, a := range allowed {
-		// A /0 default would hijack the host's own egress; transparent routing
-		// of client traffic is the routing manager's concern. The engine only
-		// needs the link reachable, so skip catch-all routes here.
-		if a == "0.0.0.0/0" || a == "::/0" {
-			continue
-		}
-		if err := ipCmd("route", "replace", a, "dev", e.name); err != nil {
-			return err
-		}
-	}
-	return nil
+	return ipCmd("link", "set", "up", "dev", e.name)
 }
 
 func (e *kernelEngine) Down() error {

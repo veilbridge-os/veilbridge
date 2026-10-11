@@ -1,0 +1,8 @@
+# VeilBridge (#47): the LAN may send traffic into the panel's tunnel. The
+# tunnel's interface is in no fw4 zone, and fw4 rejects forwarding to an
+# interface outside its zones; a rule in another nftables table cannot undo
+# that (measured), so it lives here, in fw4's own chain, through fw4's include
+# directory. At the end of the chain: the owner's own rules for traffic from
+# the LAN come first and still apply to traffic bound for the tunnel. Guests
+# are not let in: this is the lan zone's chain only.
+oifname "awg0" counter accept comment "VeilBridge: LAN to the tunnel"

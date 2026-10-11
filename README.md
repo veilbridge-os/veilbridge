@@ -78,9 +78,10 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
 - **One-click exit switch** — change the active exit node from the UI
 - **Dashboard** — WAN IP, tunnel egress IP, tunnel status, CPU / RAM / uptime
 - **Routing control** — choose which domains/subnets go through the tunnel vs direct (nftables).
-  ⚠️ **Does not route traffic yet.** A subnet rule marks the traffic but nothing
-  routes the mark, so it does not go through the tunnel
-  ([#47](https://github.com/veilbridge-os/veilbridge/issues/47), planned for `v0.3`);
+  ⚠️ **In released versions it does not route traffic.** A subnet rule marks
+  the traffic but nothing routes the mark, so it does not go through the
+  tunnel. `main` routes it since #47 (not released yet; the panel's rules
+  screen is being redone for it, [#47](https://github.com/veilbridge-os/veilbridge/issues/47));
   domain rules are only recorded and wait for DNS interception (`v0.4`). The
   path check and the dashboard's egress address measure the tunnel itself, not
   the traffic of your devices. Until the fix the panel stops claiming otherwise

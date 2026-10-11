@@ -15,6 +15,16 @@ Files:
   tunnel engine by probing the kernel (kernel TUN, or the userspace fallback)
 - `wiring.go` — the adapter struct and the engine-injecting constructor
 - `vpn.go`, `routing.go`, `system.go` — one manager each
+- `tunnel_route.go` - the active connection in the kernel's routing (#47):
+  its own table instead of main, rules ahead of main (the engine's own
+  socket bypasses the tunnel; traffic a rule marks takes the table, or is
+  refused when the connection is down; everything else takes the router's
+  own networks first, then the connection's networks), all with `ip`, which
+  BusyBox provides. The firewall side is shipped by the package into fw4's
+  include directory (`packaging/openwrt/usr/share/nftables.d`), into the
+  chains of the zone named `lan`, OpenWrt's default: with the local network
+  in a zone under another name, routing rules are refused with that reason.
+  `Restore` puts all of it and the active node back after a restart
 - `network.go` — reading L3 interfaces and identifying the uplink
 - `network_write.go` — staging uplink edits, the words the panel uses for a
   configuration key, and reading a draft back off the device

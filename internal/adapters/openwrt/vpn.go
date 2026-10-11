@@ -4,8 +4,11 @@
 package openwrt
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"sync"
+	"time"
 
 	"github.com/veilbridge-os/veilbridge/internal/config"
 	"github.com/veilbridge-os/veilbridge/internal/core"
@@ -19,12 +22,24 @@ type vpnManager struct {
 	mu     sync.Mutex
 	store  *config.Store
 	engine vpn.Engine
+	// router routes a kernel engine's interface (#47); nil when the engine
+	// has no interface to route.
+	router connectionRouter
 	// up tracks the ID of the node the engine is currently running, "" if down.
 	up string
+	// retry is how long bringBack waits between attempts; tests shorten it.
+	retry time.Duration
+}
+
+// connectionRouter is what vpnManager needs from tunnelRouter; tests fake it.
+type connectionRouter interface {
+	Ensure() error
+	Up(dev string, allowed []string) error
+	Down() error
 }
 
 func newVPNManager(store *config.Store, engine vpn.Engine) *vpnManager {
-	return &vpnManager{store: store, engine: engine}
+	return &vpnManager{store: store, engine: engine, retry: 30 * time.Second}
 }
 
 func (m *vpnManager) ImportConfig(raw []byte) ([]core.Node, error) {
@@ -91,7 +106,12 @@ func (m *vpnManager) RemoveNode(id string) error {
 	// If the node being removed is active, tear the tunnel down first.
 	if m.up == id {
 		_ = m.engine.Down()
+		m.unroute()
 		m.up = ""
+	}
+	// Chosen but not up (still being brought back after a restart) counts
+	// too: a removed node must not stay the one to bring back.
+	if doc.Settings.ActiveNodeID == id {
 		doc.Settings.ActiveNodeID = ""
 	}
 	doc.Nodes = append(doc.Nodes[:idx], doc.Nodes[idx+1:]...)
@@ -101,6 +121,11 @@ func (m *vpnManager) RemoveNode(id string) error {
 func (m *vpnManager) Activate(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.activateLocked(id)
+}
+
+// activateLocked is Activate with m.mu already held.
+func (m *vpnManager) activateLocked(id string) error {
 	doc, err := m.store.Load()
 	if err != nil {
 		return err
@@ -118,15 +143,28 @@ func (m *vpnManager) Activate(id string) error {
 	// Bring the current tunnel down before switching (one engine, one tunnel).
 	if m.up != "" {
 		_ = m.engine.Down()
+		m.unroute()
 		m.up = ""
 	}
 	cfg := amneziawg.ToNodeConfig(sn.Endpoint, sn.Secret)
 	if err := m.engine.Up(cfg); err != nil {
 		return fmt.Errorf("openwrt: activate %q: %w", id, err)
 	}
+	if err := m.route(cfg.AllowedIPs); err != nil {
+		// A tunnel nothing routes into is the defect #47 was about; do not
+		// report it as up.
+		_ = m.engine.Down()
+		m.unroute()
+		return fmt.Errorf("openwrt: activate %q: route the tunnel: %w", id, err)
+	}
 	m.up = id
-	doc.Settings.ActiveNodeID = id
-	return m.store.Save(doc)
+	// Save only the choice, on a fresh read: bringing the tunnel up can take
+	// a while (DNS, routing), and writing back the document read before it
+	// would undo whatever else was saved meanwhile (rules, device names).
+	return m.store.Update(func(d *config.Document) error {
+		d.Settings.ActiveNodeID = id
+		return nil
+	})
 }
 
 func (m *vpnManager) Status(id string) (core.NodeStatus, error) {
@@ -189,4 +227,86 @@ func (m *vpnManager) activeTunName() string {
 		return ""
 	}
 	return ie.TunName()
+}
+
+// route fills the connection's table for a kernel engine's interface. A
+// userspace engine has no interface, so there is nothing to route.
+func (m *vpnManager) route(allowed []string) error {
+	ie, ok := m.engine.(vpn.InterfaceEngine)
+	if m.router == nil || !ok || ie.TunName() == "" {
+		return nil
+	}
+	return m.router.Up(ie.TunName(), allowed)
+}
+
+// ensureRules puts the tunnel's routing rules in place for a kernel engine;
+// a userspace engine has no interface and nothing to route.
+func (m *vpnManager) ensureRules() error {
+	if _, ok := m.engine.(vpn.InterfaceEngine); !ok || m.router == nil {
+		return nil
+	}
+	return m.router.Ensure()
+}
+
+func (m *vpnManager) unroute() {
+	if m.router != nil {
+		_ = m.router.Down()
+	}
+}
+
+// Restore brings back what a restart loses: the rules (so traffic marked for
+// the tunnel is refused rather than leaking while nothing is up) and the node
+// that was active. Without it the tunnel silently stayed down after any
+// restart of the service, including the one procd makes after a network
+// reload (D-107).
+//
+// The rules go in now; the node comes up in the background, retrying until it
+// does: at boot the server's name may not resolve yet, and the panel should
+// not wait for it to start serving.
+func (m *vpnManager) Restore() error {
+	var err error
+	if _, ok := m.engine.(vpn.InterfaceEngine); ok && m.router != nil {
+		if e := m.router.Ensure(); e != nil {
+			err = fmt.Errorf("openwrt: tunnel rules: %w", e)
+		}
+	}
+	doc, lerr := m.store.Load()
+	if lerr != nil {
+		return errors.Join(err, lerr)
+	}
+	if id := doc.Settings.ActiveNodeID; id != "" {
+		go m.bringBack(id)
+	}
+	return err
+}
+
+// bringBack activates id until it is up, or until somebody chose otherwise:
+// another node activated, or this one removed or deactivated. The choice is
+// checked under the same lock activation takes, so a node the person
+// activates meanwhile is never torn down to bring back the old one.
+func (m *vpnManager) bringBack(id string) {
+	for {
+		done, err := m.bringBackOnce(id)
+		if done {
+			return
+		}
+		log.Printf("tunnel: could not bring back node %s, retrying in %s: %v", id, m.retry, err)
+		time.Sleep(m.retry)
+	}
+}
+
+func (m *vpnManager) bringBackOnce(id string) (done bool, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	doc, err := m.store.Load()
+	if err != nil {
+		return false, err
+	}
+	if m.up != "" || doc.Settings.ActiveNodeID != id {
+		return true, nil
+	}
+	if err := m.activateLocked(id); err != nil {
+		return false, err
+	}
+	return true, nil
 }

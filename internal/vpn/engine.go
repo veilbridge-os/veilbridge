@@ -74,3 +74,9 @@ type Engine interface {
 type InterfaceEngine interface {
 	TunName() string
 }
+
+// BypassMark is the fwmark a kernel engine puts on its own encrypted UDP
+// socket. The OS adapter routes this mark by the main table, ahead of the
+// tunnel's rules, so the packets that carry the tunnel never enter it, even
+// when the tunnel's networks include the server's own address (D-107).
+const BypassMark = 0x20000000

@@ -71,6 +71,24 @@ contents:
     file_info:
       mode: 0644
 
+  # The tunnel's place in the router's firewall (#47): fw4 includes files
+  # from these directories into its own chains on every reload, on both
+  # OpenWrt branches (measured 23.05 and 25.12). Shipped files rather than
+  # uci sections: the panel never commits the firewall config on its own,
+  # which would also commit a draft the user has not applied yet.
+  - src: packaging/openwrt/usr/share/nftables.d/chain-post/forward_lan/30-veilbridge-tunnel.nft
+    dst: /usr/share/nftables.d/chain-post/forward_lan/30-veilbridge-tunnel.nft
+    file_info:
+      mode: 0644
+  - src: packaging/openwrt/usr/share/nftables.d/chain-pre/srcnat/30-veilbridge-tunnel.nft
+    dst: /usr/share/nftables.d/chain-pre/srcnat/30-veilbridge-tunnel.nft
+    file_info:
+      mode: 0644
+  - src: packaging/openwrt/usr/share/nftables.d/chain-pre/mangle_forward/30-veilbridge-tunnel.nft
+    dst: /usr/share/nftables.d/chain-pre/mangle_forward/30-veilbridge-tunnel.nft
+    file_info:
+      mode: 0644
+
 scripts:
   # Generated at build time from packaging/scripts/preinst.sh.in with the target
   # CPU substituted: nfpm does not expand env vars inside script files, so the

@@ -2,6 +2,8 @@ package openwrt
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/veilbridge-os/veilbridge/internal/adapters/openwrt/ubus"
@@ -39,6 +41,7 @@ type Adapter struct {
 func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapter {
 	store := config.NewStore(configPath)
 	v := newVPNManager(store, engine)
+	v.router = newTunnelRouter(runCommand)
 	// One ubus client is shared by every manager that needs the device's own
 	// account of itself: the client is stateless and each call forks once, so
 	// sharing costs nothing and keeps "who talks to ubus" a short list.
@@ -46,9 +49,12 @@ func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapt
 	s := newSystemManager(v, bus)
 	s.platform = platform
 	n := newNetworkManager(bus)
+	r := newRoutingManager(store)
+	r.lan = n.lanDevices
+	r.ensure = v.ensureRules
 	return &Adapter{
 		vpn:      v,
-		routing:  newRoutingManager(store),
+		routing:  r,
 		system:   s,
 		network:  n,
 		device:   newDeviceManager(n, bus),
@@ -57,6 +63,25 @@ func NewWithEngine(configPath string, engine vpn.Engine, platform string) *Adapt
 		platform: platform,
 		caps:     newSysProbe().Capabilities(),
 	}
+}
+
+// Restore puts back what does not survive a restart of the service or the
+// router: the tunnel's rules, the routing rules' nftables table and the node
+// that was active (#47, D-107). The daemon calls it once at start; errors are
+// reported, not fatal: a panel that refuses to start fixes nothing.
+func (a *Adapter) Restore() error {
+	// The tunnel's rules first, then marking: routing.Apply marks nothing
+	// unless those rules are in place, so a marked packet never finds the
+	// way out by the uplink, not even during start.
+	var errs []error
+	if err := a.vpn.Restore(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := a.routing.Apply(); err != nil {
+		errs = append(errs, fmt.Errorf("openwrt: routing rules (retrying in the background): %w", err))
+		go a.routing.applyUntilDone()
+	}
+	return errors.Join(errs...)
 }
 
 func (a *Adapter) Platform() string             { return a.platform }

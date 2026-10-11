@@ -414,7 +414,7 @@ func tunnelClient(d vpn.Dialer) *http.Client {
 func (m *systemManager) egressViaInterface(ifname string) string {
 	dialer := &net.Dialer{
 		Timeout: 15 * time.Second,
-		Control: bindToDevice(ifname),
+		Control: bindToTunnel(ifname),
 	}
 	client := &http.Client{
 		Timeout: 15 * time.Second,

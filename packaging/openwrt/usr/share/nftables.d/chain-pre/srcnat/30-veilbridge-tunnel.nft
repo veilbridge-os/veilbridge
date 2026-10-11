@@ -1,0 +1,4 @@
+# VeilBridge (#47): the LAN reaches the far side under the router's tunnel
+# address. The far side does not know the LAN's addresses, so without this its
+# answers never come back (measured).
+oifname "awg0" counter masquerade comment "VeilBridge: LAN to the tunnel under the router's address"

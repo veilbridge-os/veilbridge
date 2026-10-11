@@ -13,6 +13,19 @@ set -e
 # something that never happened, so stay quiet unless this is a real removal.
 [ "${1:-remove}" = "upgrade" ] && exit 0
 
+# The tunnel's firewall rules went with the package files; take them out of
+# the live ruleset too.
+# fw4 builds its ruleset from the uci view that includes a draft staged in
+# the panel and not applied yet (measured), so reloading it here would put
+# that draft live with no confirmation window. With a draft pending, the
+# tunnel's rules wait for the next apply, which reloads the firewall anyway.
+if [ -z "$(uci -q changes firewall)" ]; then
+	fw4 -q reload >/dev/null 2>&1 || true
+else
+	echo "veilbridge: the firewall has changes that are not applied yet; the tunnel's"
+	echo "  firewall rules take effect with the next apply (or: fw4 reload after it)."
+fi
+
 if [ -d /etc/veilbridge ]; then
 	echo "veilbridge: kept /etc/veilbridge (VPN keys and settings)."
 	echo "  Remove it yourself if you are done: rm -rf /etc/veilbridge"

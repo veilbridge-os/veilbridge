@@ -10,3 +10,8 @@ import "syscall"
 func bindToDevice(string) func(network, address string, c syscall.RawConn) error {
 	return func(string, string, syscall.RawConn) error { return nil }
 }
+
+// bindToTunnel is a no-op off Linux, like bindToDevice.
+func bindToTunnel(string) func(network, address string, c syscall.RawConn) error {
+	return func(string, string, syscall.RawConn) error { return nil }
+}

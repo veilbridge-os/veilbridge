@@ -26,3 +26,23 @@ func bindToDevice(ifname string) func(network, address string, c syscall.RawConn
 		return serr
 	}
 }
+
+// bindToTunnel pins a probe socket to the tunnel's interface and marks it as
+// traffic sent to the tunnel, so it takes the connection's own table (#47):
+// the main table no longer holds the tunnel's routes, and the interface alone
+// does not select the table.
+func bindToTunnel(ifname string) func(network, address string, c syscall.RawConn) error {
+	bind := bindToDevice(ifname)
+	return func(network, address string, c syscall.RawConn) error {
+		if err := bind(network, address, c); err != nil || ifname == "" {
+			return err
+		}
+		var serr error
+		if err := c.Control(func(fd uintptr) {
+			serr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, tunnelMarkValue)
+		}); err != nil {
+			return err
+		}
+		return serr
+	}
+}
