@@ -48,8 +48,11 @@ Layout:
   requested separately, never returned by the polling status call. Radio and
   country edits are staged for the confirmation window; name/password/security
   edits are staged by the adapter and applied at once by the API through
-  `ApplyCoordinator.ApplyNow`, only with an empty draft. Guest-network
-  management is not implemented yet (#58).
+  `ApplyCoordinator.ApplyNow`, only with an empty draft. The guest network
+  (#58) is the optional `WiFiGuestManager`: making, turning off and removing it
+  are staged for the confirmation window; `WiFiGuest` in the status says its
+  state, whether it is on the air now, and why guests could not be kept from
+  the home network when that is so (`blocked`).
 - `refusal.go` — `FieldError` / `Refuse`: a refusal that names the request
   field it is about, returned by the API as `errors[].location`.
 - `capabilities.go` — what a device can do, and why not when it cannot. The
@@ -58,7 +61,9 @@ Layout:
 - `apply.go` — the transaction: snapshot → stage → commit → confirm, with an
   automatic revert when nobody confirms in time. `ApplyNow` uses the same
   coordinator to serialize an immediate edit with other applies, but has no
-  confirmation window (Wi-Fi access edits, not radio edits).
+  confirmation window (Wi-Fi access edits, not radio edits). `Stage` runs a
+  multi-step staging under the same lock (no apply lands half-way through it),
+  and `Exclusive` serializes dropping the draft with it.
 - `mock/` — in-memory implementations so the API layer can be tested without a
   real OS or VPN engine (with compile-time interface assertions). It is also
   what `-demo` serves, which is why its data is kept plausible and inside the

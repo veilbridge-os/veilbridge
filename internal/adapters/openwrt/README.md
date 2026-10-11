@@ -80,6 +80,15 @@ Files:
   staged here and applied at once by the API (D-100). `wireless` is in the
   draft but not in the emergency restore: a password put back that way would
   strand every device that took the new one
+- `wifi_guest.go` - the guest network (#58): one bridge for every radio,
+  access points isolated by `isolate` and `bridge_isolate`, a firewall zone
+  that lets guests to the internet only (DHCP, DNS and neighbour discovery to
+  the router; private addresses upstream refused), all under the panel's own
+  section names. It recognises a guest network made by hand and leaves it
+  alone, checks a live configuration for anything that would let guests
+  through (rules or forwardings from every zone, a shared uplink zone, zones
+  bound by device or subnet, changed protections) and folds the dozen sections
+  into one row of the apply bar
 - `uci.go` — the apply transaction (snapshot, commit, revert) and the
   allow-list of programs this package may execute
 - `journal.go` — the on-disk apply journal, so a revert survives the daemon
