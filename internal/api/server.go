@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -724,7 +725,7 @@ func (s *Server) stagePortForward(_ context.Context, in *StagePortForwardInput) 
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StagePortForward(in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StagePortForward(in.Body) })
 	return stagedOr("staging a port forward", changes, err)
 }
 
@@ -736,7 +737,7 @@ func (s *Server) removePortForward(_ context.Context, in *RemovePortForwardInput
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.RemovePortForward(in.ID)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.RemovePortForward(in.ID) })
 	return stagedOr("removing a port forward", changes, err)
 }
 
@@ -748,7 +749,7 @@ func (s *Server) stageFirewallRule(_ context.Context, in *StageFirewallRuleInput
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageRule(in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageRule(in.Body) })
 	return stagedOr("staging a firewall rule", changes, err)
 }
 
@@ -760,7 +761,7 @@ func (s *Server) removeFirewallRule(_ context.Context, in *RemoveFirewallRuleInp
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.RemoveRule(in.ID)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.RemoveRule(in.ID) })
 	return stagedOr("removing a firewall rule", changes, err)
 }
 
@@ -772,7 +773,7 @@ func (s *Server) moveFirewallRule(_ context.Context, in *MoveFirewallRuleInput) 
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.MoveRule(in.ID, in.Body.Before)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.MoveRule(in.ID, in.Body.Before) })
 	return stagedOr("moving a firewall rule", changes, err)
 }
 
@@ -801,7 +802,7 @@ func (s *Server) stageStaticRoute(_ context.Context, in *StageStaticRouteInput) 
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageStaticRoute(in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageStaticRoute(in.Body) })
 	return stagedOr("staging a static route", changes, err)
 }
 
@@ -813,7 +814,7 @@ func (s *Server) removeStaticRoute(_ context.Context, in *RemoveStaticRouteInput
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.RemoveStaticRoute(in.ID)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.RemoveStaticRoute(in.ID) })
 	return stagedOr("removing a static route", changes, err)
 }
 
@@ -840,6 +841,47 @@ func stagedOr(what string, changes []core.ConfigChange, err error) (*ChangesOutp
 	return changesOutput(changes), nil
 }
 
+// lockedStage runs one staging under the apply coordinator's lock, so it can
+// neither interleave with an apply nor with another staging (review of #58: a
+// firewall edit failing next to a guest network's staging reverted the whole
+// firewall draft and left the guest network without its zone). For the same
+// reason it refuses while a guest network waits in the draft: the writers
+// still drop a whole file's draft when their own edit fails, and the guest
+// network would be left without its firewall half for the next apply.
+func (s *Server) lockedStage(fn func() ([]core.ConfigChange, error)) ([]core.ConfigChange, error) {
+	var changes []core.ConfigChange
+	err := s.apply.Exclusive(func() (err error) {
+		if nw, ok := s.writer(); ok {
+			staged, err := nw.StagedChanges()
+			switch {
+			case err != nil && !errors.Is(err, core.ErrNotImplemented):
+				// Unknown is not "no guest network pending" (review of #58).
+				return fmt.Errorf("%w: %w", errDraftUnreadable, err)
+			case guestDraftPending(staged):
+				return errGuestDraftPending
+			}
+		}
+		changes, err = fn()
+		return err
+	})
+	return changes, err
+}
+
+// errGuestDraftPending: a guest network waits in the draft (see lockedStage).
+var errGuestDraftPending = errors.New("a guest network waits in the draft: apply or discard it first")
+
+func guestDraftPending(staged []core.ConfigChange) bool {
+	for _, c := range staged {
+		if c.LabelKey == guestLabelKey {
+			return true
+		}
+	}
+	return false
+}
+
+// guestLabelKey is the one apply-bar row of the guest network (#58).
+const guestLabelKey = "wireless.guest.section"
+
 // refuseWhileApplying keeps a second draft off a live transaction: the
 // operator would otherwise confirm two edits having reviewed one, and the
 // snapshot would roll both back.
@@ -858,7 +900,7 @@ func (s *Server) stageLAN(_ context.Context, in *StageLANInput) (*ChangesOutput,
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageLAN(in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageLAN(in.Body) })
 	return stagedOr("staging the local network", changes, err)
 }
 
@@ -870,7 +912,7 @@ func (s *Server) stageHandout(_ context.Context, in *StageHandoutInput) (*Change
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageHandout(in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageHandout(in.Body) })
 	return stagedOr("staging the address handout", changes, err)
 }
 
@@ -882,7 +924,7 @@ func (s *Server) stageReservation(_ context.Context, in *StageReservationInput) 
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageReservation(in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageReservation(in.Body) })
 	return stagedOr("staging a reserved address", changes, err)
 }
 
@@ -894,7 +936,7 @@ func (s *Server) removeReservation(_ context.Context, in *RemoveReservationInput
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.RemoveReservation(in.ID)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.RemoveReservation(in.ID) })
 	return stagedOr("staging the removal of a reserved address", changes, err)
 }
 
@@ -914,7 +956,7 @@ func (s *Server) stageWAN(_ context.Context, in *StageWANInput) (*ChangesOutput,
 	if st := s.apply.State(); st.Phase == core.PhaseAwaitingConfirm {
 		return nil, huma.Error409Conflict("a change is already waiting for confirmation")
 	}
-	changes, err := w.StageWAN(in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageWAN(in.Body) })
 	if err != nil {
 		if errors.Is(err, core.ErrNotImplemented) {
 			return nil, huma.Error501NotImplemented("staging", err)
@@ -948,7 +990,7 @@ func (s *Server) discardStaged(_ context.Context, _ *struct{}) (*struct{}, error
 	if !ok {
 		return nil, huma.Error501NotImplemented("this platform cannot change the uplink")
 	}
-	if err := w.DiscardStaged(); err != nil && !errors.Is(err, core.ErrNotImplemented) {
+	if err := s.apply.Exclusive(w.DiscardStaged); err != nil && !errors.Is(err, core.ErrNotImplemented) {
 		return nil, huma.Error502BadGateway("discard draft", err)
 	}
 	return nil, nil
@@ -962,6 +1004,12 @@ func (s *Server) discardStaged(_ context.Context, _ *struct{}) (*struct{}, error
 // `body.<field>`, so a screen places the refusal next to its input without
 // reading the sentence (#28); the sentence stays in `detail` for people.
 func refusal(err error) error {
+	if errors.Is(err, errGuestDraftPending) {
+		return huma.Error409Conflict(err.Error())
+	}
+	if errors.Is(err, errDraftUnreadable) {
+		return huma.Error502BadGateway("the draft could not be read", err)
+	}
 	reason := reasonFor(err)
 	var fe *core.FieldError
 	if errors.As(err, &fe) {

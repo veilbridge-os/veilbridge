@@ -567,3 +567,48 @@ func TestTheStateCarriesTheConfirmationWindow(t *testing.T) {
 		t.Errorf("window after confirm = %d, want the default %d for the next change", got, def)
 	}
 }
+
+// Stage holds the coordinator: an apply asked for while a long staging runs
+// waits for it, so it never commits half of it (#58: a guest network's
+// bridge and access points without the firewall zone that closes the router).
+func TestStageKeepsApplyOutUntilItEnds(t *testing.T) {
+	f := &fakeApplier{id: "snap-1"}
+	c, _ := newTestCoordinator(f)
+	inside, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Stage(func() error {
+			close(inside)
+			<-release
+			return nil
+		})
+	}()
+	<-inside
+	applied := make(chan struct{})
+	go func() {
+		_, _ = c.Apply(time.Minute)
+		close(applied)
+	}()
+	select {
+	case <-applied:
+		t.Fatal("apply ran in the middle of a staging")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	<-applied
+}
+
+func TestStageRefusedWhileAChangeAwaitsConfirmation(t *testing.T) {
+	f := &fakeApplier{id: "snap-1"}
+	c, _ := newTestCoordinator(f)
+	if _, err := c.Apply(time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	ran := false
+	if err := c.Stage(func() error { ran = true; return nil }); !errors.Is(err, ErrApplyInFlight) || ran {
+		t.Errorf("err = %v ran = %v", err, ran)
+	}
+}

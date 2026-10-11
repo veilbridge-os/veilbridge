@@ -277,8 +277,11 @@ type Interface struct {
 
 	IPv4Address []Address `json:"ipv4-address"`
 	IPv6Address []Address `json:"ipv6-address"`
-	Route       []Route   `json:"route"`
-	DNSServer   []string  `json:"dns-server"`
+	// IPv6Prefix: prefixes the interface was delegated (wan6), which the
+	// router hands out to its own networks (#58).
+	IPv6Prefix []Address `json:"ipv6-prefix"`
+	Route      []Route   `json:"route"`
+	DNSServer  []string  `json:"dns-server"`
 }
 
 // DefaultRoute reports this interface's IPv4 gateway, if it has one. A default

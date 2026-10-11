@@ -113,6 +113,12 @@ const en = {
     inetBlocked: 'blocked',
     devSchedule: 'Internet schedule',
     schedNone: 'none',
+    // The guest network (#58) and the home network renumbered for it (D-106).
+    guestNone: 'none',
+    guestOn: '“{ssid}”, {bands} GHz',
+    guestOff: '“{ssid}”, off',
+    ip6Now: 'as now',
+    ip6Once: 'change once',
     nowNothing: 'removed',
     showTechnical: 'Technical details — for the log and for support',
     hideTechnical: 'Hide technical details',
@@ -274,6 +280,8 @@ const en = {
         ipaddr: 'Address of this router on the local network',
         netmask: 'Local network mask',
         dns: 'DNS servers for the local network',
+        // Changed once when the guest network needs room for IPv6 (D-106).
+        ip6assign: 'IPv6 addresses of the home network',
       },
       // A static route (#37); the words of the router owners' own manuals.
       route: {
@@ -357,6 +365,8 @@ const en = {
         country: 'Wi-Fi country',
       },
       wifiNet: { ssid: 'Network name', key: 'Wi-Fi password', encryption: 'Network security' },
+      // The guest network (#58): one row for the whole network.
+      guest: { section: 'Guest network' },
     },
     system: { setting: 'Device setting' },
   },
@@ -562,6 +572,65 @@ const en = {
       'This device will be disconnected: you are on Wi-Fi {band} GHz. The panel will go away. Join the network with the new password and open the panel again.',
     whoAllOne:
       'The device on this network will be disconnected. Join it again with the new password: point a camera at the QR code or type it in.',
+    // The guest network (#58), artboard Wifi-Guest.
+    guestTitle: 'Guest network',
+    guestNoneTag: 'none',
+    guestNoneText:
+      'A separate network for guests: internet yes, your home devices and this panel no.',
+    guestCreate: 'Create a guest network',
+    guestOnTag: 'on the air',
+    guestOffTag: 'off',
+    guestRadiosOff: 'its bands are off',
+    guestNoAPs:
+      'The guest network has no access point left: they were removed outside the panel. Remove it and make it again.',
+    guestRemovePending: 'The guest network is still on the air and goes after “Apply”.',
+    guestAfterApply: 'on the air after “Apply”',
+    guestOffPending:
+      '“{ssid}” goes off after “Apply”. Its name and password are kept: once it is on again, guests join as before.',
+    guestForeignTag: 'set up by hand',
+    guestForeignText:
+      'This router already has a guest network that was not made in the panel (in LuCI, for example). It is in the list of networks above; change it where it was made.',
+    guestOffText:
+      '“{ssid}” is not on the air. Its name and password are kept: once it is on again, guests join as before.',
+    guestNow: 'Guests now',
+    guestBands: 'Bands',
+    guestProof:
+      'Guests get the internet. Your home devices and this panel are hidden from them, and guests cannot see each other.',
+    guestQR: 'QR code for guests',
+    guestChangePass: 'Change password',
+    guestTurnOff: 'Turn off',
+    guestTurnOn: 'Turn on',
+    guestRemove: 'Remove',
+    guestDefaultName: 'Guests',
+    guestPassword: 'Password',
+    guestTimerHint:
+      'Creating it changes the network and the firewall: after “Apply” you have {s} seconds to confirm. Your main network is not touched.',
+    guestRenumberHint:
+      'Devices on your home network get new IPv6 addresses once, so that guests get IPv6 too.',
+    guestNoBand: 'Choose at least one band.',
+    guestNoPassword: 'A guest network needs a password.',
+    guestExists: 'There is a guest network already. The page has been refreshed.',
+    guestPrintTitle: 'Wi-Fi for guests',
+    guestSharedZone:
+      'The internet connection and the home network are in the same firewall zone (“{zone}”): guests would reach the home network. Separate the zones, in LuCI for example.',
+    guestOpenRule:
+      'The firewall rule “{rule}” lets traffic in from every zone, the guests’ included: guests would see your home devices or this panel. Turn it off or give it a zone.',
+    guestGuestRule:
+      'The firewall still lets the guests’ zone through (“{rule}”): with it, guests would reach the home network or the router. Remove it to make a guest network.',
+    guestNoUplink:
+      'The internet connection’s firewall zone could not be found, so there is nowhere to let guests out. Check the internet connection and reload the page.',
+    guestNoNAT:
+      'The internet connection (“{zone}”) does not translate addresses (NAT) for every network: guests would have no internet. Turn masquerading on for all addresses in that zone, in LuCI for example.',
+    guestSplitUplink:
+      'IPv6 goes out through another firewall zone (“{zone}”) than IPv4: guests would get no IPv6. Put both uplinks in one zone, in LuCI for example.',
+    guestNoDHCP:
+      'The router hands out addresses and DNS on named interfaces only (“{list}”): guests would get neither. Lift the limit, in LuCI for example.',
+    guestUnchecked:
+      'The router’s settings could not be read, so whether guests are kept apart from the home network cannot be checked. Reload the page in a moment.',
+    guestWeakened:
+      'A protection of the guest network was changed outside the panel ({what}). Put it back, or remove the guest network and make it again.',
+    guestCantCreate: 'A guest network cannot be made here',
+    guestBroken: 'Guests are not separated from the home network right now',
     dropped:
       'The connection to the router dropped — that is expected: the password has most likely been changed already. Join “{ssid}” with the password {password} and open the panel again.',
   },

@@ -235,6 +235,20 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 	}
 	// Devices whose internet is off stay on the list even when nothing hears
 	// them: a block you cannot see is a block you cannot lift (#53).
+	// Guests are not home devices (#58): the internet switch and the
+	// schedule write rules for the local network's zone and would do nothing
+	// to them. Their number is on the guest network's card. A device whose
+	// internet was turned off at home stays, below.
+	wired := map[string]bool{}
+	for mac, o := range obs {
+		if o.online && o.link.Kind == core.LinkCable {
+			wired[mac] = true // on a home socket now, whatever an old guest lease says
+		}
+	}
+	guests := m.guestClients(ctx, aps, wired)
+	for mac := range guests {
+		delete(obs, mac)
+	}
 	blocked := m.net.blocked(ctx)
 	for mac := range blocked {
 		get(mac)
@@ -280,7 +294,7 @@ func (m *deviceManager) ListDevices() (core.DeviceList, error) {
 	// Heard earlier and gone from every source since: still worth a line
 	// ("was here 40 minutes ago").
 	for mac, h := range m.seen {
-		if _, ok := obs[mac]; !ok {
+		if _, ok := obs[mac]; !ok && !guests[mac] { // a guest now is not "was here" at home
 			obs[mac] = &observation{at: h.at, link: core.DeviceLink{Kind: h.link.Kind, Band: h.link.Band}}
 		}
 	}
@@ -370,6 +384,63 @@ type accessPoint struct {
 // are the radio interfaces; a radio that is not an access point (a station,
 // a mesh link) has no object on the bus and is skipped. A router without
 // radios has none, and that is an empty answer, not an error.
+// guestClients are the devices on the guest network now: associated to an
+// access point that is a port of the guests' bridge, or holding a lease from
+// the guests' subnet (#58).
+func (m *deviceManager) guestClients(ctx context.Context, aps []accessPoint, wired map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	// On a home access point now: a home device, whatever an old guest
+	// lease still says (a lease outlives the move by up to its lease time).
+	home := map[string]bool{}
+	for _, ap := range aps {
+		guest := m.sys != nil && m.sys.Exists("/sys/class/net/"+guestBridge+"/brif/"+ap.iface)
+		for mac := range ap.clients {
+			if n, err := core.NormalizeMAC(mac); err == nil {
+				if guest {
+					out[n] = true
+				} else {
+					home[n] = true
+				}
+			}
+		}
+	}
+	addr, mask := m.net.uciGet(ctx, "network."+guestSection+".ipaddr"), m.net.uciGet(ctx, "network."+guestSection+".netmask")
+	if ip := net.ParseIP(addr).To4(); ip != nil {
+		m4 := net.IPMask(net.ParseIP(firstNonEmpty(mask, "255.255.255.0")).To4())
+		subnet := &net.IPNet{IP: ip.Mask(m4), Mask: m4}
+		for _, l := range m.net.leases(ctx) {
+			if lip := net.ParseIP(l.IP); lip != nil && subnet.Contains(lip) {
+				if n, err := core.NormalizeMAC(l.MAC); err == nil && !home[n] && !wired[n] {
+					out[n] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+// refuseGuest refuses turning off the internet, or scheduling it, for a
+// device on the guest network: the rule is for the local network's zone and
+// would not touch it, while the list would say it did.
+func (m *deviceManager) refuseGuest(ctx context.Context, mac string) error {
+	// On a home socket now: the bridge has it on a cable port (the same
+	// authority the list uses).
+	wired := map[string]bool{}
+	if lanDev, err := m.lanDevice(); err == nil {
+		for _, e := range m.forwarding(lanDev, nil) {
+			if !e.local && !e.wifi {
+				if n, err := core.NormalizeMAC(e.mac); err == nil {
+					wired[n] = true
+				}
+			}
+		}
+	}
+	if m.guestClients(ctx, m.accessPoints(ctx), wired)[mac] {
+		return core.Refuse("mac", errors.New("openwrt: this device is on the guest network; its internet is the guest network's"))
+	}
+	return nil
+}
+
 func (m *deviceManager) accessPoints(ctx context.Context) []accessPoint {
 	if m.bus == nil {
 		return nil

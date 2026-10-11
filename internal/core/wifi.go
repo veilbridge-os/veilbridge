@@ -50,8 +50,27 @@ const (
 // Network kinds.
 const (
 	WiFiKindMain  = "main"  // on the local network
-	WiFiKindOther = "other" // anything else (a guest network arrives in #58)
+	WiFiKindGuest = "guest" // the guest network the panel made (#58)
+	WiFiKindOther = "other" // anything else, including a guest network made by hand
 )
+
+// Guest network states (#58).
+const (
+	GuestNone    = "none"    // there is none; the panel can make one
+	GuestOn      = "on"      // the panel's guest network is on the air
+	GuestOff     = "off"     // it exists but its access points are off
+	GuestForeign = "foreign" // somebody made a guest network by hand (LuCI); the panel leaves it alone
+)
+
+// ErrGuestExists refuses to make a second guest network over the first.
+var ErrGuestExists = errors.New("veilbridge: there is a guest network already")
+
+// ErrGuestBlocked refuses a guest network that could not be kept from the
+// home network or the panel here; WiFiGuest.Blocked says why.
+var ErrGuestBlocked = errors.New("veilbridge: guests could not be kept from the home network here")
+
+// ErrNoGuest is an edit to a guest network that does not exist.
+var ErrNoGuest = errors.New("veilbridge: there is no guest network")
 
 // WiFiChannel is a channel the radio may use in its country right now.
 type WiFiChannel struct {
@@ -90,8 +109,11 @@ type WiFiRadio struct {
 // out of the box).
 type WiFiNetwork struct {
 	ID   string `json:"id" doc:"Stable name of the network on the device"`
-	Kind string `json:"kind" enum:"main,other"`
-	SSID string `json:"ssid"`
+	Kind string `json:"kind" enum:"main,guest,other"`
+	// Enabled: its access points are on. A guest network that is off keeps
+	// its name and password (#58).
+	Enabled bool   `json:"enabled"`
+	SSID    string `json:"ssid"`
 	// Security is one of wpa2, wpa2-wpa3, wpa3, open, other.
 	Security string `json:"security" enum:"wpa2,wpa2-wpa3,wpa3,open,other"`
 	// Radios it is on, by WiFiRadio.ID.
@@ -118,6 +140,64 @@ type WiFiStatus struct {
 	Radios   []WiFiRadio   `json:"radios"`
 	Networks []WiFiNetwork `json:"networks"`
 	Here     *WiFiHere     `json:"here,omitempty"`
+	// Guest is absent when this device cannot have one the panel manages.
+	Guest *WiFiGuest `json:"guest,omitempty"`
+}
+
+// WiFiGuest is the guest network as the panel sees it (#58, D-105/D-106).
+type WiFiGuest struct {
+	State string `json:"state" enum:"none,on,off,foreign"`
+	// Network is the WiFiNetwork.ID of the guest network when it is on or off.
+	Network string `json:"network,omitempty"`
+	// OnAir: one of its access points is on, on a radio that is on. "on"
+	// with every hosting radio off is on in the settings and silent on air.
+	OnAir bool `json:"onAir"`
+	// IPv6: guests get IPv6, or will once the guest network is made.
+	IPv6 bool `json:"ipv6"`
+	// RenumbersHome: making the guest network changes the IPv6 addresses of
+	// the home network once, to leave room for the guests (D-106).
+	RenumbersHome bool `json:"renumbersHome"`
+	// Blocked says why guests could NOT be kept from the home network here:
+	// the uplink shares a firewall zone with it, or a rule accepts traffic
+	// from every zone. A guest network is not made then; one that exists is
+	// shown with the warning. BlockedBy names the rule.
+	Blocked   string `json:"blocked,omitempty" enum:"shared-zone,open-rule,guest-rule,no-uplink,no-nat,split-uplink,no-dhcp,weakened,unchecked"`
+	BlockedBy string `json:"blockedBy,omitempty"`
+}
+
+// Why a guest network cannot be isolated (WiFiGuest.Blocked).
+const (
+	GuestBlockedSharedZone = "shared-zone"
+	// A rule accepting traffic from EVERY zone: fw4 runs it before the zones.
+	GuestBlockedOpenRule = "open-rule"
+	// A rule, port forward or forwarding from the guests' zone, left from an
+	// earlier guest network or made by hand, would open the new one.
+	GuestBlockedGuestRule = "guest-rule"
+	// The uplink's firewall zone is not known: nowhere to forward guests to.
+	GuestBlockedNoUplink = "no-uplink"
+	// The uplink's zone does not masquerade every source: guests would have
+	// no internet.
+	GuestBlockedNoNAT = "no-nat"
+	// IPv6 leaves through another zone than IPv4.
+	GuestBlockedSplitUplink = "split-uplink"
+	// The router's DHCP/DNS server is limited to named interfaces: guests
+	// would get no address and no DNS.
+	GuestBlockedNoDHCP = "no-dhcp"
+	// The panel's own guest network had a protection changed elsewhere (a
+	// rule turned off, a zone policy, an access point's isolation).
+	GuestBlockedWeakened = "weakened"
+	// The router's live configuration could not be read: isolation is not
+	// known, so it is not promised.
+	GuestBlockedUnchecked = "unchecked"
+)
+
+// GuestConfig is a guest network to make. Empty Security is wpa2-wpa3
+// (D-104); no Radios is every radio.
+type GuestConfig struct {
+	SSID     string   `json:"ssid"`
+	Password string   `json:"password"`
+	Security string   `json:"security,omitempty" enum:"wpa2,wpa2-wpa3,"`
+	Radios   []string `json:"radios,omitempty" doc:"Radio ids from GET /wifi; none means every radio"`
 }
 
 // RadioConfig is a radio edit. Channel is "auto" or a number.
@@ -145,6 +225,16 @@ type WiFiManager interface {
 	StageRadio(id string, cfg RadioConfig) ([]ConfigChange, error)
 	StageCountry(code string) ([]ConfigChange, error)
 	StageAccess(network string, cfg AccessConfig) ([]ConfigChange, error)
+}
+
+// WiFiGuestManager stages the guest network (#58). Every edit goes through
+// the apply bar and its confirmation window: it changes the network and the
+// firewall, not only who may join (D-100). The guest's password is changed
+// like any network's, by StageAccess.
+type WiFiGuestManager interface {
+	StageGuest(cfg GuestConfig) ([]ConfigChange, error)
+	StageGuestEnabled(enabled bool) ([]ConfigChange, error)
+	StageGuestRemove() ([]ConfigChange, error)
 }
 
 // WiFiProvider is how an adapter offers Wi-Fi; asked for by type assertion,

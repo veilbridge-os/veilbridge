@@ -467,12 +467,24 @@ func (WiFi) Status() (core.WiFiStatus, error) {
 			{ID: "radio1", Band: "5", Enabled: true, Auto: true, ChannelNow: 44, Width: 80, Widths: []int{20, 40, 80, 160},
 				Channels: ch(true, 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112), Devices: 2, State: core.RadioUp},
 		},
-		Networks: []core.WiFiNetwork{{ID: "default_radio0", Kind: core.WiFiKindMain, SSID: "Home-Net",
-			Security: core.WiFiWPA2WPA3, Radios: []string{"radio0", "radio1"}, Devices: 3, HasPassword: true}},
-		Here: nil,
+		Networks: []core.WiFiNetwork{
+			{ID: "default_radio0", Kind: core.WiFiKindMain, SSID: "Home-Net", Enabled: true,
+				Security: core.WiFiWPA2WPA3, Radios: []string{"radio0", "radio1"}, Devices: 3, HasPassword: true},
+			// The guest network (#58), with nobody on it: the demo devices
+			// are all at home.
+			{ID: "guest_radio0", Kind: core.WiFiKindGuest, SSID: "Guests", Enabled: true,
+				Security: core.WiFiWPA2WPA3, Radios: []string{"radio0", "radio1"}, HasPassword: true},
+		},
+		Guest: &core.WiFiGuest{State: core.GuestOn, Network: "guest_radio0", IPv6: true, OnAir: true},
+		Here:  nil,
 	}, nil
 }
-func (WiFi) WiFiPassword(string) (string, error) { return "river-lamp-2026", nil }
+func (WiFi) WiFiPassword(id string) (string, error) {
+	if id == "guest_radio0" {
+		return "guest-tea-815", nil
+	}
+	return "river-lamp-2026", nil
+}
 func (WiFi) StageRadio(string, core.RadioConfig) ([]core.ConfigChange, error) {
 	return nil, core.ErrNotImplemented
 }
@@ -480,18 +492,24 @@ func (WiFi) StageCountry(string) ([]core.ConfigChange, error) { return nil, core
 func (WiFi) StageAccess(string, core.AccessConfig) ([]core.ConfigChange, error) {
 	return nil, core.ErrNotImplemented
 }
+func (WiFi) StageGuest(core.GuestConfig) ([]core.ConfigChange, error) {
+	return nil, core.ErrNotImplemented
+}
+func (WiFi) StageGuestEnabled(bool) ([]core.ConfigChange, error) { return nil, core.ErrNotImplemented }
+func (WiFi) StageGuestRemove() ([]core.ConfigChange, error)      { return nil, core.ErrNotImplemented }
 
 // Compile-time guarantees that the mocks satisfy the core interfaces.
 var (
-	_ core.VPNManager      = (*VPN)(nil)
-	_ core.RoutingManager  = (*Routing)(nil)
-	_ core.SystemManager   = System{}
-	_ core.NetworkManager  = Network{}
-	_ core.LANReader       = Network{}
-	_ core.FirewallReader  = Network{}
-	_ core.RouteReader     = Network{}
-	_ core.DeviceManager   = (*Device)(nil)
-	_ core.Adapter         = (*Adapter)(nil)
-	_ core.CapabilityProbe = (*Adapter)(nil)
-	_ core.WiFiProvider    = (*Adapter)(nil)
+	_ core.VPNManager       = (*VPN)(nil)
+	_ core.RoutingManager   = (*Routing)(nil)
+	_ core.SystemManager    = System{}
+	_ core.NetworkManager   = Network{}
+	_ core.LANReader        = Network{}
+	_ core.FirewallReader   = Network{}
+	_ core.RouteReader      = Network{}
+	_ core.DeviceManager    = (*Device)(nil)
+	_ core.Adapter          = (*Adapter)(nil)
+	_ core.CapabilityProbe  = (*Adapter)(nil)
+	_ core.WiFiProvider     = (*Adapter)(nil)
+	_ core.WiFiGuestManager = WiFi{}
 )

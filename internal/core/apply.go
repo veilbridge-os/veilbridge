@@ -325,6 +325,28 @@ func (c *ApplyCoordinator) Confirm(token string) (ApplyState, error) {
 //
 // A snapshot is still taken first: if the commit itself fails, the device is
 // put back rather than left half-written, exactly as Apply does.
+// Stage runs a multi-step staging under the coordinator's lock, refused while
+// a change awaits confirmation. A guest network is ~80 uci calls (#58): an
+// apply landing in the middle would commit the bridge and the access points
+// without the firewall zone that closes the router to them.
+func (c *ApplyCoordinator) Stage(stage func() error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.phase == PhaseAwaitingConfirm {
+		return ErrApplyInFlight
+	}
+	return stage()
+}
+
+// Exclusive runs fn under the coordinator's lock and nothing more: dropping
+// the draft must not interleave with a Stage writing it (review of #58: a
+// discard in the middle left half a guest network for the next apply).
+func (c *ApplyCoordinator) Exclusive(fn func() error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return fn()
+}
+
 func (c *ApplyCoordinator) ApplyNow(stage func() error) (ApplyState, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

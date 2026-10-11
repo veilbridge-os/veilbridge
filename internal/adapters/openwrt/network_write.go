@@ -63,6 +63,8 @@ var optionLabels = map[string]string{
 	"network.lan.ipaddr":  "Address of this router on the local network",
 	"network.lan.netmask": "Local network mask",
 	"network.lan.dns":     "DNS servers for the local network",
+	// Changed once when a guest network needs room for IPv6 (D-106).
+	"network.lan.ip6assign": "IPv6 addresses of the local network",
 
 	"dhcp.lan.start":     "First address handed out",
 	"dhcp.lan.limit":     "Last address handed out",
@@ -135,6 +137,9 @@ var entryRoles = map[string]phrase{
 	// A device's internet schedule (#54): one row per device, however many
 	// sections the router needs for it.
 	roleSchedule: {"firewall.schedule.section", "Internet schedule"},
+	// The guest network (#58): one row for the network, its access points,
+	// address handout and firewall zone together.
+	roleGuest: {"wireless.guest.section", "Guest network"},
 }
 
 // rulePhrases name a whole rule appearing or going away by what it does, so
@@ -184,6 +189,9 @@ const (
 	// roleRadio is a `wifi-device`, roleWiFiNet a `wifi-iface` (#57).
 	roleRadio   = "radio"
 	roleWiFiNet = "wifiNet"
+	// roleGuest is the panel's whole guest network (#58): a dozen sections
+	// on the router, one row in the apply bar.
+	roleGuest = "guest"
 )
 
 // configLabels name a whole configuration file in domain words, for a key we
@@ -613,11 +621,33 @@ func (m networkManager) StagedChanges() ([]core.ConfigChange, error) {
 	// to the person: it gets one row, placed where its first line was, from
 	// the schedule as it is on disk to the schedule the draft makes (#54).
 	scheduleRows := map[string]bool{}
+	// The guest network is a dozen sections and one thing to the person: one
+	// row, from the guest network on disk to the one the draft makes (#58).
+	// Only when it is the panel's own on either side; a guest network made by
+	// hand keeps its rows field by field.
+	var guest *guestDraft
 	for _, e := range edits {
 		if seen[e.key] {
 			continue
 		}
 		seen[e.key] = true
+
+		if isGuestSection(e.config, e.section) {
+			if guest == nil {
+				g, err := m.guestDraft(ctx)
+				if err != nil {
+					return nil, err
+				}
+				guest = &g
+			}
+			if guest.ours && guest.folds(e) {
+				if !guest.shown {
+					changes = append(changes, guestRow(guest.was, guest.will))
+				}
+				guest.shown = true
+				continue
+			}
+		}
 
 		if e.config == "firewall" && isScheduleSection(e.section) {
 			mac, ok := scheduleMAC(e.section)
@@ -1271,6 +1301,18 @@ func (m networkManager) discardConfig(ctx context.Context, config string) error 
 	}
 	if _, err := m.run(ctx, "uci", "revert", config); err != nil {
 		return fmt.Errorf("openwrt: discard staged %s changes: %w", config, err)
+	}
+	return nil
+}
+
+// revertKey drops the draft of one section or option and leaves the rest of
+// the file's draft alone (`uci revert network.guest`).
+func (m networkManager) revertKey(ctx context.Context, key string) error {
+	if !uciKeyRe.MatchString(key) {
+		return fmt.Errorf("openwrt: %q is not a configuration key", key)
+	}
+	if _, err := m.run(ctx, "uci", "revert", key); err != nil {
+		return fmt.Errorf("openwrt: discard staged %s: %w", key, err)
 	}
 	return nil
 }

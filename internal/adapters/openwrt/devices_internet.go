@@ -92,6 +92,11 @@ func (m *deviceManager) StageDeviceInternet(mac string, allowed bool) ([]core.Co
 		Label: said.words, LabelKey: said.key, Dangerous: dangerousConfig("firewall"), Detail: key,
 	}
 
+	if !allowed {
+		if err := m.refuseGuest(ctx, mac); err != nil {
+			return nil, err
+		}
+	}
 	if allowed {
 		if !exists {
 			return nil, nil

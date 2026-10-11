@@ -38,6 +38,9 @@ var (
 type wifiManager struct {
 	net networkManager
 	bus *ubus.Client
+	// readFile is the seam netifd's own scripts are read through (#58); nil
+	// reads the real file.
+	readFile func(path string) ([]byte, error)
 }
 
 func newWiFiManager(n networkManager, bus *ubus.Client) *wifiManager {
@@ -48,6 +51,7 @@ func newWiFiManager(n networkManager, bus *ubus.Client) *wifiManager {
 type wifiConfig struct {
 	radios []uciSection
 	ifaces []uciSection // access points only
+	all    []uciSection // every section, for the guest network's names (#58)
 }
 
 func (m *wifiManager) readConfig(ctx context.Context) (wifiConfig, error) {
@@ -60,7 +64,8 @@ func (m *wifiManager) readConfig(ctx context.Context) (wifiConfig, error) {
 		return wifiConfig{}, core.ErrNoWiFi
 	}
 	var c wifiConfig
-	for _, s := range parseUCISections(string(out)) {
+	c.all = parseUCISections(string(out))
+	for _, s := range c.all {
 		switch s.kind {
 		case "wifi-device":
 			c.radios = append(c.radios, s)
@@ -342,16 +347,56 @@ func (m *wifiManager) Status() (core.WiFiStatus, error) {
 		}
 		st.Radios = append(st.Radios, radio)
 	}
+	// The guest network (#58): which access points are the panel's own.
+	gst, gerr := m.guestStateFor(ctx, c)
+	guestIface := map[string]bool{}
+	if gerr == nil {
+		for _, s := range gst.shape.ifaces {
+			guestIface[s.id] = true
+		}
+		st.Guest = m.guestStatus(ctx, gst, ifnames)
+		// The warning follows what is live first: a hole on the router stays
+		// named until its fix is applied; the draft may add its own. When the
+		// live files cannot be read, the isolation is not known - and is not
+		// promised (review of #58).
+		if st.Guest != nil {
+			live, err := m.guestStateCommitted(ctx, gst.ifaces)
+			switch kind, by := m.guestBlocker(live); {
+			case err != nil:
+				if st.Guest.State != core.GuestForeign {
+					st.Guest.Blocked, st.Guest.BlockedBy = core.GuestBlockedUnchecked, ""
+				}
+			case kind != "":
+				st.Guest.Blocked, st.Guest.BlockedBy = kind, by
+			}
+		}
+	}
 	for _, n := range groupNetworks(c.ifaces) {
 		first := n.sections[0]
 		net := core.WiFiNetwork{
 			ID: n.id(), Kind: core.WiFiKindOther, SSID: first.options["ssid"],
+			Enabled:     anyEnabled(n.sections),
 			Security:    securityOf(first.options["encryption"]),
 			HasPassword: first.options["key"] != "",
 			Radios:      []string{},
 		}
+		// A group is the guest network when one of its access points is the
+		// panel's, whichever section happens to come first (a hand-made point
+		// with the same name and password merges into it), and the guest
+		// object points at the group, not at one of its sections.
+		ours := false
+		for _, s := range n.sections {
+			if guestIface[s.id] {
+				ours = true
+				if st.Guest != nil && st.Guest.Network == s.id {
+					st.Guest.Network = net.ID
+				}
+			}
+		}
 		if onLAN(first) {
 			net.Kind = core.WiFiKindMain
+		} else if ours {
+			net.Kind = core.WiFiKindGuest
 		}
 		for _, s := range n.sections {
 			net.Radios = append(net.Radios, s.options["device"])
@@ -371,6 +416,16 @@ func (m *wifiManager) network(c wifiConfig, id string) (wifiNet, bool) {
 		}
 	}
 	return wifiNet{}, false
+}
+
+// anyEnabled: a network is on when one of its access points is.
+func anyEnabled(sections []uciSection) bool {
+	for _, s := range sections {
+		if s.options["disabled"] != "1" {
+			return true
+		}
+	}
+	return false
 }
 
 // WiFiPassword returns a network's password (D-103).

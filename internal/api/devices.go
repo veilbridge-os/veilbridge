@@ -164,7 +164,7 @@ func (s *Server) stageDeviceInternet(_ context.Context, in *DeviceInternetInput)
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageDeviceInternet(mac, in.Body.Allowed)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageDeviceInternet(mac, in.Body.Allowed) })
 	return stagedOr("staging a device's internet", changes, err)
 }
 
@@ -263,7 +263,7 @@ func (s *Server) schedule(raw string, want *core.InternetSchedule) (*ChangesOutp
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageDeviceSchedule(mac, want)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageDeviceSchedule(mac, want) })
 	return stagedOr("staging a device's internet schedule", changes, err)
 }
 

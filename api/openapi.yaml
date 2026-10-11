@@ -622,6 +622,37 @@ components:
         - forward
         - masquerade
       type: object
+    GuestConfig:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/GuestConfig.json
+          format: uri
+          readOnly: true
+          type: string
+        password:
+          type: string
+        radios:
+          description: Radio ids from GET /wifi; none means every radio
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        security:
+          enum:
+            - wpa2
+            - wpa2-wpa3
+            - ""
+          type: string
+        ssid:
+          type: string
+      required:
+        - ssid
+        - password
+      type: object
     HandoutConfig:
       additionalProperties: false
       properties:
@@ -1320,6 +1351,21 @@ components:
       required:
         - country
       type: object
+    StageGuestEnabledInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/v1/schemas/StageGuestEnabledInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        enabled:
+          type: boolean
+      required:
+        - enabled
+      type: object
     StaticRoute:
       additionalProperties: false
       properties:
@@ -1559,6 +1605,44 @@ components:
       required:
         - channel
       type: object
+    WiFiGuest:
+      additionalProperties: false
+      properties:
+        blocked:
+          enum:
+            - shared-zone
+            - open-rule
+            - guest-rule
+            - no-uplink
+            - no-nat
+            - split-uplink
+            - no-dhcp
+            - weakened
+            - unchecked
+          type: string
+        blockedBy:
+          type: string
+        ipv6:
+          type: boolean
+        network:
+          type: string
+        onAir:
+          type: boolean
+        renumbersHome:
+          type: boolean
+        state:
+          enum:
+            - none
+            - "on"
+            - "off"
+            - foreign
+          type: string
+      required:
+        - state
+        - onAir
+        - ipv6
+        - renumbersHome
+      type: object
     WiFiHere:
       additionalProperties: false
       properties:
@@ -1581,6 +1665,8 @@ components:
         devices:
           format: int64
           type: integer
+        enabled:
+          type: boolean
         hasPassword:
           type: boolean
         id:
@@ -1589,6 +1675,7 @@ components:
         kind:
           enum:
             - main
+            - guest
             - other
           type: string
         radios:
@@ -1610,6 +1697,7 @@ components:
       required:
         - id
         - kind
+        - enabled
         - ssid
         - security
         - radios
@@ -1697,6 +1785,8 @@ components:
           type: string
         country:
           type: string
+        guest:
+          $ref: "#/components/schemas/WiFiGuest"
         here:
           $ref: "#/components/schemas/WiFiHere"
         networks:
@@ -3297,6 +3387,189 @@ paths:
       security:
         - bearerAuth: []
       summary: Stage the Wi-Fi country on every radio (does not apply it)
+      tags:
+        - wifi
+  /wifi/guest:
+    delete:
+      description: "The home network's IPv6 numbering is not changed back: that would change its devices' addresses a second time."
+      operationId: removeWiFiGuest
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Gateway
+      security:
+        - bearerAuth: []
+      summary: Stage removing the panel's guest network
+      tags:
+        - wifi
+    post:
+      description: Does not apply it. 409 when there is a guest network already (the panel's own or one made by hand), when other changes wait in the draft, or while an apply awaits confirmation. May renumber the home network's IPv6 once to leave room for the guests; the draft then says so in a row of its own.
+      operationId: stageWiFiGuest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestConfig"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Gateway
+      security:
+        - bearerAuth: []
+      summary: "Stage a guest network on every radio (or the given ones): internet only, no home devices, no panel"
+      tags:
+        - wifi
+    put:
+      operationId: stageWiFiGuestEnabled
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageGuestEnabledInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangesOutputBody"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+        "501":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Implemented
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Bad Gateway
+      security:
+        - bearerAuth: []
+      summary: Stage turning the guest network's access points off or on; its name and password stay
       tags:
         - wifi
   /wifi/networks/{id}:

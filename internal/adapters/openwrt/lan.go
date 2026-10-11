@@ -74,8 +74,36 @@ func (m networkManager) LANInfo() (core.LANStatus, error) {
 
 	out.Handout = m.handout(ctx, lan)
 	out.Reserved = m.reserved(ctx)
-	out.Leases = m.leases(ctx)
+	out.Leases = lanLeases(m.leases(ctx), lan.IPv4)
 	return out, nil
+}
+
+// lanLeases keeps the leases of the local network itself. dnsmasq keeps one
+// lease file for every network it serves: a guest's lease (#58) is not
+// evidence that the home network's handout works, and its shorter time would
+// skew how long ago the home network last handed one out. With no address
+// known for the local network, nothing can be told apart: all are kept.
+func lanLeases(all []core.AddressLease, lan4 []string) []core.AddressLease {
+	var nets []*net.IPNet
+	for _, a := range lan4 {
+		if _, n, err := net.ParseCIDR(a); err == nil {
+			nets = append(nets, n)
+		}
+	}
+	if len(nets) == 0 {
+		return all
+	}
+	out := make([]core.AddressLease, 0, len(all))
+	for _, l := range all {
+		ip := net.ParseIP(l.IP)
+		for _, n := range nets {
+			if ip != nil && n.Contains(ip) {
+				out = append(out, l)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // handout turns the stored offsets into the addresses the panel shows.

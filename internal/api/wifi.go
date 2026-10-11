@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -68,6 +69,16 @@ type AccessOutput struct {
 	}
 }
 
+type StageGuestInput struct {
+	Body core.GuestConfig
+}
+
+type StageGuestEnabledInput struct {
+	Body struct {
+		Enabled bool `json:"enabled"`
+	}
+}
+
 func (s *Server) wifi() (core.WiFiManager, bool) {
 	p, ok := s.adapter.(core.WiFiProvider)
 	if !ok {
@@ -113,11 +124,105 @@ func (s *Server) registerWiFi(authed huma.Middlewares, authSec []map[string][]st
 		Tags: []string{"wifi"}, Middlewares: authed, Security: authSec,
 		Errors: []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusNotImplemented},
 	}, s.setWiFiAccess)
+
+	// The guest network (#58). Each edit changes the network and the
+	// firewall, so it goes through the apply bar with its confirmation
+	// window; its password is changed like any network's (PUT above).
+	guestErrors := []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict,
+		http.StatusUnprocessableEntity, http.StatusNotImplemented, http.StatusBadGateway}
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stageWiFiGuest", Method: http.MethodPost, Path: "/wifi/guest",
+		Summary: "Stage a guest network on every radio (or the given ones): internet only, no home devices, no panel",
+		Description: "Does not apply it. 409 when there is a guest network already (the panel's own or one made by hand), " +
+			"when other changes wait in the draft, or while an apply awaits confirmation. May renumber the home " +
+			"network's IPv6 once to leave room for the guests; the draft then says so in a row of its own.",
+		Tags: []string{"wifi"}, Middlewares: authed, Security: authSec, Errors: guestErrors,
+	}, s.stageWiFiGuest)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "stageWiFiGuestEnabled", Method: http.MethodPut, Path: "/wifi/guest",
+		Summary: "Stage turning the guest network's access points off or on; its name and password stay",
+		Tags:    []string{"wifi"}, Middlewares: authed, Security: authSec, Errors: guestErrors,
+	}, s.stageWiFiGuestEnabled)
+	huma.Register(s.api, huma.Operation{
+		OperationID: "removeWiFiGuest", Method: http.MethodDelete, Path: "/wifi/guest",
+		Summary:     "Stage removing the panel's guest network",
+		Description: "The home network's IPv6 numbering is not changed back: that would change its devices' addresses a second time.",
+		Tags:        []string{"wifi"}, Middlewares: authed, Security: authSec, Errors: guestErrors,
+	}, s.removeWiFiGuest)
+}
+
+// stageGuest runs one guest edit: a dozen sections in four files, under the
+// coordinator's lock (no apply can land half-way) and only on an empty draft.
+func (s *Server) stageGuest(what string, fn func(core.WiFiGuestManager) ([]core.ConfigChange, error)) (*ChangesOutput, error) {
+	w, ok := s.wifi()
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform has no Wi-Fi")
+	}
+	g, ok := w.(core.WiFiGuestManager)
+	if !ok {
+		return nil, huma.Error501NotImplemented("this platform cannot make a guest network")
+	}
+	var changes []core.ConfigChange
+	err := s.apply.Stage(func() error {
+		if nw, ok := s.writer(); ok {
+			// A draft that cannot be read is not an empty one.
+			staged, err := nw.StagedChanges()
+			if err != nil {
+				return fmt.Errorf("%w: %w", errDraftUnreadable, err)
+			}
+			if len(staged) > 0 {
+				return core.ErrDraftNotEmpty
+			}
+		}
+		var err error
+		changes, err = fn(g)
+		return err
+	})
+	switch {
+	case errors.Is(err, core.ErrApplyInFlight):
+		return nil, huma.Error409Conflict("a change is already waiting for confirmation")
+	case errors.Is(err, errDraftUnreadable):
+		return nil, huma.Error502BadGateway("the draft could not be read", err)
+	case errors.Is(err, core.ErrDraftNotEmpty):
+		return nil, huma.Error409Conflict("other changes are waiting in the draft: apply or discard them first")
+	case errors.Is(err, core.ErrGuestExists):
+		return nil, huma.Error409Conflict("there is a guest network already", err)
+	case errors.Is(err, core.ErrGuestBlocked):
+		// GET /wifi says the same in `guest.blocked`, for the screen to word.
+		return nil, huma.Error422UnprocessableEntity("guests could not be kept from the home network here", err)
+	case errors.Is(err, core.ErrNoGuest):
+		return nil, huma.Error404NotFound("there is no guest network", err)
+	case err != nil:
+		return nil, wifiError(what, err)
+	}
+	return changesOutput(changes), nil
+}
+
+func (s *Server) stageWiFiGuest(_ context.Context, in *StageGuestInput) (*ChangesOutput, error) {
+	return s.stageGuest("making the guest network", func(g core.WiFiGuestManager) ([]core.ConfigChange, error) {
+		return g.StageGuest(in.Body)
+	})
+}
+
+func (s *Server) stageWiFiGuestEnabled(_ context.Context, in *StageGuestEnabledInput) (*ChangesOutput, error) {
+	return s.stageGuest("turning the guest network on or off", func(g core.WiFiGuestManager) ([]core.ConfigChange, error) {
+		return g.StageGuestEnabled(in.Body.Enabled)
+	})
+}
+
+func (s *Server) removeWiFiGuest(_ context.Context, _ *struct{}) (*ChangesOutput, error) {
+	return s.stageGuest("removing the guest network", func(g core.WiFiGuestManager) ([]core.ConfigChange, error) {
+		return g.StageGuestRemove()
+	})
 }
 
 // wifiError maps what the adapter says onto the answers the panel reacts to.
 func wifiError(what string, err error) error {
 	switch {
+	case errors.Is(err, errGuestDraftPending):
+		return huma.Error409Conflict(err.Error())
+	case errors.Is(err, errDraftUnreadable):
+		return huma.Error502BadGateway("the draft could not be read", err)
 	case errors.Is(err, core.ErrNoWiFi):
 		return huma.Error404NotFound("no radio on this device", err)
 	case errors.Is(err, core.ErrNotImplemented):
@@ -175,7 +280,7 @@ func (s *Server) stageWiFiRadio(_ context.Context, in *StageRadioInput) (*Change
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageRadio(in.ID, in.Body)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageRadio(in.ID, in.Body) })
 	if err != nil {
 		return nil, wifiError("staging a radio", err)
 	}
@@ -190,7 +295,7 @@ func (s *Server) stageWiFiCountry(_ context.Context, in *StageCountryInput) (*Ch
 	if err := s.refuseWhileApplying(); err != nil {
 		return nil, err
 	}
-	changes, err := w.StageCountry(in.Body.Country)
+	changes, err := s.lockedStage(func() ([]core.ConfigChange, error) { return w.StageCountry(in.Body.Country) })
 	if err != nil {
 		return nil, wifiError("staging the Wi-Fi country", err)
 	}
@@ -241,6 +346,9 @@ func (s *Server) setWiFiAccess(_ context.Context, in *SetAccessInput) (*AccessOu
 	out.Body.Changes = changes
 	return out, nil
 }
+
+// errDraftUnreadable: the draft could not be read, so it is not known to be empty.
+var errDraftUnreadable = errors.New("the draft could not be read")
 
 // errNothingToApply: the edit asks for what is already so.
 var errNothingToApply = errors.New("nothing to apply")

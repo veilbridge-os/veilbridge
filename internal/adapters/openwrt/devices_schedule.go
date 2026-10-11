@@ -170,6 +170,11 @@ func (m *deviceManager) StageDeviceSchedule(mac string, want *core.InternetSched
 	ctx, cancel := context.WithTimeout(context.Background(), stageTimeout)
 	defer cancel()
 
+	if want != nil {
+		if err := m.refuseGuest(ctx, mac); err != nil {
+			return nil, err
+		}
+	}
 	evening := "firewall." + scheduleSection(mac)
 	morning := evening + morningSuffix
 	for _, key := range []string{evening, morning} {

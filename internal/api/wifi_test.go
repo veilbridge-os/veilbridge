@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -50,11 +51,12 @@ func (f *fakeWiFi) StageAccess(id string, cfg core.AccessConfig) ([]core.ConfigC
 // draftNetwork is the mock network with a draft that may hold edits.
 type draftNetwork struct {
 	core.NetworkManager
-	draft []core.ConfigChange
+	draft    []core.ConfigChange
+	draftErr error
 }
 
 func (n *draftNetwork) StageWAN(core.WANConfig) ([]core.ConfigChange, error) { return nil, nil }
-func (n *draftNetwork) StagedChanges() ([]core.ConfigChange, error)          { return n.draft, nil }
+func (n *draftNetwork) StagedChanges() ([]core.ConfigChange, error)          { return n.draft, n.draftErr }
 func (n *draftNetwork) DiscardStaged() error                                 { n.draft = nil; return nil }
 
 type wifiAdapter struct {
@@ -223,3 +225,130 @@ func TestWiFiWithoutRadioSupportSaysSo(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// #58: every guest edit is staged for the apply bar (it changes the network
+// and the firewall) and is refused on top of other staged edits.
+
+func (f *fakeWiFi) StageGuest(cfg core.GuestConfig) ([]core.ConfigChange, error) {
+	f.asked = append(f.asked, "guest "+cfg.SSID)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []core.ConfigChange{{Label: "Guest network", LabelKey: "wireless.guest.section", To: "on|2.4,5|" + cfg.SSID, Dangerous: true}}, nil
+}
+func (f *fakeWiFi) StageGuestEnabled(on bool) ([]core.ConfigChange, error) {
+	f.asked = append(f.asked, "guest enabled")
+	return []core.ConfigChange{{Label: "Guest network", Dangerous: true}}, f.err
+}
+func (f *fakeWiFi) StageGuestRemove() ([]core.ConfigChange, error) {
+	f.asked = append(f.asked, "guest remove")
+	return []core.ConfigChange{{Label: "Guest network", Dangerous: true}}, f.err
+}
+
+func TestWiFiGuestIsStagedNotApplied(t *testing.T) {
+	base, token, a := wifiServer(t)
+	for _, r := range []struct {
+		method string
+		body   any
+	}{
+		{http.MethodPost, map[string]string{"ssid": "Гости", "password": "guest-tea-815"}},
+		{http.MethodPut, map[string]bool{"enabled": false}},
+		{http.MethodDelete, nil},
+	} {
+		resp := do(t, r.method, base+"/wifi/guest", token, r.body)
+		var out struct {
+			Changes   []core.ConfigChange `json:"changes"`
+			Dangerous bool                `json:"dangerous"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		resp.Body.Close()
+		if resp.StatusCode != 200 || len(out.Changes) != 1 || !out.Dangerous {
+			t.Errorf("%s /wifi/guest = %d %+v", r.method, resp.StatusCode, out)
+		}
+	}
+	if commits(a) != 0 {
+		t.Errorf("commits = %d, want the guest edits only staged", commits(a))
+	}
+	if want := []string{"guest Гости", "guest enabled", "guest remove"}; strings.Join(a.wifi.asked, "|") != strings.Join(want, "|") {
+		t.Errorf("asked = %q", a.wifi.asked)
+	}
+}
+
+func TestWiFiGuestRefusals(t *testing.T) {
+	body := map[string]string{"ssid": "Гости", "password": "guest-tea-815"}
+	cases := []struct {
+		name  string
+		setup func(base, token string, a wifiAdapter)
+		want  int
+	}{
+		{"other edits in the draft", func(_, _ string, a wifiAdapter) {
+			a.net.draft = []core.ConfigChange{{Label: "Channel", Dangerous: true}}
+		}, http.StatusConflict},
+		{"an apply awaits confirmation", func(base, token string, _ wifiAdapter) {
+			do(t, http.MethodPost, base+"/apply", token, map[string]int{}).Body.Close()
+		}, http.StatusConflict},
+		{"a guest network exists", func(_, _ string, a wifiAdapter) { a.wifi.err = core.ErrGuestExists }, http.StatusConflict},
+		// A draft that cannot be read is not an empty one (review of #58).
+		{"the draft cannot be read", func(_, _ string, a wifiAdapter) {
+			a.net.draftErr = errors.New("uci: I/O error")
+		}, http.StatusBadGateway},
+		{"the uplink shares a zone with the home network", func(_, _ string, a wifiAdapter) {
+			a.wifi.err = core.ErrGuestBlocked
+		}, http.StatusUnprocessableEntity},
+		{"the device cannot", func(_, _ string, a wifiAdapter) { a.wifi.err = core.ErrNotImplemented }, http.StatusNotImplemented},
+		{"a refused field", func(_, _ string, a wifiAdapter) {
+			a.wifi.err = core.Refuse("password", errors.New("the password is 0 characters long"))
+		}, http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		base, token, a := wifiServer(t)
+		tc.setup(base, token, a)
+		resp := do(t, http.MethodPost, base+"/wifi/guest", token, body)
+		resp.Body.Close()
+		if resp.StatusCode != tc.want {
+			t.Errorf("%s: POST /wifi/guest = %d, want %d", tc.name, resp.StatusCode, tc.want)
+		}
+	}
+	base, token, a := wifiServer(t)
+	a.wifi.err = core.ErrNoGuest
+	resp := do(t, http.MethodDelete, base+"/wifi/guest", token, nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("DELETE without a guest network = %d, want 404", resp.StatusCode)
+	}
+}
+
+// Review of #58: while a guest network waits in the draft, other edits are
+// refused - a writer whose own edit fails drops its whole file's draft, and
+// would take the guest network's firewall half with it.
+func TestOtherEditsRefusedWhileAGuestNetworkWaitsInTheDraft(t *testing.T) {
+	base, token, a := wifiServer(t)
+	a.net.draft = []core.ConfigChange{{Label: "Guest network", LabelKey: "wireless.guest.section", To: "on|2.4,5|Гости", Dangerous: true}}
+	resp := do(t, http.MethodPut, base+"/wifi/radios/radio1", token, map[string]any{"enabled": true, "channel": "36", "width": 80})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("radio edit with a guest network in the draft = %d, want 409", resp.StatusCode)
+	}
+	if len(a.wifi.asked) != 0 {
+		t.Errorf("asked = %q, want nothing staged", a.wifi.asked)
+	}
+	// Any other row in the draft does not stop a radio edit.
+	a.net.draft = []core.ConfigChange{{Label: "Channel", LabelKey: "wireless.radio.channel", Dangerous: true}}
+	resp = do(t, http.MethodPut, base+"/wifi/radios/radio1", token, map[string]any{"enabled": true, "channel": "36", "width": 80})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("radio edit next to another draft row = %d, want 200", resp.StatusCode)
+	}
+}
+
+// Review of #58, round 6: a draft that cannot be read is not proof that no
+// guest network waits in it.
+func TestEditsRefusedWhenTheDraftCannotBeRead(t *testing.T) {
+	base, token, a := wifiServer(t)
+	a.net.draftErr = errors.New("uci: I/O error")
+	resp := do(t, http.MethodPut, base+"/wifi/radios/radio1", token, map[string]any{"enabled": true, "channel": "36", "width": 80})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway || len(a.wifi.asked) != 0 {
+		t.Errorf("radio edit with an unreadable draft = %d asked %q, want 502 and nothing staged", resp.StatusCode, a.wifi.asked)
+	}
+}
