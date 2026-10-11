@@ -66,7 +66,11 @@ as a diff with the confirmation timer.
   country; how you are connected at the top. A radio edit goes into the draft;
   a name or password change shows the new password and its QR code, says who
   will be disconnected, and applies at once without an automatic revert (it is
-  refused while the draft holds other changes).
+  refused while the draft holds other changes). The guest network (#58) has a
+  card between the main network and the radios: none (one action), on (name,
+  password behind "Show", guests now, bands, QR code and a sheet for guests),
+  off, or made by hand in LuCI; making, turning off and removing it go through
+  the apply bar, and where guests could not be kept apart the card says why.
 - **Static routes** (`StaticRoutes.vue`, menu group *Network rules*) — each
   route's real state first (working, off, not working with the reason, not
   checked), add to a network or a host, one-click fix when a network is
@@ -182,7 +186,10 @@ A fresh local `main` build at `1b72f89` on 2026-10-08 reported **894.81 kB JS
 (29.74 gzip)** using Vite's size report. The QR chunk is not part of the main
 chunk figure. Build/typecheck passed; the existing large-chunk advisory and a
 CSS-minifier warning about a leaked `:deep()` selector were recorded, not fixed
-or presented as a warning-free build. These are build measurements, not a new
+or presented as a warning-free build. The guest network card (#58) then cost
++18.6 kB of JS (+4.6 gzip) and +0.2 kB of CSS: **913.43 kB (280.18 gzip) and
+206.29 kB (29.78 gzip)**, Vite's size report against the same `f72f96d` base on
+2026-10-11. These are build measurements, not a new
 phone-performance or daemon-RSS benchmark on the Xiaomi development bench.
 
 Element Plus is registered per component (`unplugin-vue-components`) rather than

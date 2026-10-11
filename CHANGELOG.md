@@ -92,6 +92,22 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   with no automatic revert. It is refused while other changes wait in the
   draft. Without a country, only channels 36–48 are offered on 5 GHz, and the
   screen says so. A router without Wi-Fi has no such menu item.
+- **Guest Wi-Fi** (on the Wi-Fi screen, #58): one action makes a separate
+  network for guests on every radio (6 GHz aside: it allows WPA3 only). Guests
+  get the internet; your home devices, this panel and private addresses above
+  the router (IPv4 and local IPv6 of a home router in front of this one) are
+  closed to them, and guests
+  on 2.4 and 5 GHz cannot see each other. Making, turning off and removing it
+  go through the apply bar as one row; its password changes like the main
+  network's. If the home network takes the whole IPv6 prefix, making it
+  renumbers the home network's IPv6 once, and the apply bar says so in a row
+  of its own. The card shows a QR code and a printable sheet for guests. Where
+  guests could not be kept apart (a firewall rule from every zone, the
+  internet connection in the same zone as the home network, no NAT for every
+  network) the panel says why and does not make one; a protection changed
+  later outside the panel is named on the card. A guest network made by hand
+  in LuCI is shown as it is and left alone. API: `guest` in `GET /wifi`, and
+  `POST`/`PUT`/`DELETE /wifi/guest`.
 
 ### Changed
 - The local network screen no longer lists the devices: it shows how many are
@@ -99,6 +115,13 @@ in [`RELEASING.md`](./RELEASING.md). Each release also has written notes in
   devices would drift apart.
 - "Data from" next to a screen's title is written in the panel's language
   (it followed the browser's, e.g. "08:22 PM" in a Russian panel).
+- Guests are not on the devices screen (#58): turning off a device's internet
+  and its schedule apply to the home network, so for a device on the guest
+  network they are refused with the reason. Their number is on the guest
+  network's card.
+- Edits that go into the draft wait for each other and for an apply in
+  progress instead of interleaving; while a guest network waits in the draft,
+  other edits are refused until it is applied or discarded.
 
 ### Fixed
 - "In the network now" on the local network screen counted address leases, so

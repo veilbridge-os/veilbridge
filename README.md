@@ -20,9 +20,11 @@ and proof of where your traffic actually leaves.
 Pre-release for testers: [`v0.2.0-beta3`](https://github.com/veilbridge-os/veilbridge/releases/tag/v0.2.0-beta3).**
 Recorded feature acceptances use an x86 OpenWrt VM and a Cudy WR3000S router;
 Wi-Fi scenarios use the physical router. The current development bench is a
-Xiaomi AX3000T on OpenWrt 25.12.5 with a local `main` build: installation and
-read-only API/UI smoke checks have passed, not Wi-Fi, Wake-on-LAN or rollback
-acceptance on that model. This is not a published release. Released features,
+Xiaomi AX3000T on OpenWrt 25.12.5 with a local `main` build: installation,
+read-only API/UI checks, autostart after a reboot and the automatic revert of an
+unconfirmed change have passed there; Wi-Fi with a phone, Wake-on-LAN and recovery
+from a change that cuts off management have not been accepted on that model. This
+is not a published release. Released features,
 unreleased work and remaining acceptance gaps are distinguished below. What changed in each version:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
@@ -65,7 +67,7 @@ puts the network settings back from ssh, a console or failsafe mode:
 
 No published release has the devices or Wi-Fi screens yet. On `main`, for
 `v0.3`, the devices list, internet block and schedule, traffic counters and
-main-network Wi-Fi settings are implemented (below); **guest Wi-Fi is not**.
+main-network and guest Wi-Fi settings are implemented (below).
 Keep LuCI around for those features when running a release. See [Install](#install)
 for the release binaries and the [roadmap](#roadmap) for what is next.
 
@@ -131,11 +133,15 @@ for the release binaries and the [roadmap](#roadmap) for what is next.
   in the browser, radio on/off, channel, width and country. Radio changes use
   the confirmation window; name/password/security changes apply at once after
   a warning and showing the new password/QR, without automatic revert
+- **Guest Wi-Fi** - a separate network on every radio: internet yes, home
+  devices, the panel and private addresses above the router no, guests apart from
+  each other; made, turned off and removed through the apply bar, with a QR
+  code for guests
 
 The devices and Wi-Fi epic is still open: real-machine Wake-on-LAN acceptance
-([#55](https://github.com/veilbridge-os/veilbridge/issues/55)) and guest-network
-implementation ([#58](https://github.com/veilbridge-os/veilbridge/issues/58))
-remain. None of the features in this section has shipped in a release yet.
+([#55](https://github.com/veilbridge-os/veilbridge/issues/55)) and acceptance of
+the guest network with phones on the air
+([#58](https://github.com/veilbridge-os/veilbridge/issues/58)) remain. None of the features in this section has shipped in a release yet.
 
 ## Roadmap
 
