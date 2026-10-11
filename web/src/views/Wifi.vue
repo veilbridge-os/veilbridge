@@ -13,6 +13,11 @@
 //
 // The page is opened most often from a phone sitting on this very Wi-Fi, so
 // every warning names how the reader is connected ("you are on 5 GHz").
+//
+// The guest network (#58, artboard Wifi-Guest, D-105/D-106) is its own card
+// between the main network and the radios. Making, turning off and removing
+// it go through the apply bar: they change the network and the firewall. Its
+// password changes like any network's, at once.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -82,6 +87,34 @@ onUnmounted(() => {
 
 const radios = computed<WiFiRadio[]>(() => st.value?.radios ?? [])
 const networks = computed<WiFiNetwork[]>(() => st.value?.networks ?? [])
+const guest = computed(() => st.value?.guest)
+// The guest network has a card of its own, and the list shows the others -
+// unless the device sent no card (it cannot manage one here): then the guest
+// network stays in the list with its password and QR.
+const listed = computed(() =>
+  networks.value.filter((n) => !guest.value || n.id !== guestNet.value?.id),
+)
+// The one the card shows is the network the device names; any other guest
+// group (its access points given different names in LuCI) stays in the list.
+const guestNet = computed(
+  () =>
+    networks.value.find((n) => n.id === guest.value?.network) ??
+    networks.value.find((n) => n.kind === 'guest'),
+)
+// Why guests could not be kept from the home network here (the device says).
+const guestBlockedText = computed(() => {
+  const g = guest.value
+  if (g?.blocked === 'shared-zone') return t('wifi.guestSharedZone', { zone: g.blockedBy ?? '' })
+  if (g?.blocked === 'open-rule') return t('wifi.guestOpenRule', { rule: g.blockedBy ?? '' })
+  if (g?.blocked === 'weakened') return t('wifi.guestWeakened', { what: g.blockedBy ?? '' })
+  if (g?.blocked === 'guest-rule') return t('wifi.guestGuestRule', { rule: g.blockedBy ?? '' })
+  if (g?.blocked === 'no-uplink') return t('wifi.guestNoUplink')
+  if (g?.blocked === 'unchecked') return t('wifi.guestUnchecked')
+  if (g?.blocked === 'no-dhcp') return t('wifi.guestNoDHCP', { list: g.blockedBy ?? '' })
+  if (g?.blocked === 'no-nat') return t('wifi.guestNoNAT', { zone: g.blockedBy ?? '' })
+  if (g?.blocked === 'split-uplink') return t('wifi.guestSplitUplink', { zone: g.blockedBy ?? '' })
+  return ''
+})
 const here = computed(() => st.value?.here)
 const busy = computed(() => applyState.value?.phase === 'awaiting_confirm')
 const draftCount = computed(() => staged.value.length)
@@ -176,10 +209,12 @@ const qr = ref<{ ssid: string; password: string; pic: QRPicture | null }>({
   password: '',
   pic: null,
 })
+const qrSheetTitle = ref('')
 async function openQR(n: WiFiNetwork) {
   const p = shown.value[n.id] ?? (await fetchPassword(n.id))
   if (p === null) return
   qr.value = { ssid: n.ssid, password: p, pic: await wifiQR(wifiQRText(n.ssid, p, n.security)) }
+  qrSheetTitle.value = n.kind === 'guest' ? t('wifi.guestPrintTitle') : t('wifi.printTitle')
   qrOpen.value = true
 }
 function printQR() {
@@ -245,7 +280,15 @@ async function toConfirm() {
 const accessWho = computed<'self' | 'cable' | 'other'>(() => {
   const n = accessNet.value
   const h = here.value
-  if (n && h?.kind === 'wifi' && h.radio && (n.radios ?? []).includes(h.radio)) return 'self'
+  // Nobody reads this page from the guest network: the panel is closed there.
+  if (
+    n &&
+    n.kind !== 'guest' &&
+    h?.kind === 'wifi' &&
+    h.radio &&
+    (n.radios ?? []).includes(h.radio)
+  )
+    return 'self'
   if (h?.kind === 'cable') return 'cable'
   return 'other'
 })
@@ -363,6 +406,106 @@ async function stageCountry() {
       e instanceof ApiError && e.status === 409 ? t('wifi.refusedBusy') : String(e)
   }
 }
+
+// --- the guest network: drafted, through the apply bar (#58) -----------------
+
+const windowSeconds = computed(() => applyState.value?.window_seconds || 90)
+const guestOpen = ref(false)
+// 6 GHz allows WPA3 only, which a guest network does not offer (D-104).
+const guestRadios = computed(() => radios.value.filter((r) => r.band !== '6'))
+const guestForm = ref<{ ssid: string; password: string; radios: string[] }>({
+  ssid: '',
+  password: '',
+  radios: [],
+})
+const guestErr = ref<Record<string, string>>({})
+const guestFail = ref('')
+const guestActFail = ref('')
+function openGuest() {
+  guestForm.value = {
+    ssid: t('wifi.guestDefaultName'),
+    password: generatePassword(),
+    radios: guestRadios.value.map((r) => r.id),
+  }
+  guestErr.value = {}
+  guestFail.value = ''
+  guestOpen.value = true
+}
+const guestSsidLen = computed(() => ssidBytes(guestForm.value.ssid))
+function checkGuest(): boolean {
+  const e: Record<string, string> = {}
+  const f = guestForm.value
+  if (!f.ssid) e.ssid = t('wifi.errNoName')
+  else if (guestSsidLen.value > 32) e.ssid = t('wifi.errLong', { n: guestSsidLen.value })
+  if (!f.password) e.password = t('wifi.guestNoPassword')
+  else {
+    const p = passwordProblem(f.password)
+    if (p) e.password = t(`wifi.errPass_${p}`)
+  }
+  if (!f.radios.length) e.radios = t('wifi.guestNoBand')
+  guestErr.value = e
+  return Object.keys(e).length === 0
+}
+async function stageGuest() {
+  if (!checkGuest()) return
+  guestFail.value = ''
+  try {
+    await api.stageWiFiGuest({
+      ssid: guestForm.value.ssid,
+      password: guestForm.value.password,
+      security: 'wpa2-wpa3',
+      radios: guestForm.value.radios,
+    })
+    guestOpen.value = false
+    forgetGuestSecrets()
+    await refreshStaged()
+  } catch (e) {
+    if (e instanceof ApiError && Object.keys(e.fields).length) guestErr.value = e.fields
+    else if (e instanceof ApiError && e.status === 422) {
+      await load()
+      guestFail.value = guestBlockedText.value || e.message
+    } else if (
+      e instanceof ApiError &&
+      e.status === 409 &&
+      guest.value?.state === 'none' &&
+      !draftCount.value &&
+      !busy.value
+    ) {
+      guestFail.value = t('wifi.guestExists')
+      await load()
+    } else if (e instanceof ApiError && e.status === 409) guestFail.value = t('wifi.refusedDraft')
+    else guestFail.value = e instanceof Error ? e.message : String(e)
+  }
+}
+async function guestAction(run: () => Promise<unknown>) {
+  guestActFail.value = ''
+  try {
+    await run()
+    await refreshStaged()
+  } catch (e) {
+    guestActFail.value =
+      e instanceof ApiError && e.status === 409
+        ? busy.value
+          ? t('wifi.refusedBusy')
+          : t('wifi.refusedDraft')
+        : e instanceof Error
+          ? e.message
+          : String(e)
+  }
+}
+const guestTurn = (on: boolean) => guestAction(() => api.stageWiFiGuestEnabled(on))
+const guestRemove = () =>
+  guestAction(async () => {
+    await api.removeWiFiGuest()
+    forgetGuestSecrets()
+  })
+// A guest network made again reuses its ids (guest_radio0): a password shown
+// for the old one must not stand in for the new one on screen or in the QR.
+function forgetGuestSecrets() {
+  const keep = (id: string) => !id.startsWith('guest_') && id !== guestNet.value?.id
+  shown.value = Object.fromEntries(Object.entries(shown.value).filter(([id]) => keep(id)))
+  passErr.value = Object.fromEntries(Object.entries(passErr.value).filter(([id]) => keep(id)))
+}
 </script>
 
 <template>
@@ -422,9 +565,9 @@ async function stageCountry() {
       </el-card>
 
       <!-- 1. The networks: name, security, password on request, QR. -->
-      <el-card v-for="n in networks" :key="n.id" shadow="never">
+      <el-card v-for="n in listed" :key="n.id" shadow="never">
         <div class="vb-wifi__cardhead">
-          <strong>{{ n.kind === 'main' ? t('wifi.mainNet') : t('wifi.otherNet') }}</strong>
+          <strong>{{ n.kind === 'main' ? t('wifi.mainNet') : n.kind === 'guest' ? t('wifi.guestTitle') : t('wifi.otherNet') }}</strong>
           <el-tag size="small" type="info">{{ netBands(n) }}</el-tag>
         </div>
         <div class="vb-wifi__net">
@@ -480,7 +623,120 @@ async function stageCountry() {
         </div>
       </el-card>
 
-      <!-- 2. The radios: how the network sounds on the air. -->
+      <!-- 2. The guest network (#58): none / on / off / made by hand. -->
+      <el-card v-if="guest" shadow="never" class="vb-wifi__guest">
+        <div class="vb-wifi__cardhead">
+          <el-switch
+            v-if="guestNet && (guest.state === 'on' || guest.state === 'off')"
+            :model-value="guest.state === 'on'"
+            :disabled="busy"
+            size="small"
+            :aria-label="t('wifi.guestTitle')"
+            @change="(v: string | number | boolean) => guestTurn(!!v)"
+          />
+          <VbIcon name="guest" size="sm" class="vb-wifi__muted" />
+          <strong>{{ t('wifi.guestTitle') }}</strong>
+          <el-tag v-if="guest.state === 'none' && !guest.onAir" size="small" type="info">{{ t('wifi.guestNoneTag') }}</el-tag>
+          <!-- The tag is the air, as on the radio cards; the switch and the
+               text are the settings, an unapplied draft included. -->
+          <el-tag v-else-if="guest.onAir" size="small" type="success">{{ t('wifi.guestOnTag') }}</el-tag>
+          <el-tag v-else-if="guest.state === 'on' && draftCount" size="small" type="info">{{ t('wifi.guestAfterApply') }}</el-tag>
+          <el-tag v-else-if="guest.state === 'on'" size="small" type="warning">{{ t('wifi.guestRadiosOff') }}</el-tag>
+          <el-tag v-else-if="guest.state === 'off'" size="small" type="info">{{ t('wifi.guestOffTag') }}</el-tag>
+          <el-tag v-else size="small" type="warning">{{ t('wifi.guestForeignTag') }}</el-tag>
+        </div>
+
+        <el-alert
+          v-if="guestBlockedText && guest.state !== 'foreign'"
+          :type="guest.state === 'none' ? 'warning' : 'error'"
+          :closable="false"
+          show-icon
+          :title="guest.state === 'none' ? t('wifi.guestCantCreate') : t('wifi.guestBroken')"
+          :description="guestBlockedText"
+          class="vb-wifi__blocked"
+        />
+        <template v-if="guest.state === 'none'">
+          <p class="vb-wifi__text">{{ guest.onAir ? t('wifi.guestRemovePending') : t('wifi.guestNoneText') }}</p>
+          <div class="vb-wifi__acts">
+            <el-button :disabled="busy || !!guestBlockedText" @click="openGuest">
+              <VbIcon name="guest" size="sm" class="vb-wifi__btnico" />{{ t('wifi.guestCreate') }}
+            </el-button>
+          </div>
+        </template>
+
+        <p v-else-if="guest.state === 'foreign'" class="vb-wifi__text">{{ t('wifi.guestForeignText') }}</p>
+
+        <!-- The panel's own with no access point left (removed in LuCI, or what an
+             emergency restore leaves): nothing to show but the way out. -->
+        <template v-else-if="!guestNet">
+          <p class="vb-wifi__text">{{ t('wifi.guestNoAPs') }}</p>
+          <div class="vb-wifi__acts">
+            <el-button :disabled="busy" @click="guestRemove">{{ t('wifi.guestRemove') }}</el-button>
+          </div>
+        </template>
+
+        <template v-else-if="guestNet && guest.state === 'off'">
+          <p class="vb-wifi__text">
+            {{ guest.onAir ? t('wifi.guestOffPending', { ssid: guestNet.ssid }) : t('wifi.guestOffText', { ssid: guestNet.ssid }) }}
+          </p>
+          <div class="vb-wifi__acts">
+            <el-button :disabled="busy" @click="guestTurn(true)">{{ t('wifi.guestTurnOn') }}</el-button>
+            <el-button :disabled="busy" @click="guestRemove">{{ t('wifi.guestRemove') }}</el-button>
+          </div>
+        </template>
+
+        <div v-else-if="guestNet" class="vb-wifi__net">
+          <div class="vb-wifi__netbody">
+            <dl class="vb-facts">
+              <div class="vb-facts__i">
+                <dt>{{ t('wifi.ssid') }}</dt>
+                <dd>{{ guestNet.ssid }}</dd>
+              </div>
+              <div class="vb-facts__i">
+                <dt>{{ t('wifi.guestPassword') }}</dt>
+                <dd class="vb-wifi__pass">
+                  <template v-if="shown[guestNet.id] !== undefined">
+                    <span class="vb-mono">{{ shown[guestNet.id] }}</span>
+                    <el-button size="small" text @click="copy(shown[guestNet.id] ?? '', guestNet.id)">
+                      {{ copied === guestNet.id ? t('wifi.copied') : t('wifi.copy') }}
+                    </el-button>
+                    <el-button size="small" text @click="hidePassword(guestNet)">{{ t('wifi.hide') }}</el-button>
+                  </template>
+                  <template v-else>
+                    <span class="vb-mono">••••••••••</span>
+                    <el-button size="small" @click="showPassword(guestNet)">{{ t('wifi.show') }}</el-button>
+                  </template>
+                  <span v-if="passErr[guestNet.id]" class="vb-wifi__err">{{ t('wifi.passFailed') }}</span>
+                </dd>
+              </div>
+              <div class="vb-facts__i">
+                <dt>{{ t('wifi.guestNow') }}</dt>
+                <dd>{{ guestNet.devices }}</dd>
+              </div>
+              <div class="vb-facts__i">
+                <dt>{{ t('wifi.guestBands') }}</dt>
+                <dd>{{ netBands(guestNet) }}</dd>
+              </div>
+            </dl>
+            <!-- The promise only where it holds: not under the warning above. -->
+            <el-alert v-if="!guestBlockedText" type="info" :closable="false" show-icon :title="t('wifi.guestProof')" />
+            <div class="vb-wifi__acts">
+              <el-button @click="openQR(guestNet)">{{ t('wifi.guestQR') }}</el-button>
+              <el-button :disabled="busy" @click="openAccess(guestNet)">{{ t('wifi.guestChangePass') }}</el-button>
+              <el-button :disabled="busy" @click="guestTurn(false)">{{ t('wifi.guestTurnOff') }}</el-button>
+              <el-button :disabled="busy" @click="guestRemove">{{ t('wifi.guestRemove') }}</el-button>
+            </div>
+          </div>
+          <button type="button" class="vb-wifi__qrclosed" @click="openQR(guestNet)">
+            <VbIcon name="tabs" size="lg" />
+            <span>{{ t('wifi.showQR') }}</span>
+            <small>{{ t('wifi.qrHasPassword') }}</small>
+          </button>
+        </div>
+        <el-alert v-if="guestActFail" type="error" :closable="false" :title="guestActFail" />
+      </el-card>
+
+      <!-- 3. The radios: how the network sounds on the air. -->
       <div class="vb-wifi__section">
         <strong>{{ t('wifi.radio') }}</strong>
         <span class="vb-wifi__muted">{{ t('wifi.radioHint') }}</span>
@@ -540,7 +796,7 @@ async function stageCountry() {
     <!-- QR: made in the browser, the password never leaves the page. -->
     <el-dialog v-model="qrOpen" :title="t('wifi.qrTitle', { ssid: qr.ssid })" width="min(420px, 94vw)" append-to-body>
       <div class="vb-wifi__qrbox vb-wifi-print">
-        <strong class="vb-wifi__printonly">{{ t('wifi.printTitle') }}</strong>
+        <strong class="vb-wifi__printonly">{{ qrSheetTitle }}</strong>
         <svg v-if="qr.pic" class="vb-wifi__qrsvg" :viewBox="`-2 -2 ${qr.pic.size + 4} ${qr.pic.size + 4}`" role="img" :aria-label="t('wifi.qr')">
           <path :d="qr.pic.path" fill="#000" />
         </svg>
@@ -718,6 +974,37 @@ async function stageCountry() {
       </template>
     </el-dialog>
 
+    <!-- The guest network: made in the draft, applied through the bar. -->
+    <el-dialog v-model="guestOpen" :title="t('wifi.guestTitle')" width="min(520px, 96vw)" append-to-body>
+      <el-alert v-if="draftCount" type="warning" :closable="false" show-icon :title="t('wifi.refusedDraft')" />
+      <el-form label-position="top" @submit.prevent>
+        <el-form-item :label="t('wifi.ssid')" :error="guestErr.ssid">
+          <el-input v-model="guestForm.ssid" />
+          <span class="vb-wifi__hint">{{ t('wifi.ssidHint', { n: guestSsidLen }) }}</span>
+        </el-form-item>
+        <el-form-item :label="t('wifi.guestPassword')" :error="guestErr.password">
+          <div class="vb-wifi__row">
+            <el-input v-model="guestForm.password" class="vb-mono" />
+            <el-button @click="guestForm.password = generatePassword()">{{ t('wifi.generate') }}</el-button>
+          </div>
+          <span class="vb-wifi__hint">{{ t('wifi.passHint') }}</span>
+        </el-form-item>
+        <el-form-item :label="t('wifi.guestBands')" :error="guestErr.radios">
+          <el-checkbox-group v-model="guestForm.radios">
+            <el-checkbox v-for="r in guestRadios" :key="r.id" :value="r.id">{{ t('wifi.bandsOf', { bands: band(r.band) }) }}</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+      </el-form>
+      <el-alert type="info" :closable="false" show-icon :title="t('wifi.guestProof')" />
+      <p class="vb-wifi__hint">{{ t('wifi.guestTimerHint', { s: windowSeconds }) }}</p>
+      <p v-if="guest?.renumbersHome" class="vb-wifi__hint">{{ t('wifi.guestRenumberHint') }}</p>
+      <el-alert v-if="guestFail" type="error" :closable="false" :title="guestFail" />
+      <template #footer>
+        <el-button @click="guestOpen = false">{{ t('wifi.cancel') }}</el-button>
+        <el-button type="primary" :disabled="!!draftCount || busy" @click="stageGuest">{{ t('wifi.toDraft') }}</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="countryOpen" :title="t('wifi.countryTitle')" width="min(460px, 96vw)" append-to-body>
       <el-form label-position="top" @submit.prevent>
         <el-form-item :label="t('wifi.country')">
@@ -833,6 +1120,20 @@ async function stageCountry() {
 .vb-wifi__muted {
   color: var(--vb-muted);
   font-size: 13px;
+}
+/* A password field and its "Generate" button share one line (artboard). */
+.vb-wifi__row :deep(.el-input) {
+  flex: 1 1 180px;
+  width: auto;
+}
+.vb-wifi__blocked {
+  margin-bottom: 12px;
+}
+.vb-wifi__text {
+  margin: 0 0 12px;
+  color: var(--vb-muted);
+  font-size: 14px;
+  line-height: 1.5;
 }
 .vb-wifi__hint {
   display: block;

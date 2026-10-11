@@ -45,6 +45,7 @@ export type WiFiRadio = components['schemas']['WiFiRadio']
 export type WiFiNetwork = components['schemas']['WiFiNetwork']
 export type RadioConfig = components['schemas']['RadioConfig']
 export type AccessConfig = components['schemas']['AccessConfig']
+export type GuestConfig = components['schemas']['GuestConfig']
 
 /** What the device will change if the draft is applied, described in the
  * panel's own words rather than in configuration keys (M3.1a). */
@@ -267,6 +268,11 @@ export const api = {
   // A network's name and password apply AT ONCE, with no window (D-100).
   setWiFiAccess: (id: string, cfg: AccessConfig) =>
     request<{ changes: ConfigChange[] }>('PUT', `/wifi/networks/${encodeURIComponent(id)}`, cfg),
+  // The guest network (#58): every edit is drafted for the apply bar.
+  stageWiFiGuest: (cfg: GuestConfig) => request<StagedChanges>('POST', '/wifi/guest', cfg),
+  stageWiFiGuestEnabled: (enabled: boolean) =>
+    request<StagedChanges>('PUT', '/wifi/guest', { enabled }),
+  removeWiFiGuest: () => request<StagedChanges>('DELETE', '/wifi/guest'),
   // Not a configuration change (#55): the router sends the wake packet at once.
   wakeDevice: (mac: string) => request<void>('POST', `/devices/${encodeURIComponent(mac)}/wake`),
   // Firewall changes too (#54): a schedule, or its removal.

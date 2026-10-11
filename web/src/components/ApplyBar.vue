@@ -31,6 +31,8 @@ const { applyState, reachable, staged } = useLive()
  * makes that a build error for every key the device can send. */
 const NO_INTERNET = 'firewall.noInternet.section'
 const SCHEDULE = 'firewall.schedule.section'
+const GUEST = 'wireless.guest.section'
+const LAN_IP6 = 'network.lan.ip6assign'
 
 function labelOf(c: ConfigChange): string {
   if (c.labelKey === NO_INTERNET) return t('apply.devInternet')
@@ -65,6 +67,10 @@ function shownValue(c: ConfigChange, value: string): string {
     const s = parseWords(value)
     return s ? scheduleWords(t, s) : value || t('apply.schedNone')
   }
+  if (c.labelKey === GUEST) return guestValue(value)
+  // The home network's IPv6 changes once for the guest network (D-106): the
+  // prefix length is the operating system's word, the consequence is ours.
+  if (c.labelKey === LAN_IP6) return value === c.from ? t('apply.ip6Now') : t('apply.ip6Once')
   const fw = firewallValue(c.labelKey ?? '', value)
   if (fw !== null) return fw
   const route = routeValue(c.labelKey ?? '', value)
@@ -88,6 +94,21 @@ function shownValue(c: ConfigChange, value: string): string {
   // A flag the panel words as a question: \u201cuse the provider\u2019s resolvers\u201d.
   if (option === 'peerdns') return value === '0' ? t('apply.flagOff') : t('apply.flagOn')
   return value
+}
+
+/** guestValue words the guest network's one row (#58): the device sends
+ * "on|2.4,5|Guests" (state, bands, name; the name last, it may hold "|"). */
+function guestValue(value: string): string {
+  if (!value) return t('apply.guestNone')
+  const [state = '', bands = '', ...name] = value.split('|')
+  const ssid = name.join('|')
+  if (state === 'off') return ssid ? t('apply.guestOff', { ssid }) : t('wifi.guestOffTag')
+  const words = bands
+    .split(',')
+    .filter(Boolean)
+    .map((b) => bandWord(b, locale.value))
+    .join(t('wifi.and'))
+  return t('apply.guestOn', { ssid, bands: words })
 }
 
 /** firewallValue says a firewall setting in words. Here an ABSENT value has a

@@ -40,6 +40,7 @@ import {
   Sort,
   SwitchButton,
   Top,
+  User,
   Warning,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
@@ -96,6 +97,8 @@ const REGISTRY: Record<string, Component> = {
   edit: Edit,
   // Static routes (#48): a path between two points.
   route: Connection,
+  // The guest network (#58): a person, as on the artboard.
+  guest: User,
   // Ours: Element Plus has no counterpart.
   globe: VbGlobe,
   wifi: VbWiFi,

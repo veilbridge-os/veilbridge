@@ -775,6 +775,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/wifi/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Stage turning the guest network's access points off or on; its name and password stay */
+        put: operations["stageWiFiGuestEnabled"];
+        /**
+         * Stage a guest network on every radio (or the given ones): internet only, no home devices, no panel
+         * @description Does not apply it. 409 when there is a guest network already (the panel's own or one made by hand), when other changes wait in the draft, or while an apply awaits confirmation. May renumber the home network's IPv6 once to leave room for the guests; the draft then says so in a row of its own.
+         */
+        post: operations["stageWiFiGuest"];
+        /**
+         * Stage removing the panel's guest network
+         * @description The home network's IPv6 numbering is not changed back: that would change its devices' addresses a second time.
+         */
+        delete: operations["removeWiFiGuest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/wifi/networks/{id}": {
         parameters: {
             query?: never;
@@ -1164,6 +1189,20 @@ export interface components {
             output: string;
             role?: string;
         };
+        GuestConfig: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/GuestConfig.json
+             */
+            readonly $schema?: string;
+            password: string;
+            /** @description Radio ids from GET /wifi; none means every radio */
+            radios?: string[] | null;
+            /** @enum {string} */
+            security?: "wpa2" | "wpa2-wpa3" | "";
+            ssid: string;
+        };
         HandoutConfig: {
             /**
              * Format: uri
@@ -1509,6 +1548,15 @@ export interface components {
             /** @description Two-letter country code, e.g. RU */
             country: string;
         };
+        StageGuestEnabledInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/StageGuestEnabledInputBody.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+        };
         StaticRoute: {
             active: boolean;
             enabled: boolean;
@@ -1623,6 +1671,17 @@ export interface components {
             channel: number;
             radar?: boolean;
         };
+        WiFiGuest: {
+            /** @enum {string} */
+            blocked?: "shared-zone" | "open-rule" | "guest-rule" | "no-uplink" | "no-nat" | "split-uplink" | "no-dhcp" | "weakened" | "unchecked";
+            blockedBy?: string;
+            ipv6: boolean;
+            network?: string;
+            onAir: boolean;
+            renumbersHome: boolean;
+            /** @enum {string} */
+            state: "none" | "on" | "off" | "foreign";
+        };
         WiFiHere: {
             band?: string;
             /** @enum {string} */
@@ -1632,11 +1691,12 @@ export interface components {
         WiFiNetwork: {
             /** Format: int64 */
             devices: number;
+            enabled: boolean;
             hasPassword: boolean;
             /** @description Stable name of the network on the device */
             id: string;
             /** @enum {string} */
-            kind: "main" | "other";
+            kind: "main" | "guest" | "other";
             radios: string[] | null;
             /** @enum {string} */
             security: "wpa2" | "wpa2-wpa3" | "wpa3" | "open" | "other";
@@ -1678,6 +1738,7 @@ export interface components {
              */
             readonly $schema?: string;
             country: string;
+            guest?: components["schemas"]["WiFiGuest"];
             here?: components["schemas"]["WiFiHere"];
             networks: components["schemas"]["WiFiNetwork"][] | null;
             radios: components["schemas"]["WiFiRadio"][] | null;
@@ -3593,6 +3654,263 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageWiFiGuestEnabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StageGuestEnabledInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    stageWiFiGuest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removeWiFiGuest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
